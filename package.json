@@ -1,0 +1,162 @@
+{
+  "name": "vscode-omni-viewer",
+  "displayName": "Omni Viewer - Audio, Image, Video Viewer",
+  "description": "A comprehensive viewer extension for audio, image, and video files in VSCode/Cursor",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:omni-viewer.openAudioViewer",
+    "onCommand:omni-viewer.openImageViewer",
+    "onCommand:omni-viewer.openVideoViewer"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "omni-viewer.openAudioViewer",
+        "title": "Open Audio Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openImageViewer",
+        "title": "Open Image Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openVideoViewer",
+        "title": "Open Video Viewer",
+        "category": "Omni Viewer"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "omni-viewer.openAudioViewer",
+          "group": "navigation",
+          "when": "resourceExtname =~ /\\.(mp3|wav|ogg|flac|aac|m4a)$/i"
+        },
+        {
+          "command": "omni-viewer.openImageViewer",
+          "group": "navigation",
+          "when": "resourceExtname =~ /\\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i"
+        },
+        {
+          "command": "omni-viewer.openVideoViewer",
+          "group": "navigation",
+          "when": "resourceExtname =~ /\\.(mp4|avi|mov|wmv|flv|webm|mkv)$/i"
+        }
+      ]
+    },
+    "customEditors": [
+      {
+        "viewType": "omni-viewer.audioViewer",
+        "displayName": "Audio Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.mp3"
+          },
+          {
+            "filenamePattern": "*.wav"
+          },
+          {
+            "filenamePattern": "*.ogg"
+          },
+          {
+            "filenamePattern": "*.flac"
+          },
+          {
+            "filenamePattern": "*.aac"
+          },
+          {
+            "filenamePattern": "*.m4a"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "omni-viewer.imageViewer",
+        "displayName": "Image Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.jpg"
+          },
+          {
+            "filenamePattern": "*.jpeg"
+          },
+          {
+            "filenamePattern": "*.png"
+          },
+          {
+            "filenamePattern": "*.gif"
+          },
+          {
+            "filenamePattern": "*.bmp"
+          },
+          {
+            "filenamePattern": "*.webp"
+          },
+          {
+            "filenamePattern": "*.svg"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "omni-viewer.videoViewer",
+        "displayName": "Video Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.mp4"
+          },
+          {
+            "filenamePattern": "*.avi"
+          },
+          {
+            "filenamePattern": "*.mov"
+          },
+          {
+            "filenamePattern": "*.wmv"
+          },
+          {
+            "filenamePattern": "*.flv"
+          },
+          {
+            "filenamePattern": "*.webm"
+          },
+          {
+            "filenamePattern": "*.mkv"
+          }
+        ],
+        "priority": "default"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/glob": "^8.0.0",
+    "@types/mocha": "^10.0.1",
+    "@types/node": "16.x",
+    "@typescript-eslint/eslint-plugin": "^6.4.0",
+    "@typescript-eslint/parser": "^6.4.0",
+    "eslint": "^8.47.0",
+    "glob": "^10.3.3",
+    "mocha": "^10.2.0",
+    "typescript": "^5.1.6"
+  },
+  "dependencies": {
+    "wavesurfer.js": "^7.4.6"
+  }
+}
