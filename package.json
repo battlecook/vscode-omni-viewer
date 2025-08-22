@@ -1,57 +1,17 @@
 {
   "name": "vscode-omni-viewer",
-  "displayName": "Omni Viewer - Audio, Image, Video Viewer",
-  "description": "A comprehensive viewer extension for audio, image, and video files in VSCode/Cursor",
-  "version": "0.1.0",
+  "displayName": "VSCode Omni Viewer",
+  "description": "A VSCode extension for viewing audio, video, and image files",
+  "version": "0.0.1",
   "engines": {
     "vscode": "^1.74.0"
   },
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onCommand:omni-viewer.openAudioViewer",
-    "onCommand:omni-viewer.openImageViewer",
-    "onCommand:omni-viewer.openVideoViewer"
-  ],
+  "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
-    "commands": [
-      {
-        "command": "omni-viewer.openAudioViewer",
-        "title": "Open Audio Viewer",
-        "category": "Omni Viewer"
-      },
-      {
-        "command": "omni-viewer.openImageViewer",
-        "title": "Open Image Viewer",
-        "category": "Omni Viewer"
-      },
-      {
-        "command": "omni-viewer.openVideoViewer",
-        "title": "Open Video Viewer",
-        "category": "Omni Viewer"
-      }
-    ],
-    "menus": {
-      "explorer/context": [
-        {
-          "command": "omni-viewer.openAudioViewer",
-          "group": "navigation",
-          "when": "resourceExtname =~ /\\.(mp3|wav|ogg|flac|aac|m4a)$/i"
-        },
-        {
-          "command": "omni-viewer.openImageViewer",
-          "group": "navigation",
-          "when": "resourceExtname =~ /\\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i"
-        },
-        {
-          "command": "omni-viewer.openVideoViewer",
-          "group": "navigation",
-          "when": "resourceExtname =~ /\\.(mp4|avi|mov|wmv|flv|webm|mkv)$/i"
-        }
-      ]
-    },
     "customEditors": [
       {
         "viewType": "omni-viewer.audioViewer",
@@ -74,34 +34,6 @@
           },
           {
             "filenamePattern": "*.m4a"
-          }
-        ],
-        "priority": "default"
-      },
-      {
-        "viewType": "omni-viewer.imageViewer",
-        "displayName": "Image Viewer",
-        "selector": [
-          {
-            "filenamePattern": "*.jpg"
-          },
-          {
-            "filenamePattern": "*.jpeg"
-          },
-          {
-            "filenamePattern": "*.png"
-          },
-          {
-            "filenamePattern": "*.gif"
-          },
-          {
-            "filenamePattern": "*.bmp"
-          },
-          {
-            "filenamePattern": "*.webp"
-          },
-          {
-            "filenamePattern": "*.svg"
           }
         ],
         "priority": "default"
@@ -133,6 +65,34 @@
           }
         ],
         "priority": "default"
+      },
+      {
+        "viewType": "omni-viewer.imageViewer",
+        "displayName": "Image Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.jpg"
+          },
+          {
+            "filenamePattern": "*.jpeg"
+          },
+          {
+            "filenamePattern": "*.png"
+          },
+          {
+            "filenamePattern": "*.gif"
+          },
+          {
+            "filenamePattern": "*.bmp"
+          },
+          {
+            "filenamePattern": "*.webp"
+          },
+          {
+            "filenamePattern": "*.svg"
+          }
+        ],
+        "priority": "default"
       }
     ]
   },
@@ -142,21 +102,19 @@
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src --ext ts",
-    "test": "node ./out/test/runTest.js"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "devDependencies": {
-    "@types/vscode": "^1.74.0",
-    "@types/glob": "^8.0.0",
-    "@types/mocha": "^10.0.1",
+    "@types/jest": "^29.5.14",
     "@types/node": "16.x",
-    "@typescript-eslint/eslint-plugin": "^6.4.0",
-    "@typescript-eslint/parser": "^6.4.0",
-    "eslint": "^8.47.0",
-    "glob": "^10.3.3",
-    "mocha": "^10.2.0",
-    "typescript": "^5.1.6"
-  },
-  "dependencies": {
-    "wavesurfer.js": "^7.4.6"
+    "@types/vscode": "^1.74.0",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "eslint": "^8.39.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.0.4"
   }
 }

@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import * as fs from 'fs';
+import { FileUtils } from './utils/fileUtils';
+import { TemplateUtils } from './utils/templateUtils';
+import { MessageHandler } from './utils/messageHandler';
 
 export class VideoViewerProvider implements vscode.CustomReadonlyEditorProvider {
     public static readonly viewType = 'omni-viewer.videoViewer';
@@ -9,8 +11,8 @@ export class VideoViewerProvider implements vscode.CustomReadonlyEditorProvider 
 
     public async openCustomDocument(
         uri: vscode.Uri,
-        openContext: vscode.CustomDocumentOpenContext,
-        token: vscode.CancellationToken
+        _openContext: vscode.CustomDocumentOpenContext,
+        _token: vscode.CancellationToken
     ): Promise<vscode.CustomDocument> {
         return { uri, dispose: () => {} };
     }
@@ -20,535 +22,101 @@ export class VideoViewerProvider implements vscode.CustomReadonlyEditorProvider 
         webviewPanel: vscode.WebviewPanel,
         _token: vscode.CancellationToken
     ): Promise<void> {
-        webviewPanel.webview.options = {
-            enableScripts: true,
-            localResourceRoots: [
-                vscode.Uri.file(path.join(this.context.extensionPath, 'media'))
-            ]
-        };
+        // 웹뷰 옵션 설정
+        webviewPanel.webview.options = TemplateUtils.getWebviewOptions(this.context);
 
         const videoUri = document.uri;
         const videoPath = videoUri.fsPath;
         const videoFileName = path.basename(videoPath);
 
-        // Read the video file and convert to base64
-        let videoData: string;
         try {
-            const videoBuffer = await fs.promises.readFile(videoPath);
-            const mimeType = this.getMimeType(videoPath);
-            videoData = `data:${mimeType};base64,${videoBuffer.toString('base64')}`;
+            // 비디오 파일을 data URL로 변환
+            const mimeType = FileUtils.getVideoMimeType(videoPath);
+            const videoData = await FileUtils.fileToDataUrl(videoPath, mimeType);
+
+            // HTML 템플릿 로드 및 변수 치환
+            const html = await TemplateUtils.loadTemplate(this.context, 'videoViewer.html', {
+                fileName: videoFileName,
+                videoSrc: videoData
+            });
+
+            // 웹뷰에 HTML 설정
+            webviewPanel.webview.html = html;
+
+            // 메시지 리스너 설정
+            MessageHandler.setupMessageListener(webviewPanel.webview);
+
         } catch (error) {
-            console.error('Error reading video file:', error);
-            videoData = '';
+            console.error('Error setting up video viewer:', error);
+            
+            // 에러 페이지 표시
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+            webviewPanel.webview.html = this.getErrorHtml(videoFileName, errorMessage);
         }
-
-        // Get the webview content
-        webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, videoData, videoFileName);
-
-        // Handle messages from the webview
-        webviewPanel.webview.onDidReceiveMessage(
-            message => {
-                switch (message.command) {
-                    case 'log':
-                        console.log('Video Viewer:', message.text);
-                        break;
-                    case 'error':
-                        vscode.window.showErrorMessage(`Video Viewer Error: ${message.text}`);
-                        break;
-                }
-            }
-        );
     }
 
-    private getMimeType(filePath: string): string {
-        const ext = path.extname(filePath).toLowerCase();
-        const mimeTypes: { [key: string]: string } = {
-            '.mp4': 'video/mp4',
-            '.avi': 'video/x-msvideo',
-            '.mov': 'video/quicktime',
-            '.wmv': 'video/x-ms-wmv',
-            '.flv': 'video/x-flv',
-            '.webm': 'video/webm',
-            '.mkv': 'video/x-matroska'
-        };
-        return mimeTypes[ext] || 'video/mp4';
-    }
-
-    private getHtmlForWebview(webview: vscode.Webview, videoData: string, fileName: string): string {
-        const videoSrc = videoData;
-        
+    /**
+     * 에러 발생 시 표시할 HTML을 생성합니다.
+     */
+    private getErrorHtml(fileName: string, errorMessage: string): string {
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Viewer - ${fileName}</title>
+    <title>Video Viewer Error - ${fileName}</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: var(--vscode-editor-background);
             color: var(--vscode-editor-foreground);
             height: 100vh;
-            overflow: hidden;
-        }
-
-        .container {
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            padding: 20px;
-        }
-
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid var(--vscode-panel-border);
-        }
-
-        .title {
-            font-size: 18px;
-            font-weight: 600;
-        }
-
-        .controls {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-
-        .control-group {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .control-group label {
-            font-size: 12px;
-            color: var(--vscode-descriptionForeground);
-        }
-
-        .btn {
-            background: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
-            border: none;
-            padding: 6px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            transition: background 0.2s;
-        }
-
-        .btn:hover {
-            background: var(--vscode-button-hoverBackground);
-        }
-
-        .btn:disabled {
-            background: var(--vscode-button-secondaryBackground);
-            color: var(--vscode-button-secondaryForeground);
-            cursor: not-allowed;
-        }
-
-        .btn.active {
-            background: var(--vscode-button-prominentBackground);
-            color: var(--vscode-button-prominentForeground);
-        }
-
-        .main-content {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .video-container {
-            flex: 1;
-            background: var(--vscode-editor-background);
-            border: 1px solid var(--vscode-panel-border);
-            border-radius: 8px;
-            padding: 20px;
-            position: relative;
+            margin: 0;
             display: flex;
             justify-content: center;
             align-items: center;
-        }
-
-        .video-wrapper {
-            position: relative;
-            max-width: 100%;
-            max-height: 100%;
-        }
-
-        #video {
-            max-width: 100%;
-            max-height: 100%;
-            border-radius: 8px;
-            background: #000;
-        }
-
-        .video-info {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: var(--vscode-notifications-background);
-            color: var(--vscode-notifications-foreground);
-            padding: 8px 12px;
-            border-radius: 4px;
-            font-size: 12px;
-            opacity: 0.8;
-        }
-
-        .loading {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100%;
-            font-size: 16px;
-            color: var(--vscode-descriptionForeground);
-        }
-
-        .error {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100%;
-            color: var(--vscode-errorForeground);
             text-align: center;
             padding: 20px;
         }
-
-        .playback-controls {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            padding: 15px;
-            background: var(--vscode-panel-background);
-            border-radius: 8px;
-            border: 1px solid var(--vscode-panel-border);
+        .error-container {
+            max-width: 500px;
         }
-
-        .time-display {
-            font-family: 'Monaco', 'Menlo', monospace;
+        .error-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+        .error-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: var(--vscode-errorForeground);
+        }
+        .error-message {
             font-size: 14px;
-            color: var(--vscode-editor-foreground);
-            min-width: 120px;
+            line-height: 1.5;
+            margin-bottom: 20px;
         }
-
-        .volume-control {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .volume-slider {
-            width: 80px;
-        }
-
-        .speed-control {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .speed-select {
-            background: var(--vscode-input-background);
-            color: var(--vscode-input-foreground);
-            border: 1px solid var(--vscode-input-border);
-            padding: 4px 8px;
+        .file-name {
+            font-family: 'Monaco', 'Menlo', monospace;
+            background: var(--vscode-textBlockQuote-background);
+            padding: 8px 12px;
             border-radius: 4px;
-            font-size: 12px;
-        }
-
-        .loop-controls {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .loop-input {
-            width: 80px;
+            margin: 10px 0;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <div class="title">🎬 ${fileName}</div>
-            <div class="controls">
-                <div class="control-group">
-                    <label>Loop:</label>
-                    <input type="checkbox" id="loopEnabled">
-                </div>
-                <div class="control-group loop-controls">
-                    <label>Start:</label>
-                    <input type="number" id="loopStart" class="loop-input" step="0.1" min="0" placeholder="0">
-                    <label>End:</label>
-                    <input type="number" id="loopEnd" class="loop-input" step="0.1" min="0" placeholder="0">
-                </div>
-            </div>
+    <div class="error-container">
+        <div class="error-icon">🎬</div>
+        <div class="error-title">Failed to load video file</div>
+        <div class="error-message">
+            Unable to load the video file due to an error:
         </div>
-
-        <div class="main-content">
-            <div class="video-container">
-                <div id="loading" class="loading">Loading video...</div>
-                <div id="error" class="error" style="display: none;"></div>
-                <div id="videoWrapper" class="video-wrapper" style="display: none;">
-                    <video id="video" controls>
-                        <source src="${videoSrc}" type="video/mp4">
-                        Your browser does not support the video tag.
-                    </video>
-                    <div id="videoInfo" class="video-info"></div>
-                </div>
-            </div>
-
-            <div class="playback-controls">
-                <button id="playPause" class="btn">▶️ Play</button>
-                <button id="stop" class="btn">⏹️ Stop</button>
-                <button id="skipBackward" class="btn">⏪ -10s</button>
-                <button id="skipForward" class="btn">⏩ +10s</button>
-                
-                <div class="time-display">
-                    <div id="currentTime">00:00</div>
-                    <div id="duration">00:00</div>
-                </div>
-
-                <div class="volume-control">
-                    <label>🔊</label>
-                    <input type="range" id="volume" class="volume-slider" min="0" max="1" step="0.1" value="0.5">
-                </div>
-
-                <div class="speed-control">
-                    <label>Speed:</label>
-                    <select id="playbackSpeed" class="speed-select">
-                        <option value="0.25">0.25x</option>
-                        <option value="0.5">0.5x</option>
-                        <option value="0.75">0.75x</option>
-                        <option value="1" selected>1x</option>
-                        <option value="1.25">1.25x</option>
-                        <option value="1.5">1.5x</option>
-                        <option value="2">2x</option>
-                        <option value="4">4x</option>
-                    </select>
-                </div>
-            </div>
+        <div class="file-name">${fileName}</div>
+        <div class="error-message">
+            ${errorMessage}
         </div>
     </div>
-
-    <script>
-        const vscode = acquireVsCodeApi();
-        
-        // Video state
-        let isPlaying = false;
-        let loopEnabled = false;
-        let loopStart = 0;
-        let loopEnd = 0;
-        let originalDuration = 0;
-        
-        // DOM elements
-        const video = document.getElementById('video');
-        const videoWrapper = document.getElementById('videoWrapper');
-        const loadingDiv = document.getElementById('loading');
-        const errorDiv = document.getElementById('error');
-        const videoInfoDiv = document.getElementById('videoInfo');
-        const playPauseBtn = document.getElementById('playPause');
-        const stopBtn = document.getElementById('stop');
-        const skipBackwardBtn = document.getElementById('skipBackward');
-        const skipForwardBtn = document.getElementById('skipForward');
-        const volumeSlider = document.getElementById('volume');
-        const playbackSpeedSelect = document.getElementById('playbackSpeed');
-        const loopEnabledCheckbox = document.getElementById('loopEnabled');
-        const loopStartInput = document.getElementById('loopStart');
-        const loopEndInput = document.getElementById('loopEnd');
-        const currentTimeDiv = document.getElementById('currentTime');
-        const durationDiv = document.getElementById('duration');
-
-        // Initialize the video viewer
-        function initVideoViewer() {
-            // Set up event listeners
-            setupEventListeners();
-            
-            // Load video
-            video.onloadedmetadata = function() {
-                originalDuration = video.duration;
-                
-                loadingDiv.style.display = 'none';
-                videoWrapper.style.display = 'block';
-                
-                updateDuration();
-                updateVideoInfo();
-                
-                // Set loop end default value
-                if (!loopEndInput.value) {
-                    loopEndInput.placeholder = originalDuration.toFixed(1);
-                }
-                
-                vscode.postMessage({ command: 'log', text: 'Video loaded successfully' });
-            };
-            
-            video.onerror = function() {
-                loadingDiv.style.display = 'none';
-                errorDiv.style.display = 'block';
-                errorDiv.textContent = 'Error loading video file';
-                vscode.postMessage({ command: 'error', text: 'Failed to load video' });
-            };
-        }
-
-        function setupEventListeners() {
-            // Play/Pause button
-            playPauseBtn.addEventListener('click', () => {
-                if (isPlaying) {
-                    video.pause();
-                } else {
-                    video.play();
-                }
-            });
-
-            // Stop button
-            stopBtn.addEventListener('click', () => {
-                video.pause();
-                video.currentTime = 0;
-            });
-
-            // Skip controls
-            skipBackwardBtn.addEventListener('click', () => {
-                video.currentTime = Math.max(0, video.currentTime - 10);
-            });
-
-            skipForwardBtn.addEventListener('click', () => {
-                video.currentTime = Math.min(video.duration, video.currentTime + 10);
-            });
-
-            // Volume control
-            volumeSlider.addEventListener('input', (e) => {
-                const volume = parseFloat(e.target.value);
-                video.volume = volume;
-            });
-
-            // Playback speed control
-            playbackSpeedSelect.addEventListener('change', (e) => {
-                const speed = parseFloat(e.target.value);
-                video.playbackRate = speed;
-            });
-
-            // Loop controls
-            loopEnabledCheckbox.addEventListener('change', (e) => {
-                loopEnabled = e.target.checked;
-            });
-
-            loopStartInput.addEventListener('change', (e) => {
-                loopStart = parseFloat(e.target.value) || 0;
-            });
-
-            loopEndInput.addEventListener('change', (e) => {
-                loopEnd = parseFloat(e.target.value) || 0;
-            });
-
-            // Video events
-            video.addEventListener('play', () => {
-                isPlaying = true;
-                playPauseBtn.textContent = '⏸️ Pause';
-            });
-
-            video.addEventListener('pause', () => {
-                isPlaying = false;
-                playPauseBtn.textContent = '▶️ Play';
-            });
-
-            video.addEventListener('ended', () => {
-                if (loopEnabled && loopEnd > loopStart) {
-                    // Loop playback
-                    setTimeout(() => {
-                        video.currentTime = loopStart;
-                        video.play();
-                    }, 100);
-                } else {
-                    isPlaying = false;
-                    playPauseBtn.textContent = '▶️ Play';
-                }
-            });
-
-            video.addEventListener('timeupdate', () => {
-                updateCurrentTime();
-                
-                // Check for loop end
-                if (loopEnabled && loopEnd > loopStart && video.currentTime >= loopEnd) {
-                    video.currentTime = loopStart;
-                }
-            });
-
-            video.addEventListener('loadeddata', () => {
-                updateVideoInfo();
-            });
-
-            // Keyboard shortcuts
-            document.addEventListener('keydown', (e) => {
-                switch(e.key) {
-                    case ' ':
-                        e.preventDefault();
-                        playPauseBtn.click();
-                        break;
-                    case 'ArrowLeft':
-                        e.preventDefault();
-                        skipBackwardBtn.click();
-                        break;
-                    case 'ArrowRight':
-                        e.preventDefault();
-                        skipForwardBtn.click();
-                        break;
-                    case 'Home':
-                        e.preventDefault();
-                        video.currentTime = 0;
-                        break;
-                    case 'End':
-                        e.preventDefault();
-                        video.currentTime = video.duration;
-                        break;
-                }
-            });
-        }
-
-        function updateCurrentTime() {
-            const currentTime = video.currentTime;
-            const minutes = Math.floor(currentTime / 60);
-            const seconds = Math.floor(currentTime % 60);
-            currentTimeDiv.textContent = \`\${minutes.toString().padStart(2, '0')}:\${seconds.toString().padStart(2, '0')}\`;
-        }
-
-        function updateDuration() {
-            const duration = video.duration;
-            if (duration && !isNaN(duration)) {
-                const minutes = Math.floor(duration / 60);
-                const seconds = Math.floor(duration % 60);
-                durationDiv.textContent = \`\${minutes.toString().padStart(2, '0')}:\${seconds.toString().padStart(2, '0')}\`;
-            }
-        }
-
-        function updateVideoInfo() {
-            const width = video.videoWidth;
-            const height = video.videoHeight;
-            const duration = video.duration;
-            
-            if (width && height && duration) {
-                const minutes = Math.floor(duration / 60);
-                const seconds = Math.floor(duration % 60);
-                videoInfoDiv.textContent = \`\${width}×\${height} | \${minutes}:\${seconds.toString().padStart(2, '0')}\`;
-            }
-        }
-
-        // Initialize when page loads
-        document.addEventListener('DOMContentLoaded', initVideoViewer);
-
-        // Log to VSCode console
-        vscode.postMessage({ command: 'log', text: 'Video viewer initialized' });
-    </script>
 </body>
 </html>`;
     }

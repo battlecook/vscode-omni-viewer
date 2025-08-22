@@ -180,7 +180,6 @@ npm run vscode:prepublish  # Production build
 - [ ] Plugin system for additional formats
 
 ### Known Issues
-- Spectrogram feature temporarily disabled due to WaveSurfer.js v7 compatibility
 - Large file handling optimization needed
 - Mobile device support improvements
 
