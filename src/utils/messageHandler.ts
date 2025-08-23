@@ -30,13 +30,6 @@ export class MessageHandler {
     }
 
     /**
-     * 웹뷰에 메시지를 보냅니다.
-     */
-    public static postMessage(webview: vscode.Webview, message: WebviewMessage): void {
-        webview.postMessage(message);
-    }
-
-    /**
      * 웹뷰 메시지 리스너를 설정합니다.
      */
     public static setupMessageListener(

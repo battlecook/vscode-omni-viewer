@@ -30,13 +30,6 @@ export class TemplateUtils {
     }
 
     /**
-     * 웹뷰에서 사용할 수 있도록 리소스 URI를 변환합니다.
-     */
-    public static getWebviewUri(context: vscode.ExtensionContext, webview: vscode.Webview, filePath: string): vscode.Uri {
-        return webview.asWebviewUri(vscode.Uri.file(filePath));
-    }
-
-    /**
      * 웹뷰 옵션을 설정합니다.
      */
     public static getWebviewOptions(context: vscode.ExtensionContext): vscode.WebviewOptions {
