@@ -315,7 +315,7 @@
                     console.log('Initializing audio viewer...');
                     console.log('Audio source length:', audioSrc.length);
                 }
-                
+
                 // Create WaveSurfer instance
                 wavesurfer = WaveSurfer.create({
                     container: '#waveform',
@@ -343,9 +343,9 @@
                 try {
                     spectrogram = wavesurfer.registerPlugin(WaveSurfer.Spectrogram.create({
                         container: '#spectrogram',
-                        fftSamples: 512,
                         labels: true,
-                        frequencyMax: 22050
+                        windowFunc: 'hann',
+                        splitChannels: true
                     }));
                     if (typeof vscode !== 'undefined' && vscode.env && vscode.env.uiKind === 1) {
                         console.log('Spectrogram plugin registered successfully');
