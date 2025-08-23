@@ -163,6 +163,65 @@
             color: var(--vscode-editor-foreground);
             min-width: 60px;
         }
+
+        .filter-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px;
+            background: var(--vscode-panel-background);
+            border-radius: 8px;
+            border: 1px solid var(--vscode-panel-border);
+            margin-top: 10px;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .filter-group label {
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+            min-width: 60px;
+        }
+
+        .filter-slider {
+            width: 100px;
+        }
+
+        .filter-value {
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            color: var(--vscode-editor-foreground);
+            min-width: 40px;
+        }
+
+        .filter-presets {
+            display: flex;
+            gap: 5px;
+        }
+
+        .preset-btn {
+            background: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+            border: none;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: background 0.2s;
+        }
+
+        .preset-btn:hover {
+            background: var(--vscode-button-secondaryHoverBackground);
+        }
+
+        .preset-btn.active {
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+        }
     </style>
 </head>
 <body>
@@ -201,6 +260,37 @@
                 <button id="zoomIn" class="btn">🔍+</button>
                 <div id="zoomValue" class="zoom-value">100%</div>
             </div>
+
+            <div class="filter-controls">
+                <div class="filter-group">
+                    <label>Brightness:</label>
+                    <input type="range" id="brightnessSlider" class="filter-slider" min="0" max="200" value="100" step="5">
+                    <div id="brightnessValue" class="filter-value">100%</div>
+                </div>
+                <div class="filter-group">
+                    <label>Contrast:</label>
+                    <input type="range" id="contrastSlider" class="filter-slider" min="0" max="200" value="100" step="5">
+                    <div id="contrastValue" class="filter-value">100%</div>
+                </div>
+                <div class="filter-group">
+                    <label>Saturation:</label>
+                    <input type="range" id="saturationSlider" class="filter-slider" min="0" max="200" value="100" step="5">
+                    <div id="saturationValue" class="filter-value">100%</div>
+                </div>
+                <div class="filter-group">
+                    <label>Grayscale:</label>
+                    <input type="range" id="grayscaleSlider" class="filter-slider" min="0" max="100" value="0" step="5">
+                    <div id="grayscaleValue" class="filter-value">0%</div>
+                </div>
+                <div class="filter-presets">
+                    <button id="presetNormal" class="preset-btn active">Normal</button>
+                    <button id="presetBright" class="preset-btn">Bright</button>
+                    <button id="presetDark" class="preset-btn">Dark</button>
+                    <button id="presetVintage" class="preset-btn">Vintage</button>
+                    <button id="presetBw" class="preset-btn">B&W</button>
+                    <button id="presetReset" class="preset-btn">Reset</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -214,6 +304,12 @@
         let isFlippedVertical = false;
         let originalWidth = 0;
         let originalHeight = 0;
+        
+        // Filter state
+        let brightness = 100;
+        let contrast = 100;
+        let saturation = 100;
+        let grayscale = 0;
         
         // DOM elements
         const image = document.getElementById('image');
@@ -231,6 +327,24 @@
         const flipVerticalBtn = document.getElementById('flipVertical');
         const resetBtn = document.getElementById('reset');
         const fitToScreenBtn = document.getElementById('fitToScreen');
+        
+        // Filter elements
+        const brightnessSlider = document.getElementById('brightnessSlider');
+        const brightnessValue = document.getElementById('brightnessValue');
+        const contrastSlider = document.getElementById('contrastSlider');
+        const contrastValue = document.getElementById('contrastValue');
+        const saturationSlider = document.getElementById('saturationSlider');
+        const saturationValue = document.getElementById('saturationValue');
+        const grayscaleSlider = document.getElementById('grayscaleSlider');
+        const grayscaleValue = document.getElementById('grayscaleValue');
+        
+        // Preset buttons
+        const presetNormal = document.getElementById('presetNormal');
+        const presetBright = document.getElementById('presetBright');
+        const presetDark = document.getElementById('presetDark');
+        const presetVintage = document.getElementById('presetVintage');
+        const presetBw = document.getElementById('presetBw');
+        const presetReset = document.getElementById('presetReset');
 
         // Initialize the image viewer
         function initImageViewer() {
@@ -278,6 +392,16 @@
                 updateZoom();
             });
 
+            // Mouse wheel zoom
+            imageWrapper.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -1 : 1;
+                const zoomChange = e.ctrlKey ? 10 : 25; // Ctrl+wheel for fine control
+                currentZoom = Math.max(10, Math.min(500, currentZoom + (delta * zoomChange)));
+                zoomSlider.value = currentZoom;
+                updateZoom();
+            });
+
             // Rotation controls
             rotateLeftBtn.addEventListener('click', () => {
                 currentRotation = (currentRotation - 90) % 360;
@@ -308,6 +432,39 @@
             fitToScreenBtn.addEventListener('click', () => {
                 fitToScreen();
             });
+
+            // Filter controls
+            brightnessSlider.addEventListener('input', (e) => {
+                brightness = parseInt(e.target.value);
+                brightnessValue.textContent = brightness + '%';
+                updateFilters();
+            });
+
+            contrastSlider.addEventListener('input', (e) => {
+                contrast = parseInt(e.target.value);
+                contrastValue.textContent = contrast + '%';
+                updateFilters();
+            });
+
+            saturationSlider.addEventListener('input', (e) => {
+                saturation = parseInt(e.target.value);
+                saturationValue.textContent = saturation + '%';
+                updateFilters();
+            });
+
+            grayscaleSlider.addEventListener('input', (e) => {
+                grayscale = parseInt(e.target.value);
+                grayscaleValue.textContent = grayscale + '%';
+                updateFilters();
+            });
+
+            // Preset buttons
+            presetNormal.addEventListener('click', () => applyPreset('normal'));
+            presetBright.addEventListener('click', () => applyPreset('bright'));
+            presetDark.addEventListener('click', () => applyPreset('dark'));
+            presetVintage.addEventListener('click', () => applyPreset('vintage'));
+            presetBw.addEventListener('click', () => applyPreset('bw'));
+            presetReset.addEventListener('click', () => applyPreset('reset'));
 
             // Keyboard shortcuts
             document.addEventListener('keydown', (e) => {
@@ -355,6 +512,55 @@
             image.style.transform = `scale(${scale * flipH}, ${scale * flipV}) rotate(${rotation}deg)`;
         }
 
+        function updateFilters() {
+            const filterString = `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%) grayscale(${grayscale}%)`;
+            image.style.filter = filterString;
+        }
+
+        function applyPreset(preset) {
+            // Remove active class from all preset buttons
+            document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
+            
+            switch(preset) {
+                case 'normal':
+                    brightness = 100; contrast = 100; saturation = 100; grayscale = 0;
+                    presetNormal.classList.add('active');
+                    break;
+                case 'bright':
+                    brightness = 130; contrast = 110; saturation = 100; grayscale = 0;
+                    presetBright.classList.add('active');
+                    break;
+                case 'dark':
+                    brightness = 70; contrast = 120; saturation = 100; grayscale = 0;
+                    presetDark.classList.add('active');
+                    break;
+                case 'vintage':
+                    brightness = 110; contrast = 90; saturation = 70; grayscale = 10;
+                    presetVintage.classList.add('active');
+                    break;
+                case 'bw':
+                    brightness = 100; contrast = 120; saturation = 0; grayscale = 100;
+                    presetBw.classList.add('active');
+                    break;
+                case 'reset':
+                    brightness = 100; contrast = 100; saturation = 100; grayscale = 0;
+                    presetReset.classList.add('active');
+                    break;
+            }
+            
+            // Update sliders and values
+            brightnessSlider.value = brightness;
+            brightnessValue.textContent = brightness + '%';
+            contrastSlider.value = contrast;
+            contrastValue.textContent = contrast + '%';
+            saturationSlider.value = saturation;
+            saturationValue.textContent = saturation + '%';
+            grayscaleSlider.value = grayscale;
+            grayscaleValue.textContent = grayscale + '%';
+            
+            updateFilters();
+        }
+
         function updateImageInfo() {
             const displayWidth = Math.round(originalWidth * currentZoom / 100);
             const displayHeight = Math.round(originalHeight * currentZoom / 100);
@@ -371,6 +577,9 @@
             zoomSlider.value = currentZoom;
             updateZoom();
             updateImageInfo();
+            
+            // Reset filters
+            applyPreset('reset');
         }
 
         function fitToScreen() {

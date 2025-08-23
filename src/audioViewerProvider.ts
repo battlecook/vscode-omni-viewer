@@ -70,7 +70,6 @@ export class AudioViewerProvider implements vscode.CustomReadonlyEditorProvider 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: var(--vscode-editor-background);
             color: var(--vscode-editor-foreground);
-            height: 100vh;
             margin: 0;
             display: flex;
             justify-content: center;

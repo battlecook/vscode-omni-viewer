@@ -110,15 +110,12 @@
 
         #waveform {
             width: 100%;
-            height: 200px;
             background: var(--vscode-editor-background);
         }
 
         #spectrogram {
             width: 100%;
-            height: 200px;
             background: var(--vscode-editor-background);
-            margin-top: 0;
             border-radius: 4px;
             overflow: hidden;
             position: relative;
@@ -126,7 +123,6 @@
 
         #spectrogram canvas {
             width: 100% !important;
-            height: 200px !important;
             border-radius: 4px;
             display: block;
         }
@@ -329,7 +325,6 @@
                     barWidth: 2,
                     barRadius: 3,
                     cursorWidth: 1,
-                    height: 200,
                     barGap: 3,
                     responsive: true,
                     normalize: true,
@@ -348,7 +343,6 @@
                 try {
                     spectrogram = wavesurfer.registerPlugin(WaveSurfer.Spectrogram.create({
                         container: '#spectrogram',
-                        height: 200,
                         fftSamples: 512,
                         labels: true,
                         frequencyMax: 22050
