@@ -108,6 +108,14 @@
             position: relative;
         }
 
+        #timeline {
+            width: 100%;
+            background: var(--vscode-editor-background);
+            margin-bottom: 10px;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
         #waveform {
             width: 100%;
             background: var(--vscode-editor-background);
@@ -247,6 +255,7 @@
             <div class="waveform-container">
                 <div id="loading" class="loading">Loading audio file...</div>
                 <div id="error" class="error" style="display: none;"></div>
+                <div id="timeline"></div>
                 <div id="waveform"></div>
                 <div id="spectrogram" style="display: none;"></div>
                 <div id="status" class="status"></div>
@@ -274,6 +283,8 @@
 
     <script src="https://unpkg.com/wavesurfer.js@7"></script>
     <script src="https://unpkg.com/wavesurfer.js@7/dist/plugins/spectrogram.min.js"></script>
+    <script src="https://unpkg.com/wavesurfer.js@7/dist/plugins/timeline.min.js"></script>
+    <script src="../utils/timelineUtils.ts"></script>
     <script>
         const vscode = acquireVsCodeApi();
         
@@ -283,6 +294,7 @@
         // Initialize WaveSurfer
         let wavesurfer;
         let spectrogram;
+        let timeline;
         let isPlaying = false;
         let loopEnabled = false;
         let loopStart = 0;
@@ -354,14 +366,63 @@
                     console.warn('Failed to register spectrogram plugin:', error);
                     spectrogram = null;
                 }
-                
-                wavesurfer.on('ready', () => {
-                    if (typeof vscode !== 'undefined' && vscode.env && vscode.env.uiKind === 1) {
-                        console.log('Audio loaded and ready to play');
+
+                // Calculate timeline intervals based on duration
+                const getTimelineIntervals = (durationSec) => {
+                    if (!durationSec || durationSec <= 0) {
+                        return { timeInterval: 1, primaryLabelInterval: 5, secondaryLabelInterval: 1 }
                     }
-                    showStatus('Audio ready to play');
-                    updateDuration();
-                });
+
+                    const timelineEl = document.getElementById('timeline')
+                    const containerWidth = timelineEl?.offsetWidth || 1000
+                    const pixelsPerSecond = containerWidth / durationSec
+
+                    const minTickPixels = 100
+                    const niceSteps = [
+                        0.5, 1, 2, 5, 10, 15, 30,
+                        60, 120, 300, 600, 900, 1800, 3600
+                    ]
+
+                    let chosenStep = niceSteps[niceSteps.length - 1]
+                    for (const step of niceSteps) {
+                        if (step * pixelsPerSecond >= minTickPixels) {
+                            chosenStep = step
+                            break
+                        }
+                    }
+
+                    const primary = chosenStep * 5
+                    const secondary = chosenStep
+
+                    return {
+                        timeInterval: chosenStep,
+                        primaryLabelInterval: primary,
+                        secondaryLabelInterval: secondary,
+                    }
+                };
+
+                const intervals = getTimelineIntervals(wavesurfer.getDuration());
+                // Register timeline plugin
+                try {
+                    timeline = wavesurfer.registerPlugin(WaveSurfer.Timeline.create({
+                        container: '#timeline',
+                        formatTimeCallback: (seconds) => {
+                            const minutes = Math.floor(seconds / 60);
+                            const remainingSeconds = Math.floor(seconds % 60);
+                            const milliseconds = Math.floor((seconds % 1) * 1000);
+                            return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
+                        },
+                        timeInterval: intervals.timeInterval,
+                        primaryLabelInterval: intervals.primaryLabelInterval,
+                        secondaryLabelInterval: intervals.secondaryLabelInterval
+                    }));
+                    if (typeof vscode !== 'undefined' && vscode.env && vscode.env.uiKind === 1) {
+                        console.log('Timeline plugin registered successfully');
+                    }
+                } catch (error) {
+                    console.warn('Failed to register timeline plugin:', error);
+                    timeline = null;
+                }
                 
                 // Hide loading, show content
                 loadingDiv.style.display = 'none';
