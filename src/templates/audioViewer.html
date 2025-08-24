@@ -253,7 +253,12 @@
 
         <div class="main-content">
             <div class="waveform-container">
-                <div id="loading" class="loading">Loading audio file...</div>
+                <div id="loading" class="loading">
+                    <div>Loading audio file...</div>
+                    <div style="font-size: 12px; margin-top: 10px; color: var(--vscode-descriptionForeground);">
+                        Preloading audio file...
+                    </div>
+                </div>
                 <div id="error" class="error" style="display: none;"></div>
                 <div id="timeline"></div>
                 <div id="waveform"></div>
@@ -284,7 +289,6 @@
     <script src="https://unpkg.com/wavesurfer.js@7"></script>
     <script src="https://unpkg.com/wavesurfer.js@7/dist/plugins/spectrogram.min.js"></script>
     <script src="https://unpkg.com/wavesurfer.js@7/dist/plugins/timeline.min.js"></script>
-    <script src="../utils/timelineUtils.ts"></script>
     <script>
         const vscode = acquireVsCodeApi();
         
@@ -299,6 +303,8 @@
         let loopEnabled = false;
         let loopStart = 0;
         let loopEnd = 0;
+        let isSetupComplete = false; // 설정 완료 플래그
+        let audioContextInitialized = false; // AudioContext 초기화 상태
         
         // DOM elements
         const playPauseBtn = document.getElementById('playPause');
@@ -318,6 +324,72 @@
         const waveformDiv = document.getElementById('waveform');
         const spectrogramDiv = document.getElementById('spectrogram');
         const statusDiv = document.getElementById('status');
+
+        // AudioContext 초기화 함수
+        async function initializeAudioContext() {
+            if (audioContextInitialized) return;
+            
+            try {
+                // AudioContext 생성 시도
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // AudioContext가 suspended 상태라면 resume 시도
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+                
+                audioContextInitialized = true;
+                console.log('AudioContext initialized successfully');
+                showStatus('AudioContext initialized');
+                
+            } catch (error) {
+                console.error('Failed to initialize AudioContext:', error);
+                showStatus('AudioContext initialization failed: ' + error.message);
+            }
+        }
+
+        // WaveSurfer의 AudioContext 가져오기 함수
+        function getWaveSurferAudioContext() {
+            try {
+                // WaveSurfer가 초기화되었는지 확인
+                if (!wavesurfer) {
+                    console.log('WaveSurfer not initialized yet');
+                    return null;
+                }
+                
+                // backend가 존재하는지 확인
+                if (!wavesurfer.backend) {
+                    console.log('WaveSurfer backend not available');
+                    return null;
+                }
+                
+                // audioContext가 존재하는지 확인
+                if (!wavesurfer.backend.audioContext) {
+                    console.log('WaveSurfer audioContext not available');
+                    return null;
+                }
+                
+                return wavesurfer.backend.audioContext;
+            } catch (error) {
+                console.error('Error getting WaveSurfer AudioContext:', error);
+                return null;
+            }
+        }
+
+        // AudioContext 상태 확인 함수
+        function checkAudioContextState() {
+            const audioContext = getWaveSurferAudioContext();
+            if (audioContext) {
+                console.log('AudioContext state:', audioContext.state);
+                console.log('AudioContext sample rate:', audioContext.sampleRate);
+                showStatus(`AudioContext state: ${audioContext.state}`);
+                return audioContext.state;
+            } else {
+                console.log('No AudioContext available');
+                showStatus('AudioContext not available');
+                return null;
+            }
+        }
 
         // Initialize the audio viewer
         async function initAudioViewer() {
@@ -339,8 +411,13 @@
                     cursorWidth: 1,
                     barGap: 3,
                     responsive: true,
+                    sampleRate: 44100,
                     normalize: true,
-                    backend: 'WebAudio'
+                    backend: 'WebAudio',
+                    autoplay: false, // 자동 재생 비활성화
+                    mediaControls: false,
+                    hideScrollbar: false,
+                    interact: true
                 });
 
                 // Development mode logging only
@@ -348,24 +425,113 @@
                     console.log('WaveSurfer instance created, loading audio...');
                 }
                 
-                // Load audio file
-                await wavesurfer.load(audioSrc);
-                
-                // Register spectrogram plugin after audio is loaded
-                try {
-                    spectrogram = wavesurfer.registerPlugin(WaveSurfer.Spectrogram.create({
-                        container: '#spectrogram',
-                        labels: true,
-                        windowFunc: 'hann',
-                        splitChannels: true
-                    }));
-                    if (typeof vscode !== 'undefined' && vscode.env && vscode.env.uiKind === 1) {
-                        console.log('Spectrogram plugin registered successfully');
+                // 오디오 로드 함수
+                const loadAudio = async () => {
+                    try {
+                        isSetupComplete = false; // 설정 완료 플래그 리셋
+                        console.log('Starting audio load...');
+                        showStatus('Loading audio...');
+                        await wavesurfer.load(audioSrc);
+                        console.log('Audio loaded successfully');
+                        showStatus('Audio loaded successfully');
+                        
+                        // backend가 준비될 때까지 잠시 대기
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        
+                        // AudioContext 상태 확인
+                        checkAudioContextState();
+                        
+                    } catch (error) {
+                        console.error('Error loading audio:', error);
+                        showStatus('Error loading audio: ' + error.message);
+                        throw error;
                     }
-                } catch (error) {
-                    console.warn('Failed to register spectrogram plugin:', error);
-                    spectrogram = null;
-                }
+                };
+
+                // 오디오 파일을 미리 로드하고 AudioContext는 사용자 상호작용 시 초기화
+                const preloadAudio = async () => {
+                    try {
+                        console.log('Preloading audio file...');
+                        showStatus('Preloading audio file...');
+                        
+                        // AudioContext 초기화 없이 오디오 로드 시도
+                        await loadAudio();
+                        
+                        // 로딩 완료 후 사용자 상호작용 대기
+                        showStatus('Audio loaded. Click or press a key to play.');
+                        
+                    } catch (error) {
+                        console.warn('Preload failed:', error);
+                        showStatus('Preload failed: ' + error.message);
+                        
+                        // 실패 시 사용자 상호작용 대기
+                        setupUserInteractionHandler();
+                    }
+                };
+
+                // 사용자 상호작용 핸들러 설정
+                const setupUserInteractionHandler = () => {
+                    const handleUserInteraction = async () => {
+                        document.removeEventListener('click', handleUserInteraction);
+                        document.removeEventListener('keydown', handleUserInteraction);
+                        document.removeEventListener('touchstart', handleUserInteraction);
+                        
+                        console.log('User interaction detected, initializing AudioContext...');
+                        showStatus('User interaction detected, initializing AudioContext...');
+                        
+                        try {
+                            await initializeAudioContext();
+                            showStatus('AudioContext initialized. Ready to play.');
+                        } catch (error) {
+                            console.error('AudioContext initialization failed:', error);
+                            showStatus('AudioContext initialization failed: ' + error.message);
+                        }
+                    };
+
+                    document.addEventListener('click', handleUserInteraction);
+                    document.addEventListener('keydown', handleUserInteraction);
+                    document.addEventListener('touchstart', handleUserInteraction);
+                };
+
+                // 페이지 로드 후 오디오 미리 로드
+                preloadAudio();
+                
+                // 오디오 로드 완료 후 스펙트로그램 등록을 위한 함수
+                const setupSpectrogram = async () => {
+                    // 기존 스펙트로그램 플러그인이 있다면 제거
+                    if (spectrogram) {
+                        try {
+                            wavesurfer.unregisterPlugin(spectrogram);
+                            spectrogram = null;
+                        } catch (error) {
+                            console.warn('Error removing existing spectrogram plugin:', error);
+                        }
+                    }
+                    
+                    // 스펙트로그램 컨테이너 초기화
+                    const spectrogramContainer = document.getElementById('spectrogram');
+                    if (spectrogramContainer) {
+                        spectrogramContainer.innerHTML = '';
+                    }
+                    
+                    try {
+                        spectrogram = wavesurfer.registerPlugin(WaveSurfer.Spectrogram.create({
+                            container: '#spectrogram',
+                            labels: true,
+                            windowFunc: 'hann',
+                            scale: 'linear',
+                            splitChannels: false,
+                            fftSize: 4096, // 더 큰 FFT 크기로 주파수 해상도 향상
+                            noverlap: 2048, // 오버랩 증가
+                        }));
+                        if (typeof vscode !== 'undefined' && vscode.env && vscode.env.uiKind === 1) {
+                            console.log('Spectrogram plugin registered successfully');
+                        }
+                    } catch (error) {
+                        console.warn('Failed to register spectrogram plugin:', error);
+                        spectrogram = null;
+                    }
+                };
 
                 // Calculate timeline intervals based on duration
                 const getTimelineIntervals = (durationSec) => {
@@ -401,40 +567,85 @@
                     }
                 };
 
-                const intervals = getTimelineIntervals(wavesurfer.getDuration());
-                // Register timeline plugin
-                try {
-                    timeline = wavesurfer.registerPlugin(WaveSurfer.Timeline.create({
-                        container: '#timeline',
-                        formatTimeCallback: (seconds) => {
-                            const minutes = Math.floor(seconds / 60);
-                            const remainingSeconds = Math.floor(seconds % 60);
-                            const milliseconds = Math.floor((seconds % 1) * 1000);
-                            return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
-                        },
-                        timeInterval: intervals.timeInterval,
-                        primaryLabelInterval: intervals.primaryLabelInterval,
-                        secondaryLabelInterval: intervals.secondaryLabelInterval
-                    }));
-                    if (typeof vscode !== 'undefined' && vscode.env && vscode.env.uiKind === 1) {
-                        console.log('Timeline plugin registered successfully');
+                // 오디오 로드 완료 후 모든 설정을 처리하는 통합 함수
+                const setupAfterDecode = async () => {
+                    if (isSetupComplete) return; // 이미 설정 완료된 경우 중복 실행 방지
+                    
+                    isSetupComplete = true;
+                    
+                    // 스펙트로그램 설정
+                    await setupSpectrogram();
+                    
+                    // 기존 타임라인 플러그인이 있다면 제거
+                    if (timeline) {
+                        try {
+                            wavesurfer.unregisterPlugin(timeline);
+                            timeline = null;
+                        } catch (error) {
+                            console.warn('Error removing existing timeline plugin:', error);
+                        }
                     }
-                } catch (error) {
-                    console.warn('Failed to register timeline plugin:', error);
-                    timeline = null;
-                }
-                
-                // Hide loading, show content
-                loadingDiv.style.display = 'none';
-                waveformDiv.style.display = 'block';
-                
-                // Set up event listeners
-                setupEventListeners();
-                
-                // Update duration display
-                updateDuration();
-                
-                showStatus('Audio loaded successfully');
+                    
+                    // 타임라인 컨테이너 초기화
+                    const timelineContainer = document.getElementById('timeline');
+                    if (timelineContainer) {
+                        timelineContainer.innerHTML = '';
+                    }
+                    
+                    const intervals = getTimelineIntervals(wavesurfer.getDuration());
+                    // Register timeline plugin
+                    try {
+                        timeline = wavesurfer.registerPlugin(WaveSurfer.Timeline.create({
+                            container: '#timeline',
+                            formatTimeCallback: (seconds) => {
+                                const minutes = Math.floor(seconds / 60);
+                                const remainingSeconds = Math.floor(seconds % 60);
+                                const milliseconds = Math.floor((seconds % 1) * 1000);
+                                return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
+                            },
+                            timeInterval: intervals.timeInterval,
+                            primaryLabelInterval: intervals.primaryLabelInterval,
+                            secondaryLabelInterval: intervals.secondaryLabelInterval
+                        }));
+                        if (typeof vscode !== 'undefined' && vscode.env && vscode.env.uiKind === 1) {
+                            console.log('Timeline plugin registered successfully');
+                        }
+                    } catch (error) {
+                        console.warn('Failed to register timeline plugin:', error);
+                        timeline = null;
+                    }
+                    
+                    // Hide loading, show content
+                    loadingDiv.style.display = 'none';
+                    waveformDiv.style.display = 'block';
+                    
+                    // Set up event listeners
+                    setupEventListeners();
+                    
+                    // Update duration display
+                    updateDuration();
+                    
+                    showStatus('Audio loaded successfully');
+                    
+                    // 스펙트로그램 범위 확인
+                    setTimeout(() => {
+                        if (spectrogram) {
+                            try {
+                                // 스펙트로그램의 주파수 범위 정보 출력
+                                if (typeof vscode !== 'undefined' && vscode.env && vscode.env.uiKind === 1) {
+                                    console.log('Spectrogram frequency range check...');
+                                    console.log('Sample rate:', wavesurfer.getDecodedData()?.sampleRate || 'unknown');
+                                    console.log('FFT size:', spectrogram.params?.fftSize || 'unknown');
+                                }
+                            } catch (error) {
+                                console.warn('Error checking spectrogram frequency range:', error);
+                            }
+                        }
+                    }, 1000);
+                };
+
+                // 오디오 로드 완료 이벤트 리스너 (단일)
+                wavesurfer.on('decode', setupAfterDecode);
                 
             } catch (error) {
                 console.error('Error loading audio:', error);
@@ -454,11 +665,49 @@
 
         function setupEventListeners() {
             // Play/Pause button
-            playPauseBtn.addEventListener('click', () => {
-                if (isPlaying) {
-                    wavesurfer.pause();
-                } else {
-                    wavesurfer.play();
+            playPauseBtn.addEventListener('click', async () => {
+                try {
+                    if (isPlaying) {
+                        wavesurfer.pause();
+                    } else {
+                        // WaveSurfer가 준비되었는지 확인
+                        if (!wavesurfer) {
+                            console.log('WaveSurfer not initialized');
+                            showStatus('WaveSurfer not initialized');
+                            return;
+                        }
+                        
+                        // AudioContext 초기화 (사용자 상호작용 시점에서)
+                        if (!audioContextInitialized) {
+                            console.log('Initializing AudioContext on user interaction...');
+                            showStatus('Initializing AudioContext...');
+                            await initializeAudioContext();
+                        }
+                        
+                        // AudioContext가 suspended 상태인지 확인
+                        const audioContext = getWaveSurferAudioContext();
+                        if (audioContext && audioContext.state === 'suspended') {
+                            console.log('AudioContext suspended, resuming...');
+                            showStatus('Resuming AudioContext...');
+                            await audioContext.resume();
+                        }
+                        
+                        // 재생 시도
+                        console.log('Attempting to play audio...');
+                        showStatus('Attempting to play audio...');
+                        await wavesurfer.play();
+                    }
+                } catch (error) {
+                    console.error('Playback error:', error);
+                    showStatus('Playback error: ' + error.message);
+                    
+                    // AudioContext 관련 오류인 경우 재초기화 시도
+                    if (error.message.includes('AudioContext') || error.message.includes('suspended')) {
+                        console.log('Attempting to reinitialize AudioContext...');
+                        showStatus('Attempting to reinitialize AudioContext...');
+                        audioContextInitialized = false;
+                        await initializeAudioContext();
+                    }
                 }
             });
 
@@ -498,11 +747,18 @@
                     case 'spectrogram':
                         waveformDiv.style.display = 'none';
                         spectrogramDiv.style.display = 'block';
-                        // Force spectrogram redraw
+                        // Force spectrogram redraw with better timing
                         if (spectrogram) {
                             setTimeout(() => {
                                 spectrogram.render();
-                            }, 100);
+                                // 추가 렌더링으로 주파수 범위 확정
+                                setTimeout(() => {
+                                    spectrogram.render();
+                                    if (typeof vscode !== 'undefined' && vscode.env && vscode.env.uiKind === 1) {
+                                        console.log('Spectrogram re-rendered for spectrogram view');
+                                    }
+                                }, 200);
+                            }, 50);
                         } else {
                             showStatus('Spectrogram not available');
                         }
@@ -543,7 +799,6 @@
             });
 
             // WaveSurfer events
-
             wavesurfer.on('play', () => {
                 isPlaying = true;
                 playPauseBtn.textContent = '⏸️ Pause';
@@ -595,6 +850,28 @@
                 showStatus('Error: ' + error.message);
                 vscode.postMessage({ command: 'error', text: error.message });
             });
+
+            // AudioContext 초기화를 위한 추가 이벤트
+            wavesurfer.on('ready', () => {
+                console.log('WaveSurfer is ready for playback');
+                showStatus('Ready for playback');
+                
+                // AudioContext 상태 로깅 (안전하게)
+                setTimeout(() => {
+                    checkAudioContextState();
+                }, 100);
+            });
+
+            // 추가 디버깅 이벤트
+            wavesurfer.on('load', () => {
+                console.log('Audio file loaded');
+                showStatus('Audio file loaded');
+            });
+
+            wavesurfer.on('decode', () => {
+                console.log('Audio decoded');
+                showStatus('Audio decoded');
+            });
         }
 
         function updateCurrentTime(currentTime) {
@@ -622,7 +899,7 @@
             statusDiv.classList.add('show');
             setTimeout(() => {
                 statusDiv.classList.remove('show');
-            }, 3000);
+            }, 100);
         }
 
         // Initialize when page loads
