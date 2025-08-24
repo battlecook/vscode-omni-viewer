@@ -179,6 +179,36 @@
             width: 80px;
         }
 
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+            margin-bottom: 15px;
+            padding: 10px;
+            background: var(--vscode-panel-background);
+            border-radius: 6px;
+            border: 1px solid var(--vscode-panel-border);
+        }
+
+        .file-info-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .file-info-label {
+            font-size: 10px;
+            opacity: 0.7;
+        }
+
+        .file-info-value {
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-weight: 500;
+        }
+
         .loop-controls {
             display: flex;
             align-items: center;
@@ -253,6 +283,33 @@
         </div>
 
         <div class="main-content">
+            <div class="file-info" id="fileInfo" style="display: none;">
+                <div class="file-info-item">
+                    <div class="file-info-label">Duration</div>
+                    <div class="file-info-value" id="durationInfo">--:--</div>
+                </div>
+                <div class="file-info-item">
+                    <div class="file-info-label">Sample Rate</div>
+                    <div class="file-info-value" id="sampleRateInfo">--</div>
+                </div>
+                <div class="file-info-item">
+                    <div class="file-info-label">Channels</div>
+                    <div class="file-info-value" id="channelsInfo">--</div>
+                </div>
+                <div class="file-info-item">
+                    <div class="file-info-label">Bit Depth</div>
+                    <div class="file-info-value" id="bitDepthInfo">--</div>
+                </div>
+                <div class="file-info-item">
+                    <div class="file-info-label">File Size</div>
+                    <div class="file-info-value" id="fileSizeInfo">--</div>
+                </div>
+                <div class="file-info-item">
+                    <div class="file-info-label">Format</div>
+                    <div class="file-info-value" id="formatInfo">--</div>
+                </div>
+            </div>
+
             <div class="playback-controls">
                 <button id="playPause" class="btn">▶️</button>
                 <button id="stop" class="btn">⏹️</button>
@@ -320,6 +377,13 @@
         const waveformDiv = document.getElementById('waveform');
         const spectrogramDiv = document.getElementById('spectrogram');
         const statusDiv = document.getElementById('status');
+        const fileInfoDiv = document.getElementById('fileInfo');
+        const durationInfoDiv = document.getElementById('durationInfo');
+        const sampleRateInfoDiv = document.getElementById('sampleRateInfo');
+        const channelsInfoDiv = document.getElementById('channelsInfo');
+        const bitDepthInfoDiv = document.getElementById('bitDepthInfo');
+        const fileSizeInfoDiv = document.getElementById('fileSizeInfo');
+        const formatInfoDiv = document.getElementById('formatInfo');
 
         async function initializeAudioContext() {
             if (audioContextInitialized) return;
@@ -592,8 +656,9 @@
                     // Set up event listeners
                     setupEventListeners();
                     
-                    // Update loop end placeholder
+                    // Update loop end placeholder and file info
                     updateDuration();
+                    updateFileInfo();
                     
                     showStatus('Audio loaded successfully');
                     
@@ -762,19 +827,19 @@
             // WaveSurfer events
             wavesurfer.on('play', () => {
                 isPlaying = true;
-                playPauseBtn.textContent = '⏸️ Pause';
+                playPauseBtn.textContent = '⏸️';
                 showStatus('Playing');
             });
 
             wavesurfer.on('pause', () => {
                 isPlaying = false;
-                playPauseBtn.textContent = '▶️ Play';
+                playPauseBtn.textContent = '▶️';
                 showStatus('Paused');
             });
 
             wavesurfer.on('stop', () => {
                 isPlaying = false;
-                playPauseBtn.textContent = '▶️ Play';
+                playPauseBtn.textContent = '▶️';
                 showStatus('Stopped');
             });
 
@@ -829,6 +894,10 @@
             wavesurfer.on('decode', () => {
                 console.log('Audio decoded');
                 showStatus('Audio decoded');
+                // Update file info after decode
+                setTimeout(() => {
+                    updateFileInfo();
+                }, 100);
             });
         }
 
@@ -843,6 +912,76 @@
                 if (!loopEndInput.value) {
                     loopEndInput.placeholder = duration.toFixed(1);
                 }
+                
+                // Update duration info display
+                const minutes = Math.floor(duration / 60);
+                const seconds = Math.floor(duration % 60);
+                durationInfoDiv.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            }
+        }
+
+        function updateFileInfo() {
+            try {
+                const decodedData = wavesurfer.getDecodedData();
+                if (decodedData) {
+                    // Sample Rate
+                    sampleRateInfoDiv.textContent = `${decodedData.sampleRate} Hz`;
+                    
+                    // Channels
+                    channelsInfoDiv.textContent = decodedData.numberOfChannels;
+                    
+                    // Bit Depth (estimated from data type)
+                    const bitDepth = decodedData.length > 0 ? 
+                        (decodedData instanceof Float32Array ? 32 : 16) : '--';
+                    bitDepthInfoDiv.textContent = bitDepth === '--' ? '--' : `${bitDepth} bit`;
+                    
+                    // Format (extract from data URI or file extension)
+                    let format = 'Unknown';
+                    if (audioSrc.startsWith('data:')) {
+                        // Extract format from data URI
+                        const match = audioSrc.match(/data:([^;]+)/);
+                        if (match) {
+                            const mimeType = match[1];
+                            if (mimeType.includes('mpeg') || mimeType.includes('mp3')) {
+                                format = 'MP3';
+                            } else if (mimeType.includes('wav')) {
+                                format = 'WAV';
+                            } else if (mimeType.includes('flac')) {
+                                format = 'FLAC';
+                            } else if (mimeType.includes('ogg')) {
+                                format = 'OGG';
+                            } else if (mimeType.includes('aac')) {
+                                format = 'AAC';
+                            } else if (mimeType.includes('webm')) {
+                                format = 'WEBM';
+                            } else {
+                                format = mimeType.split('/')[1]?.toUpperCase() || 'Unknown';
+                            }
+                        }
+                    } else {
+                        // Extract from file extension
+                        const extension = audioSrc.split('.').pop()?.toLowerCase();
+                        if (extension === 'mp3') format = 'MP3';
+                        else if (extension === 'wav') format = 'WAV';
+                        else if (extension === 'flac') format = 'FLAC';
+                        else if (extension === 'ogg') format = 'OGG';
+                        else if (extension === 'aac') format = 'AAC';
+                        else if (extension === 'webm') format = 'WEBM';
+                        else format = extension?.toUpperCase() || 'Unknown';
+                    }
+                    formatInfoDiv.textContent = format;
+                    
+                    // File Size (estimated from decoded data)
+                    const estimatedSize = decodedData.length * decodedData.numberOfChannels * 2; // 2 bytes per sample
+                    const sizeInKB = Math.round(estimatedSize / 1024);
+                    const sizeInMB = (estimatedSize / (1024 * 1024)).toFixed(1);
+                    fileSizeInfoDiv.textContent = sizeInMB > 1 ? `${sizeInMB} MB` : `${sizeInKB} KB`;
+                    
+                    // Show file info
+                    fileInfoDiv.style.display = 'flex';
+                }
+            } catch (error) {
+                console.warn('Error updating file info:', error);
             }
         }
 
