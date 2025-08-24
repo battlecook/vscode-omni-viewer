@@ -154,8 +154,9 @@
         .playback-controls {
             display: flex;
             align-items: center;
-            gap: 15px;
-            padding: 15px;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 10px;
             background: var(--vscode-panel-background);
             border-radius: 8px;
             border: 1px solid var(--vscode-panel-border);
@@ -252,6 +253,19 @@
         </div>
 
         <div class="main-content">
+            <div class="playback-controls">
+                <button id="playPause" class="btn">▶️</button>
+                <button id="stop" class="btn">⏹️</button>
+                <button id="zoomIn" class="btn">🔍+</button>
+                <button id="zoomOut" class="btn">🔍-</button>
+                <button id="fitToScreen" class="btn">📐 Fit</button>
+                
+                <div class="volume-control">
+                    <label>🔊</label>
+                    <input type="range" id="volume" class="volume-slider" min="0" max="1" step="0.1" value="0.5">
+                </div>
+            </div>
+
             <div class="waveform-container">
                 <div id="loading" class="loading">
                     <div>Loading audio file...</div>
@@ -264,24 +278,6 @@
                 <div id="waveform"></div>
                 <div id="spectrogram" style="display: none;"></div>
                 <div id="status" class="status"></div>
-            </div>
-
-            <div class="playback-controls">
-                <button id="playPause" class="btn">▶️ Play</button>
-                <button id="stop" class="btn">⏹️ Stop</button>
-                <button id="zoomIn" class="btn">🔍+</button>
-                <button id="zoomOut" class="btn">🔍-</button>
-                <button id="fitToScreen" class="btn">📐 Fit</button>
-                
-                <div class="time-display">
-                    <div id="currentTime">00:00</div>
-                    <div id="duration">00:00</div>
-                </div>
-
-                <div class="volume-control">
-                    <label>🔊</label>
-                    <input type="range" id="volume" class="volume-slider" min="0" max="1" step="0.1" value="0.5">
-                </div>
             </div>
         </div>
     </div>
@@ -303,8 +299,8 @@
         let loopEnabled = false;
         let loopStart = 0;
         let loopEnd = 0;
-        let isSetupComplete = false; // 설정 완료 플래그
-        let audioContextInitialized = false; // AudioContext 초기화 상태
+        let isSetupComplete = false;
+        let audioContextInitialized = false;
         
         // DOM elements
         const playPauseBtn = document.getElementById('playPause');
@@ -317,23 +313,20 @@
         const loopEnabledCheckbox = document.getElementById('loopEnabled');
         const loopStartInput = document.getElementById('loopStart');
         const loopEndInput = document.getElementById('loopEnd');
-        const currentTimeDiv = document.getElementById('currentTime');
-        const durationDiv = document.getElementById('duration');
+        const currentTimeDiv = null; // Removed time display
+        const durationDiv = null; // Removed time display
         const loadingDiv = document.getElementById('loading');
         const errorDiv = document.getElementById('error');
         const waveformDiv = document.getElementById('waveform');
         const spectrogramDiv = document.getElementById('spectrogram');
         const statusDiv = document.getElementById('status');
 
-        // AudioContext 초기화 함수
         async function initializeAudioContext() {
             if (audioContextInitialized) return;
             
             try {
-                // AudioContext 생성 시도
                 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 
-                // AudioContext가 suspended 상태라면 resume 시도
                 if (audioContext.state === 'suspended') {
                     await audioContext.resume();
                 }
@@ -351,19 +344,16 @@
         // WaveSurfer의 AudioContext 가져오기 함수
         function getWaveSurferAudioContext() {
             try {
-                // WaveSurfer가 초기화되었는지 확인
                 if (!wavesurfer) {
                     console.log('WaveSurfer not initialized yet');
                     return null;
                 }
                 
-                // backend가 존재하는지 확인
                 if (!wavesurfer.backend) {
                     console.log('WaveSurfer backend not available');
                     return null;
                 }
                 
-                // audioContext가 존재하는지 확인
                 if (!wavesurfer.backend.audioContext) {
                     console.log('WaveSurfer audioContext not available');
                     return null;
@@ -376,7 +366,6 @@
             }
         }
 
-        // AudioContext 상태 확인 함수
         function checkAudioContextState() {
             const audioContext = getWaveSurferAudioContext();
             if (audioContext) {
@@ -391,16 +380,13 @@
             }
         }
 
-        // Initialize the audio viewer
         async function initAudioViewer() {
             try {
-                // Development mode logging only
                 if (typeof vscode !== 'undefined' && vscode.env && vscode.env.uiKind === 1) { // Web
                     console.log('Initializing audio viewer...');
                     console.log('Audio source length:', audioSrc.length);
                 }
 
-                // Create WaveSurfer instance
                 wavesurfer = WaveSurfer.create({
                     container: '#waveform',
                     waveColor: '#4F4A85',
@@ -414,7 +400,7 @@
                     sampleRate: 44100,
                     normalize: true,
                     backend: 'WebAudio',
-                    autoplay: false, // 자동 재생 비활성화
+                    autoplay: false,
                     mediaControls: false,
                     hideScrollbar: false,
                     interact: true
@@ -425,20 +411,17 @@
                     console.log('WaveSurfer instance created, loading audio...');
                 }
                 
-                // 오디오 로드 함수
                 const loadAudio = async () => {
                     try {
-                        isSetupComplete = false; // 설정 완료 플래그 리셋
+                        isSetupComplete = false;
                         console.log('Starting audio load...');
                         showStatus('Loading audio...');
                         await wavesurfer.load(audioSrc);
                         console.log('Audio loaded successfully');
                         showStatus('Audio loaded successfully');
                         
-                        // backend가 준비될 때까지 잠시 대기
                         await new Promise(resolve => setTimeout(resolve, 100));
                         
-                        // AudioContext 상태 확인
                         checkAudioContextState();
                         
                     } catch (error) {
@@ -448,28 +431,23 @@
                     }
                 };
 
-                // 오디오 파일을 미리 로드하고 AudioContext는 사용자 상호작용 시 초기화
                 const preloadAudio = async () => {
                     try {
                         console.log('Preloading audio file...');
                         showStatus('Preloading audio file...');
                         
-                        // AudioContext 초기화 없이 오디오 로드 시도
                         await loadAudio();
                         
-                        // 로딩 완료 후 사용자 상호작용 대기
                         showStatus('Audio loaded. Click or press a key to play.');
                         
                     } catch (error) {
                         console.warn('Preload failed:', error);
                         showStatus('Preload failed: ' + error.message);
                         
-                        // 실패 시 사용자 상호작용 대기
                         setupUserInteractionHandler();
                     }
                 };
 
-                // 사용자 상호작용 핸들러 설정
                 const setupUserInteractionHandler = () => {
                     const handleUserInteraction = async () => {
                         document.removeEventListener('click', handleUserInteraction);
@@ -493,12 +471,9 @@
                     document.addEventListener('touchstart', handleUserInteraction);
                 };
 
-                // 페이지 로드 후 오디오 미리 로드
                 preloadAudio();
                 
-                // 오디오 로드 완료 후 스펙트로그램 등록을 위한 함수
                 const setupSpectrogram = async () => {
-                    // 기존 스펙트로그램 플러그인이 있다면 제거
                     if (spectrogram) {
                         try {
                             wavesurfer.unregisterPlugin(spectrogram);
@@ -508,7 +483,6 @@
                         }
                     }
                     
-                    // 스펙트로그램 컨테이너 초기화
                     const spectrogramContainer = document.getElementById('spectrogram');
                     if (spectrogramContainer) {
                         spectrogramContainer.innerHTML = '';
@@ -521,8 +495,8 @@
                             windowFunc: 'hann',
                             scale: 'linear',
                             splitChannels: false,
-                            fftSize: 4096, // 더 큰 FFT 크기로 주파수 해상도 향상
-                            noverlap: 2048, // 오버랩 증가
+                            fftSize: 4096,
+                            noverlap: 2048,
                         }));
                         if (typeof vscode !== 'undefined' && vscode.env && vscode.env.uiKind === 1) {
                             console.log('Spectrogram plugin registered successfully');
@@ -567,16 +541,13 @@
                     }
                 };
 
-                // 오디오 로드 완료 후 모든 설정을 처리하는 통합 함수
                 const setupAfterDecode = async () => {
-                    if (isSetupComplete) return; // 이미 설정 완료된 경우 중복 실행 방지
+                    if (isSetupComplete) return;
                     
                     isSetupComplete = true;
                     
-                    // 스펙트로그램 설정
                     await setupSpectrogram();
                     
-                    // 기존 타임라인 플러그인이 있다면 제거
                     if (timeline) {
                         try {
                             wavesurfer.unregisterPlugin(timeline);
@@ -586,7 +557,6 @@
                         }
                     }
                     
-                    // 타임라인 컨테이너 초기화
                     const timelineContainer = document.getElementById('timeline');
                     if (timelineContainer) {
                         timelineContainer.innerHTML = '';
@@ -622,16 +592,14 @@
                     // Set up event listeners
                     setupEventListeners();
                     
-                    // Update duration display
+                    // Update loop end placeholder
                     updateDuration();
                     
                     showStatus('Audio loaded successfully');
                     
-                    // 스펙트로그램 범위 확인
                     setTimeout(() => {
                         if (spectrogram) {
                             try {
-                                // 스펙트로그램의 주파수 범위 정보 출력
                                 if (typeof vscode !== 'undefined' && vscode.env && vscode.env.uiKind === 1) {
                                     console.log('Spectrogram frequency range check...');
                                     console.log('Sample rate:', wavesurfer.getDecodedData()?.sampleRate || 'unknown');
@@ -644,7 +612,6 @@
                     }, 1000);
                 };
 
-                // 오디오 로드 완료 이벤트 리스너 (단일)
                 wavesurfer.on('decode', setupAfterDecode);
                 
             } catch (error) {
@@ -670,21 +637,18 @@
                     if (isPlaying) {
                         wavesurfer.pause();
                     } else {
-                        // WaveSurfer가 준비되었는지 확인
                         if (!wavesurfer) {
                             console.log('WaveSurfer not initialized');
                             showStatus('WaveSurfer not initialized');
                             return;
                         }
                         
-                        // AudioContext 초기화 (사용자 상호작용 시점에서)
                         if (!audioContextInitialized) {
                             console.log('Initializing AudioContext on user interaction...');
                             showStatus('Initializing AudioContext...');
                             await initializeAudioContext();
                         }
                         
-                        // AudioContext가 suspended 상태인지 확인
                         const audioContext = getWaveSurferAudioContext();
                         if (audioContext && audioContext.state === 'suspended') {
                             console.log('AudioContext suspended, resuming...');
@@ -692,7 +656,6 @@
                             await audioContext.resume();
                         }
                         
-                        // 재생 시도
                         console.log('Attempting to play audio...');
                         showStatus('Attempting to play audio...');
                         await wavesurfer.play();
@@ -701,7 +664,6 @@
                     console.error('Playback error:', error);
                     showStatus('Playback error: ' + error.message);
                     
-                    // AudioContext 관련 오류인 경우 재초기화 시도
                     if (error.message.includes('AudioContext') || error.message.includes('suspended')) {
                         console.log('Attempting to reinitialize AudioContext...');
                         showStatus('Attempting to reinitialize AudioContext...');
@@ -751,7 +713,6 @@
                         if (spectrogram) {
                             setTimeout(() => {
                                 spectrogram.render();
-                                // 추가 렌더링으로 주파수 범위 확정
                                 setTimeout(() => {
                                     spectrogram.render();
                                     if (typeof vscode !== 'undefined' && vscode.env && vscode.env.uiKind === 1) {
@@ -851,18 +812,15 @@
                 vscode.postMessage({ command: 'error', text: error.message });
             });
 
-            // AudioContext 초기화를 위한 추가 이벤트
             wavesurfer.on('ready', () => {
                 console.log('WaveSurfer is ready for playback');
                 showStatus('Ready for playback');
                 
-                // AudioContext 상태 로깅 (안전하게)
                 setTimeout(() => {
                     checkAudioContextState();
                 }, 100);
             });
 
-            // 추가 디버깅 이벤트
             wavesurfer.on('load', () => {
                 console.log('Audio file loaded');
                 showStatus('Audio file loaded');
@@ -875,18 +833,12 @@
         }
 
         function updateCurrentTime(currentTime) {
-            const minutes = Math.floor(currentTime / 60);
-            const seconds = Math.floor(currentTime % 60);
-            currentTimeDiv.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            // Time display removed - no longer updating current time display
         }
 
         function updateDuration() {
             const duration = wavesurfer.getDuration();
             if (duration && !isNaN(duration)) {
-                const minutes = Math.floor(duration / 60);
-                const seconds = Math.floor(duration % 60);
-                durationDiv.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-                
                 // Set loop end default value
                 if (!loopEndInput.value) {
                     loopEndInput.placeholder = duration.toFixed(1);
