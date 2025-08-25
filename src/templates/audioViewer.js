@@ -105,35 +105,7 @@ async function initAudioViewer() {
             console.log('Audio source length:', audioSrc.length);
         }
 
-        // Create hover plugin first
-        const hoverPlugin = WaveSurfer.Hover.create({
-            lineColor: '#ff0000',
-            lineWidth: 2,
-            labelBackground: '#555',
-            labelColor: '#fff',
-            labelSize: '11px',
-            labelPreferLeft: false
-        });
-
-        wavesurfer = WaveSurfer.create({
-            container: '#waveform',
-            waveColor: '#4F4A85',
-            progressColor: '#383351',
-            cursorColor: '#fff',
-            barWidth: 2,
-            barRadius: 3,
-            cursorWidth: 1,
-            barGap: 3,
-            responsive: true,
-            sampleRate: 44100,
-            normalize: true,
-            backend: 'WebAudio',
-            autoplay: false,
-            mediaControls: false,
-            hideScrollbar: false,
-            interact: true,
-            plugins: [hoverPlugin]
-        });
+        wavesurfer = WaveSurfer.create();
 
         // Development mode logging only
         if (typeof vscode !== 'undefined' && vscode.env && vscode.env.uiKind === 1) {

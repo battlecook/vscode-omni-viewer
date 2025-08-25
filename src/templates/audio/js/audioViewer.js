@@ -124,13 +124,9 @@ async function initAudioViewer() {
             interact: true,
             plugins: [
                 WaveSurfer.Hover.create({
-                    lineColor: '#ff0000',
                     lineWidth: 2,
-                    labelBackground: '#4F4A85',
+                    labelBackground: '#000000',
                     labelColor: '#fff',
-                    labelSize: '11px',
-                    labelPadding: 4,
-                    showTooltip: true,
                     formatTimeCallback: (seconds) => {
                         const minutes = Math.floor(seconds / 60);
                         const remainingSeconds = Math.floor(seconds % 60);
