@@ -5,8 +5,9 @@ const audioSrc = '{{audioSrc}}';
 
 // Initialize WaveSurfer
 let wavesurfer;
-let spectrogram;
-let timeline;
+let spectrogramPlugin;
+let timelinePlugin;
+let regionsPlugin;
 let isPlaying = false;
 let loopEnabled = false;
 let loopStart = 0;
@@ -205,10 +206,10 @@ async function initAudioViewer() {
         preloadAudio();
         
         const setupSpectrogram = async () => {
-            if (spectrogram) {
+            if (spectrogramPlugin) {
                 try {
-                    wavesurfer.unregisterPlugin(spectrogram);
-                    spectrogram = null;
+                    wavesurfer.unregisterPlugin(spectrogramPlugin);
+                    spectrogramPlugin = null;
                 } catch (error) {
                     console.warn('Error removing existing spectrogram plugin:', error);
                 }
@@ -220,10 +221,9 @@ async function initAudioViewer() {
             }
             
             try {
-                spectrogram = wavesurfer.registerPlugin(WaveSurfer.Spectrogram.create({
+                spectrogramPlugin = wavesurfer.registerPlugin(WaveSurfer.Spectrogram.create({
                     container: '#spectrogram',
                     labels: true,
-                    windowFunc: 'hann',
                     scale: 'linear',
                     splitChannels: false,
                     fftSize: 4096,
@@ -234,7 +234,7 @@ async function initAudioViewer() {
                 }
             } catch (error) {
                 console.warn('Failed to register spectrogram plugin:', error);
-                spectrogram = null;
+                spectrogramPlugin = null;
             }
         };
 
@@ -272,19 +272,57 @@ async function initAudioViewer() {
             }
         };
 
+
+        const setupRegions = async () => {
+            try {
+                regionsPlugin = wavesurfer.registerPlugin(WaveSurfer.Regions.create({}));
+                if (typeof vscode !== 'undefined' && vscode.env && vscode.env.uiKind === 1) {
+                    console.log('Regions plugin registered successfully');
+                }
+            } catch (error) {
+                console.warn('Failed to register regions plugin:', error);
+                regionsPlugin = null;
+            }
+            
+            regionsPlugin.enableDragSelection({
+                color: 'rgba(255, 0, 0, 0.1)',
+            });
+
+            regionsPlugin.on('region-created', (region) => {
+                if (regionsPlugin.getRegions) {
+                  const newRegions = regionsPlugin.getRegions()
+                  newRegions.forEach((existingRegion) => {
+                    if (existingRegion.id !== region.id) {
+                      existingRegion.remove()
+                    }
+                  })
+                }
+              })
+        };
+
         const setupAfterDecode = async () => {
             if (isSetupComplete) return;
             
             isSetupComplete = true;
             
+
             await setupSpectrogram();
             
-            if (timeline) {
+            if (timelinePlugin) {
                 try {
-                    wavesurfer.unregisterPlugin(timeline);
-                    timeline = null;
+                    wavesurfer.unregisterPlugin(timelinePlugin);
+                    timelinePlugin = null;
                 } catch (error) {
                     console.warn('Error removing existing timeline plugin:', error);
+                }
+            }
+
+            if (regionsPlugin) {
+                try {
+                    wavesurfer.unregisterPlugin(regionsPlugin);
+                    regionsPlugin = null;
+                } catch (error) {
+                    console.warn('Error removing existing regions plugin:', error);
                 }
             }
             
@@ -296,7 +334,7 @@ async function initAudioViewer() {
             const intervals = getTimelineIntervals(wavesurfer.getDuration());
             // Register timeline plugin
             try {
-                timeline = wavesurfer.registerPlugin(WaveSurfer.Timeline.create({
+                timelinePlugin = wavesurfer.registerPlugin(WaveSurfer.Timeline.create({
                     container: '#timeline',
                     formatTimeCallback: (seconds) => {
                         const minutes = Math.floor(seconds / 60);
@@ -313,18 +351,20 @@ async function initAudioViewer() {
                 }
             } catch (error) {
                 console.warn('Failed to register timeline plugin:', error);
-                timeline = null;
+                timelinePlugin = null;
             }
-            
+
+            await setupRegions();
+
             // Hide loading, show content
             loadingDiv.style.display = 'none';
             waveformDiv.style.display = 'block';
             spectrogramDiv.style.display = 'block';
             
             // Force spectrogram redraw for both view
-            if (spectrogram) {
+            if (spectrogramPlugin) {
                 setTimeout(() => {
-                    spectrogram.render();
+                    spectrogramPlugin.render();
                 }, 100);
             }
             
@@ -338,12 +378,12 @@ async function initAudioViewer() {
             showStatus('Audio loaded successfully');
             
             setTimeout(() => {
-                if (spectrogram) {
+                if (spectrogramPlugin) {
                     try {
                         if (typeof vscode !== 'undefined' && vscode.env && vscode.env.uiKind === 1) {
                             console.log('Spectrogram frequency range check...');
                             console.log('Sample rate:', wavesurfer.getDecodedData()?.sampleRate || 'unknown');
-                            console.log('FFT size:', spectrogram.params?.fftSize || 'unknown');
+                            console.log('FFT size:', spectrogramPlugin.params?.fftSize || 'unknown');
                         }
                     } catch (error) {
                         console.warn('Error checking spectrogram frequency range:', error);
