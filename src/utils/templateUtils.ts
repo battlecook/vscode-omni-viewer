@@ -58,13 +58,18 @@ export class TemplateUtils {
             }
         }
         
-        // JavaScript 파일 인라인 포함
         const jsMatch = html.match(/<script[^>]*src="([^"]*\.js)"[^>]*><\/script>/g);
         if (jsMatch) {
             for (const scriptTag of jsMatch) {
                 const srcMatch = scriptTag.match(/src="([^"]*\.js)"/);
                 if (srcMatch) {
                     const jsRelativePath = srcMatch[1];
+                    
+                    // CDN 스크립트는 건너뛰기
+                    if (jsRelativePath.startsWith('http://') || jsRelativePath.startsWith('https://')) {
+                        continue;
+                    }
+                    
                     const jsPath = path.join(templateDir, jsRelativePath);
                     
                     try {

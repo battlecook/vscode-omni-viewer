@@ -21,7 +21,6 @@ const zoomInBtn = document.getElementById('zoomIn');
 const zoomOutBtn = document.getElementById('zoomOut');
 const fitToScreenBtn = document.getElementById('fitToScreen');
 const volumeSlider = document.getElementById('volume');
-const viewModeSelect = document.getElementById('viewMode');
 const loopEnabledCheckbox = document.getElementById('loopEnabled');
 const loopStartInput = document.getElementById('loopStart');
 const loopEndInput = document.getElementById('loopEnd');
@@ -106,6 +105,16 @@ async function initAudioViewer() {
             console.log('Audio source length:', audioSrc.length);
         }
 
+        // Create hover plugin first
+        const hoverPlugin = WaveSurfer.Hover.create({
+            lineColor: '#ff0000',
+            lineWidth: 2,
+            labelBackground: '#555',
+            labelColor: '#fff',
+            labelSize: '11px',
+            labelPreferLeft: false
+        });
+
         wavesurfer = WaveSurfer.create({
             container: '#waveform',
             waveColor: '#4F4A85',
@@ -122,7 +131,8 @@ async function initAudioViewer() {
             autoplay: false,
             mediaControls: false,
             hideScrollbar: false,
-            interact: true
+            interact: true,
+            plugins: [hoverPlugin]
         });
 
         // Development mode logging only
@@ -304,9 +314,20 @@ async function initAudioViewer() {
                 timeline = null;
             }
             
+            // Hover plugin is already registered in WaveSurfer.create()
+            console.log('Hover plugin should be active from initialization');
+
             // Hide loading, show content
             loadingDiv.style.display = 'none';
             waveformDiv.style.display = 'block';
+            spectrogramDiv.style.display = 'block';
+            
+            // Force spectrogram redraw for both view
+            if (spectrogram) {
+                setTimeout(() => {
+                    spectrogram.render();
+                }, 100);
+            }
             
             // Set up event listeners
             setupEventListeners();
@@ -417,49 +438,7 @@ function setupEventListeners() {
         wavesurfer.setVolume(volume);
     });
 
-    // View mode change
-    viewModeSelect.addEventListener('change', (e) => {
-        const mode = e.target.value;
-        switch (mode) {
-            case 'waveform':
-                waveformDiv.style.display = 'block';
-                spectrogramDiv.style.display = 'none';
-                showStatus('Switched to waveform view');
-                break;
-            case 'spectrogram':
-                waveformDiv.style.display = 'none';
-                spectrogramDiv.style.display = 'block';
-                // Force spectrogram redraw with better timing
-                if (spectrogram) {
-                    setTimeout(() => {
-                        spectrogram.render();
-                        setTimeout(() => {
-                            spectrogram.render();
-                            if (typeof vscode !== 'undefined' && vscode.env && vscode.env.uiKind === 1) {
-                                console.log('Spectrogram re-rendered for spectrogram view');
-                            }
-                        }, 200);
-                    }, 50);
-                } else {
-                    showStatus('Spectrogram not available');
-                }
-                showStatus('Switched to spectrogram view');
-                break;
-            case 'both':
-                waveformDiv.style.display = 'block';
-                spectrogramDiv.style.display = 'block';
-                // Force spectrogram redraw
-                if (spectrogram) {
-                    setTimeout(() => {
-                        spectrogram.render();
-                    }, 100);
-                } else {
-                    showStatus('Spectrogram not available');
-                }
-                showStatus('Showing both waveform and spectrogram');
-                break;
-        }
-    });
+
 
     // Loop controls
     loopEnabledCheckbox.addEventListener('change', (e) => {
