@@ -35,7 +35,7 @@ export class AudioViewerProvider implements vscode.CustomReadonlyEditorProvider 
             const audioData = await FileUtils.fileToDataUrl(audioPath, mimeType);
 
             // HTML 템플릿 로드 및 변수 치환
-            const html = await TemplateUtils.loadTemplate(this.context, 'audioViewer.html', {
+            const html = await TemplateUtils.loadTemplate(this.context, 'audio/audioViewer.html', {
                 fileName: audioFileName,
                 audioSrc: audioData
             });

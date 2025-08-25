@@ -231,8 +231,8 @@
             </div>
 
             <div class="playback-controls">
-                <button id="playPause" class="btn">▶️ Play</button>
-                <button id="stop" class="btn">⏹️ Stop</button>
+                <button id="playPause" class="btn">▶️</button>
+                <button id="stop" class="btn">⏹️</button>
                 <button id="skipBackward" class="btn">⏪ -10s</button>
                 <button id="skipForward" class="btn">⏩ +10s</button>
                 
@@ -375,12 +375,12 @@
             // Video events
             video.addEventListener('play', () => {
                 isPlaying = true;
-                playPauseBtn.textContent = '⏸️ Pause';
+                playPauseBtn.textContent = '⏸️';
             });
 
             video.addEventListener('pause', () => {
                 isPlaying = false;
-                playPauseBtn.textContent = '▶️ Play';
+                playPauseBtn.textContent = '▶️';
             });
 
             video.addEventListener('ended', () => {
@@ -392,7 +392,7 @@
                     }, 100);
                 } else {
                     isPlaying = false;
-                    playPauseBtn.textContent = '▶️ Play';
+                    playPauseBtn.textContent = '▶️';
                 }
             });
 
