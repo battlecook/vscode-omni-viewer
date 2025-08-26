@@ -25,6 +25,8 @@ const volumeSlider = document.getElementById('volume');
 const loopEnabledCheckbox = document.getElementById('loopEnabled');
 const loopStartInput = document.getElementById('loopStart');
 const loopEndInput = document.getElementById('loopEnd');
+const loopControls = document.getElementById('loopControls');
+const loopInputs = document.getElementById('loopInputs');
 const currentTimeDiv = null; // Removed time display
 const durationDiv = null; // Removed time display
 const loadingDiv = document.getElementById('loading');
@@ -288,20 +290,82 @@ async function initAudioViewer() {
                     }
                   })
                 }
+                selectedRegionId = region.id;
+                showRegionControls();
+                
+                // 리전이 생성된 후 약간의 지연을 두고 오버레이 생성
+                setTimeout(() => {
+                    createRegionOverlays(region);
+                }, 100);
+                
                 showStatus('Region created: ' + region.id);
             });
 
             regionsPlugin.on('region-clicked', (region) => {
                 selectedRegionId = region.id;
+                showRegionControls();
+                createRegionOverlays(region);
                 showStatus('Selected region: ' + region.id);
             });
 
             regionsPlugin.on('region-removed', (region) => {
                 if (selectedRegionId === region.id) {
                     selectedRegionId = null;
+                    hideRegionControls();
                 }
                 showStatus('Region removed: ' + region.id);
             });
+
+            // 리전이 업데이트될 때 오버레이 위치도 업데이트
+            regionsPlugin.on('region-updated', (region) => {
+                if (selectedRegionId === region.id) {
+                    updateRegionOverlays(region);
+                }
+            });
+
+                        // 웨이브폼 클릭 시 리전 제거
+            const waveformContainer = document.getElementById('waveform');
+            waveformContainer.addEventListener('click', (e) => {
+                // 클릭된 요소가 리전이나 리전 관련 요소가 아닌 경우에만 리전 제거
+                const clickedElement = e.target;
+                const isRegionElement = clickedElement.closest('.wavesurfer-region') || 
+                                       clickedElement.closest('.region-input-overlay') ||
+                                       clickedElement.classList.contains('region-input-overlay') ||
+                       clickedElement.classList.contains('region-start-input') ||
+                       clickedElement.classList.contains('region-end-input');
+                
+                if (!isRegionElement && regionsPlugin && regionsPlugin.getRegions) {
+                    const regions = regionsPlugin.getRegions();
+                    if (regions && Object.keys(regions).length > 0) {
+                        // 모든 리전 제거
+                        Object.values(regions).forEach(region => {
+                            region.remove();
+                        });
+                        selectedRegionId = null;
+                        hideRegionControls();
+                        showStatus('All regions removed');
+                    }
+                }
+            });
+
+            // 스펙트로그램 클릭 시에도 리전 제거
+            const spectrogramContainer = document.getElementById('spectrogram');
+            if (spectrogramContainer) {
+                spectrogramContainer.addEventListener('click', (e) => {
+                    if (regionsPlugin && regionsPlugin.getRegions) {
+                        const regions = regionsPlugin.getRegions();
+                        if (regions && Object.keys(regions).length > 0) {
+                            // 모든 리전 제거
+                            Object.values(regions).forEach(region => {
+                                region.remove();
+                            });
+                            selectedRegionId = null;
+                            hideRegionControls();
+                            showStatus('All regions removed');
+                        }
+                    }
+                });
+            }
         };
 
         const setupAfterDecode = async () => {
@@ -680,6 +744,122 @@ function showStatus(message) {
 
 let selectedRegionId = null;
 
+// 리전 위에 입력창을 관리하는 변수들
+let regionStartOverlay = null;
+let regionEndOverlay = null;
+
+// UI 표시/숨김 함수들
+function showRegionControls() {
+    loopControls.style.display = 'none';
+    loopInputs.style.display = 'none';
+}
+
+function hideRegionControls() {
+    loopControls.style.display = 'flex';
+    loopInputs.style.display = 'flex';
+    removeRegionOverlays();
+}
+
+function createRegionOverlays(region) {
+    removeRegionOverlays();
+    
+    const waveformContainer = document.getElementById('waveform');
+    const containerRect = waveformContainer.getBoundingClientRect();
+    const regionElement = region.element;
+    
+    if (!regionElement) return;
+    
+    const regionRect = regionElement.getBoundingClientRect();
+    
+    // Start 입력창 생성 (리전 시작선 옆)
+    regionStartOverlay = document.createElement('div');
+    regionStartOverlay.className = 'region-input-overlay';
+    regionStartOverlay.innerHTML = `
+        <input type="number" value="${region.start.toFixed(1)}" class="region-start-input" title="Start time">
+    `;
+    
+    // End 입력창 생성 (리전 끝선 옆)
+    regionEndOverlay = document.createElement('div');
+    regionEndOverlay.className = 'region-input-overlay';
+    regionEndOverlay.innerHTML = `
+        <input type="number" value="${region.end.toFixed(1)}" class="region-end-input" title="End time">
+    `;
+    
+    // 위치 계산 및 배치 - 리전 선 바로 옆에 배치
+    const startLeft = regionRect.left - containerRect.left - 10; // 리전 시작선 바로 옆
+    const endLeft = regionRect.right - containerRect.left + 10; // 리전 끝선 바로 옆
+    const top = regionRect.top - containerRect.top + 10; // 리전 아래쪽
+    
+    regionStartOverlay.style.left = startLeft + 'px';
+    regionStartOverlay.style.top = top + 'px';
+    
+    regionEndOverlay.style.left = endLeft + 'px';
+    regionEndOverlay.style.top = top + 'px';
+    
+    // DOM에 추가
+    waveformContainer.appendChild(regionStartOverlay);
+    waveformContainer.appendChild(regionEndOverlay);
+    
+    // 이벤트 리스너 추가
+    const startInput = regionStartOverlay.querySelector('.region-start-input');
+    const endInput = regionEndOverlay.querySelector('.region-end-input');
+    
+    // 엔터키와 포커스 아웃 이벤트 처리
+    const handleStartInput = (e) => {
+        const newStart = parseFloat(e.target.value) || 0;
+        const duration = wavesurfer.getDuration();
+        const newEnd = Math.max(newStart + 0.1, region.end);
+        region.setStart(newStart);
+        region.setEnd(newEnd);
+        updateRegionOverlays(region);
+        showStatus('Region start updated: ' + newStart.toFixed(1));
+    };
+    
+    const handleEndInput = (e) => {
+        const newEnd = parseFloat(e.target.value) || 0;
+        const duration = wavesurfer.getDuration();
+        const newStart = Math.min(newEnd - 0.1, region.start);
+        region.setStart(newStart);
+        region.setEnd(newEnd);
+        updateRegionOverlays(region);
+        showStatus('Region end updated: ' + newEnd.toFixed(1));
+    };
+    
+    startInput.addEventListener('change', handleStartInput);
+    startInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.target.blur(); // 포커스 아웃하여 change 이벤트 발생
+        }
+    });
+    
+    endInput.addEventListener('change', handleEndInput);
+    endInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.target.blur(); // 포커스 아웃하여 change 이벤트 발생
+        }
+    });
+}
+
+function updateRegionOverlays(region) {
+    if (regionStartOverlay && regionEndOverlay) {
+        const startInput = regionStartOverlay.querySelector('.region-start-input');
+        const endInput = regionEndOverlay.querySelector('.region-end-input');
+        startInput.value = region.start.toFixed(1);
+        endInput.value = region.end.toFixed(1);
+    }
+}
+
+function removeRegionOverlays() {
+    if (regionStartOverlay) {
+        regionStartOverlay.remove();
+        regionStartOverlay = null;
+    }
+    if (regionEndOverlay) {
+        regionEndOverlay.remove();
+        regionEndOverlay = null;
+    }
+}
+
 function getSelectedRegion() {
     if (!regionsPlugin || !regionsPlugin.getRegions) {
         return null;
@@ -705,7 +885,11 @@ function getSelectedRegion() {
 }
 
 // Initialize when page loads
-document.addEventListener('DOMContentLoaded', initAudioViewer);
+document.addEventListener('DOMContentLoaded', () => {
+    // 초기화 시 loop UI 숨기기
+    hideRegionControls();
+    initAudioViewer();
+});
 
 // Log to VSCode console
 vscode.postMessage({ command: 'log', text: 'Audio viewer initialized' });

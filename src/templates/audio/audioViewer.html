@@ -11,11 +11,11 @@
         <div class="header">
             <div class="title">🎵 {{fileName}}</div>
             <div class="controls">
-                <div class="control-group">
+                <div class="control-group" id="loopControls" style="display: none;">
                     <label>Loop:</label>
                     <input type="checkbox" id="loopEnabled">
                 </div>
-                <div class="control-group loop-controls">
+                <div class="control-group loop-controls" id="loopInputs" style="display: none;">
                     <label>Start:</label>
                     <input type="number" id="loopStart" class="loop-input" step="0.1" min="0" placeholder="0">
                     <label>End:</label>

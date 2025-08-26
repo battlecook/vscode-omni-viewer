@@ -212,6 +212,49 @@ body {
     width: 80px;
 }
 
+.region-input-overlay {
+    position: absolute;
+    z-index: 1000;
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    padding: 3px 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+.region-input-overlay label {
+    color: var(--vscode-descriptionForeground);
+    white-space: nowrap;
+    font-size: 10px;
+}
+
+.region-input-overlay input {
+    width: 50px;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border);
+    padding: 2px 4px;
+    border-radius: 2px;
+    font-size: 10px;
+    text-align: center;
+}
+
+/* number input의 스피너(위아래 버튼) 숨기기 */
+.region-input-overlay input[type="number"]::-webkit-outer-spin-button,
+.region-input-overlay input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.region-input-overlay input[type="number"] {
+    -moz-appearance: textfield; /* Firefox */
+}
+
 .status {
     position: absolute;
     top: 10px;
