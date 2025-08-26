@@ -137,19 +137,12 @@ async function initAudioViewer() {
                 })
             ]
         });
-
-        // Development mode logging only
-        if (typeof vscode !== 'undefined' && vscode.env && vscode.env.uiKind === 1) {
-            console.log('WaveSurfer instance created, loading audio...');
-        }
         
         const loadAudio = async () => {
             try {
                 isSetupComplete = false;
-                console.log('Starting audio load...');
                 showStatus('Loading audio...');
                 await wavesurfer.load(audioSrc);
-                console.log('Audio loaded successfully');
                 showStatus('Audio loaded successfully');
                 
                 await new Promise(resolve => setTimeout(resolve, 100));
@@ -185,8 +178,6 @@ async function initAudioViewer() {
                 document.removeEventListener('click', handleUserInteraction);
                 document.removeEventListener('keydown', handleUserInteraction);
                 document.removeEventListener('touchstart', handleUserInteraction);
-                
-                console.log('User interaction detected, initializing AudioContext...');
                 showStatus('User interaction detected, initializing AudioContext...');
                 
                 try {
@@ -297,7 +288,20 @@ async function initAudioViewer() {
                     }
                   })
                 }
-              })
+                showStatus('Region created: ' + region.id);
+            });
+
+            regionsPlugin.on('region-clicked', (region) => {
+                selectedRegionId = region.id;
+                showStatus('Selected region: ' + region.id);
+            });
+
+            regionsPlugin.on('region-removed', (region) => {
+                if (selectedRegionId === region.id) {
+                    selectedRegionId = null;
+                }
+                showStatus('Region removed: ' + region.id);
+            });
         };
 
         const setupAfterDecode = async () => {
@@ -436,9 +440,17 @@ function setupEventListeners() {
                     await audioContext.resume();
                 }
                 
-                console.log('Attempting to play audio...');
-                showStatus('Attempting to play audio...');
-                await wavesurfer.play();
+                // 선택된 리전이 있는지 확인
+                const selectedRegion = getSelectedRegion();
+                if (selectedRegion) {
+                    console.log('Playing selected region:', selectedRegion.id);
+                    showStatus('Playing selected region');
+                    await wavesurfer.play(selectedRegion.start, selectedRegion.end);
+                } else {
+                    console.log('No region selected, playing full audio...');
+                    showStatus('Playing full audio');
+                    await wavesurfer.play();
+                }
             }
         } catch (error) {
             console.error('Playback error:', error);
@@ -664,6 +676,32 @@ function showStatus(message) {
     setTimeout(() => {
         statusDiv.classList.remove('show');
     }, 100);
+}
+
+let selectedRegionId = null;
+
+function getSelectedRegion() {
+    if (!regionsPlugin || !regionsPlugin.getRegions) {
+        return null;
+    }
+    
+    const regions = regionsPlugin.getRegions();
+    if (!regions || Object.keys(regions).length === 0) {
+        return null;
+    }
+    
+    if (selectedRegionId && regions[selectedRegionId]) {
+        return regions[selectedRegionId];
+    }
+    
+    const regionIds = Object.keys(regions);
+    if (regionIds.length > 0) {
+        const lastRegion = regions[regionIds[regionIds.length - 1]];
+        selectedRegionId = lastRegion.id;
+        return lastRegion;
+    }
+    
+    return null;
 }
 
 // Initialize when page loads
