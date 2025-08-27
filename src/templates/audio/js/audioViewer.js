@@ -37,8 +37,6 @@ const state = {
     regionsPlugin: null,
     isPlaying: false,
     loopEnabled: false,
-    loopStart: 0,
-    loopEnd: 0,
     isSetupComplete: false,
     audioContextInitialized: false,
     selectedRegionId: null,
@@ -55,10 +53,7 @@ const elements = {
     fitToScreen: document.getElementById('fitToScreen'),
     volume: document.getElementById('volume'),
     loopEnabled: document.getElementById('loopEnabled'),
-    loopStart: document.getElementById('loopStart'),
-    loopEnd: document.getElementById('loopEnd'),
     loopControls: document.getElementById('loopControls'),
-    loopInputs: document.getElementById('loopInputs'),
     loading: document.getElementById('loading'),
     error: document.getElementById('error'),
     waveform: document.getElementById('waveform'),
@@ -108,10 +103,7 @@ const audioContextManager = {
             if (audioContext.state === 'suspended') {
                 await audioContext.resume();
             }
-            
             state.audioContextInitialized = true;
-            utils.log('AudioContext initialized successfully');
-            utils.showStatus('AudioContext initialized');
             
         } catch (error) {
             console.error('Failed to initialize AudioContext:', error);
@@ -134,11 +126,8 @@ const audioContextManager = {
     checkState() {
         const audioContext = this.getWaveSurferAudioContext();
         if (audioContext) {
-            utils.log('AudioContext state: ' + audioContext.state);
-            utils.showStatus(`AudioContext state: ${audioContext.state}`);
             return audioContext.state;
         } else {
-            utils.showStatus('AudioContext not available');
             return null;
         }
     }
@@ -298,15 +287,12 @@ const pluginManager = {
             setTimeout(() => {
                 regionManager.createOverlays(region);
             }, 100);
-            
-            utils.showStatus('Region created: ' + region.id);
         });
 
         state.regionsPlugin.on('region-clicked', (region) => {
             state.selectedRegionId = region.id;
             regionManager.showControls();
             regionManager.createOverlays(region);
-            utils.showStatus('Selected region: ' + region.id);
         });
 
         state.regionsPlugin.on('region-removed', (region) => {
@@ -314,7 +300,6 @@ const pluginManager = {
                 state.selectedRegionId = null;
                 regionManager.hideControls();
             }
-            utils.showStatus('Region removed: ' + region.id);
         });
 
         state.regionsPlugin.on('region-updated', (region) => {
@@ -336,7 +321,6 @@ const pluginManager = {
                     });
                     state.selectedRegionId = null;
                     regionManager.hideControls();
-                    utils.showStatus('All regions removed');
                 }
             }
         };
@@ -365,13 +349,11 @@ const pluginManager = {
 // Region management
 const regionManager = {
     showControls() {
-        elements.loopControls.style.display = 'none';
-        elements.loopInputs.style.display = 'none';
+        elements.loopControls.style.display = 'flex';
     },
 
     hideControls() {
-        elements.loopControls.style.display = 'flex';
-        elements.loopInputs.style.display = 'flex';
+        elements.loopControls.style.display = 'none';
         this.removeOverlays();
     },
 
@@ -500,8 +482,6 @@ const regionManager = {
                     setTimeout(() => {
                         this.createOverlays(newRegion);
                     }, 100);
-                    
-                    utils.showStatus(`Region updated: ${startSec.toFixed(1)} - ${endSec.toFixed(1)}`);
                 } else {
                     console.log('applyRegionInput: No regions plugin found');
                 }
@@ -561,13 +541,19 @@ const regionManager = {
     },
 
     getSelectedRegion() {
-        if (!state.regionsPlugin?.getRegions) return null;
+        if (!state.regionsPlugin?.getRegions) {
+            return null;
+        }
         
         const regions = state.regionsPlugin.getRegions();
-        if (!regions || Object.keys(regions).length === 0) return null;
+        
+        if (!regions || Object.keys(regions).length === 0) {
+            return null;
+        }
         
         if (state.selectedRegionId && regions[state.selectedRegionId]) {
-            return regions[state.selectedRegionId];
+            const region = regions[state.selectedRegionId];
+            return region;
         }
         
         const regionIds = Object.keys(regions);
@@ -576,7 +562,6 @@ const regionManager = {
             state.selectedRegionId = lastRegion.id;
             return lastRegion;
         }
-        
         return null;
     }
 };
@@ -586,10 +571,6 @@ const fileInfoManager = {
     updateDuration() {
         const duration = state.wavesurfer.getDuration();
         if (duration && !isNaN(duration)) {
-            if (!elements.loopEnd.value) {
-                elements.loopEnd.placeholder = duration.toFixed(1);
-            }
-            
             const minutes = Math.floor(duration / 60);
             const seconds = Math.floor(duration % 60);
             elements.durationInfo.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
@@ -664,27 +645,22 @@ const eventHandlers = {
                     state.wavesurfer.pause();
                 } else {
                     if (!state.wavesurfer) {
-                        utils.showStatus('WaveSurfer not initialized');
                         return;
                     }
                     
                     if (!state.audioContextInitialized) {
-                        utils.showStatus('Initializing AudioContext...');
                         await audioContextManager.initialize();
                     }
                     
                     const audioContext = audioContextManager.getWaveSurferAudioContext();
                     if (audioContext?.state === 'suspended') {
-                        utils.showStatus('Resuming AudioContext...');
                         await audioContext.resume();
                     }
                     
                     const selectedRegion = regionManager.getSelectedRegion();
                     if (selectedRegion) {
-                        utils.showStatus('Playing selected region');
                         await state.wavesurfer.play(selectedRegion.start, selectedRegion.end);
                     } else {
-                        utils.showStatus('Playing full audio');
                         await state.wavesurfer.play();
                     }
                 }
@@ -730,15 +706,6 @@ const eventHandlers = {
     setupLoop() {
         elements.loopEnabled.addEventListener('change', (e) => {
             state.loopEnabled = e.target.checked;
-            utils.showStatus(state.loopEnabled ? 'Loop enabled' : 'Loop disabled');
-        });
-
-        elements.loopStart.addEventListener('change', (e) => {
-            state.loopStart = parseFloat(e.target.value) || 0;
-        });
-
-        elements.loopEnd.addEventListener('change', (e) => {
-            state.loopEnd = parseFloat(e.target.value) || 0;
         });
     },
 
@@ -746,64 +713,87 @@ const eventHandlers = {
         state.wavesurfer.on('play', () => {
             state.isPlaying = true;
             elements.playPause.textContent = '⏸️';
-            utils.showStatus('Playing');
         });
 
         state.wavesurfer.on('pause', () => {
             state.isPlaying = false;
             elements.playPause.textContent = '▶️';
-            utils.showStatus('Paused');
         });
 
         state.wavesurfer.on('stop', () => {
             state.isPlaying = false;
             elements.playPause.textContent = '▶️';
-            utils.showStatus('Stopped');
         });
 
         state.wavesurfer.on('finish', () => {
-            if (state.loopEnabled && state.loopEnd > state.loopStart) {
-                setTimeout(() => {
-                    state.wavesurfer.play(state.loopStart);
-                    utils.showStatus('Looping playback');
-                }, 100);
+            if (state.loopEnabled) {
+                const selectedRegion = regionManager.getSelectedRegion();
+                if (selectedRegion) {
+                    setTimeout(() => {
+                        state.wavesurfer.play(selectedRegion.start, selectedRegion.end);
+                    }, 100);
+                } else {
+                    setTimeout(() => {
+                        state.wavesurfer.play();
+                    }, 100);
+                }
             } else {
                 state.isPlaying = false;
                 elements.playPause.textContent = '▶️';
-                utils.showStatus('Playback finished');
             }
         });
 
-        state.wavesurfer.on('audioprocess', (currentTime) => {
-            if (state.loopEnabled && state.loopEnd > state.loopStart && currentTime >= state.loopEnd) {
-                state.wavesurfer.play(state.loopStart);
-                utils.showStatus('Looping to start');
+        let loopCheckInterval = null;
+        
+        state.wavesurfer.on('play', () => {
+            if (state.loopEnabled) {
+                loopCheckInterval = setInterval(() => {
+                    if (state.isPlaying && state.loopEnabled) {
+                        const currentTime = state.wavesurfer.getCurrentTime();
+                        const selectedRegion = regionManager.getSelectedRegion();
+                        
+                        if (selectedRegion && selectedRegion.start !== undefined && selectedRegion.end !== undefined) {
+                            if (currentTime >= selectedRegion.end - 0.1) {
+                                state.wavesurfer.play(selectedRegion.start, selectedRegion.end);
+                            }
+                        } else {
+                            const duration = state.wavesurfer.getDuration();
+                            if (currentTime >= duration - 0.1) {
+                                state.wavesurfer.play();
+                            }
+                        }
+                    }
+                }, 100);
+            }
+        });
+
+        state.wavesurfer.on('pause', () => {
+            if (loopCheckInterval) {
+                clearInterval(loopCheckInterval);
+                loopCheckInterval = null;
+            }
+        });
+
+        state.wavesurfer.on('stop', () => {
+            if (loopCheckInterval) {
+                clearInterval(loopCheckInterval);
+                loopCheckInterval = null;
             }
         });
 
         state.wavesurfer.on('error', (error) => {
-            console.error('WaveSurfer error:', error);
             utils.showStatus('Error: ' + error.message);
             vscode.postMessage({ command: 'error', text: error.message });
         });
 
         state.wavesurfer.on('ready', () => {
-            utils.log('WaveSurfer is ready for playback');
-            utils.showStatus('Ready for playback');
             
             setTimeout(() => {
                 audioContextManager.checkState();
             }, 100);
         });
 
-        state.wavesurfer.on('load', () => {
-            utils.log('Audio file loaded');
-            utils.showStatus('Audio file loaded');
-        });
-
         state.wavesurfer.on('decode', () => {
-            utils.log('Audio decoded');
-            utils.showStatus('Audio decoded');
             setTimeout(() => {
                 fileInfoManager.updateFileInfo();
             }, 100);
@@ -822,9 +812,7 @@ async function initAudioViewer() {
         const loadAudio = async () => {
             try {
                 state.isSetupComplete = false;
-                utils.showStatus('Loading audio...');
                 await state.wavesurfer.load(audioSrc);
-                utils.showStatus('Audio loaded successfully');
                 
                 await new Promise(resolve => setTimeout(resolve, 100));
                 audioContextManager.checkState();
@@ -838,12 +826,7 @@ async function initAudioViewer() {
 
         const preloadAudio = async () => {
             try {
-                utils.log('Preloading audio file...');
-                utils.showStatus('Preloading audio file...');
-                
                 await loadAudio();
-                utils.showStatus('Audio loaded. Click or press a key to play.');
-                
             } catch (error) {
                 console.warn('Preload failed:', error);
                 utils.showStatus('Preload failed: ' + error.message);
@@ -856,11 +839,9 @@ async function initAudioViewer() {
                 document.removeEventListener('click', handleUserInteraction);
                 document.removeEventListener('keydown', handleUserInteraction);
                 document.removeEventListener('touchstart', handleUserInteraction);
-                utils.showStatus('User interaction detected, initializing AudioContext...');
                 
                 try {
                     await audioContextManager.initialize();
-                    utils.showStatus('AudioContext initialized. Ready to play.');
                 } catch (error) {
                     console.error('AudioContext initialization failed:', error);
                     utils.showStatus('AudioContext initialization failed: ' + error.message);
@@ -906,8 +887,6 @@ async function initAudioViewer() {
             // Update info
             fileInfoManager.updateDuration();
             fileInfoManager.updateFileInfo();
-            
-            utils.showStatus('Audio loaded successfully');
             
             setTimeout(() => {
                 if (state.spectrogramPlugin) {
