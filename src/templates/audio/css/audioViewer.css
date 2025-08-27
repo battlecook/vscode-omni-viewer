@@ -148,8 +148,7 @@ body {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 15px;
-    padding: 10px;
+    padding: 5px;
     background: var(--vscode-panel-background);
     border-radius: 8px;
     border: 1px solid var(--vscode-panel-border);
@@ -178,8 +177,7 @@ body {
     gap: 15px;
     font-size: 12px;
     color: var(--vscode-descriptionForeground);
-    margin-bottom: 15px;
-    padding: 10px;
+    padding: 5px;
     background: var(--vscode-panel-background);
     border-radius: 6px;
     border: 1px solid var(--vscode-panel-border);

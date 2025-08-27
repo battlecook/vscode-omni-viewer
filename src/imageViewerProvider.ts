@@ -33,11 +33,15 @@ export class ImageViewerProvider implements vscode.CustomReadonlyEditorProvider 
             // 이미지 파일을 data URL로 변환
             const mimeType = FileUtils.getImageMimeType(imagePath);
             const imageData = await FileUtils.fileToDataUrl(imagePath, mimeType);
+            
+            // 파일 크기 가져오기
+            const fileSize = await FileUtils.getFileSize(imagePath);
 
             // HTML 템플릿 로드 및 변수 치환
             const html = await TemplateUtils.loadTemplate(this.context, 'imageViewer.html', {
                 fileName: imageFileName,
-                imageSrc: imageData
+                imageSrc: imageData,
+                fileSize: fileSize
             });
 
             // 웹뷰에 HTML 설정

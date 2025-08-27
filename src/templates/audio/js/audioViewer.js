@@ -407,12 +407,10 @@ const regionManager = {
             console.log('applyRegionInput called with:', { startTimeInput, endTimeInput, region });
             
             if (!region || !state.wavesurfer) {
-                console.log('applyRegionInput: No region or wavesurfer');
                 return;
             }
             
             const duration = state.wavesurfer.getDuration() || 0;
-            console.log('applyRegionInput: Duration:', duration);
 
             let startSec = region.start;
             let endSec = region.end;
@@ -420,16 +418,11 @@ const regionManager = {
             const parsedStart = parseFloat(startTimeInput);
             const parsedEnd = parseFloat(endTimeInput);
             
-            console.log('applyRegionInput: Parsed values:', { parsedStart, parsedEnd });
-            
             if (!isNaN(parsedStart)) startSec = parsedStart;
             if (!isNaN(parsedEnd)) endSec = parsedEnd;
 
-            console.log('applyRegionInput: Before processing:', { startSec, endSec });
-
             // 시작점이 끝점보다 크면 값 교환
             if (startSec > endSec) {
-                console.log('applyRegionInput: Swapping start and end values');
                 const temp = startSec;
                 startSec = endSec;
                 endSec = temp;
@@ -437,12 +430,10 @@ const regionManager = {
 
             // 전체 길이를 초과하는 경우 최대 길이로 제한
             if (startSec > duration) {
-                console.log('applyRegionInput: Start time exceeds duration, setting to max');
                 startSec = Math.max(0, duration - CONSTANTS.REGION.MIN_DURATION);
             }
             
             if (endSec > duration) {
-                console.log('applyRegionInput: End time exceeds duration, setting to max');
                 endSec = duration;
             }
 
@@ -455,8 +446,6 @@ const regionManager = {
                 endSec = Math.min(duration, startSec + CONSTANTS.REGION.MIN_DURATION);
             }
 
-            console.log('applyRegionInput: After processing:', { startSec, endSec });
-
             try {
                 // 기존 리전 제거
                 if (state.regionsPlugin && state.regionsPlugin.getRegions) {
@@ -468,25 +457,21 @@ const regionManager = {
                 
                 // 새 리전 생성
                 if (state.regionsPlugin && state.regionsPlugin.addRegion) {
-                    console.log('applyRegionInput: Adding new region with:', { start: startSec, end: endSec });
                     const newRegion = state.regionsPlugin.addRegion({
                         start: startSec,
                         end: endSec,
                         color: 'rgba(255, 0, 0, 0.1)'
                     });
                     
-                    console.log('applyRegionInput: New region created:', newRegion);
                     state.selectedRegionId = newRegion.id;
                     
                     // 오버레이 업데이트
                     setTimeout(() => {
                         this.createOverlays(newRegion);
                     }, 100);
-                } else {
-                    console.log('applyRegionInput: No regions plugin found');
                 }
             } catch (err) {
-                console.error('리전 입력 적용 실패:', err);
+                console.error('Failed to update region: ', err);
                 utils.showStatus('Failed to update region: ' + err.message);
             }
         };

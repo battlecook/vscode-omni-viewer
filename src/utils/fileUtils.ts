@@ -76,4 +76,25 @@ export class FileUtils {
             throw error;
         }
     }
+
+    /**
+     * 파일 크기를 읽기 쉬운 형태로 포맷팅합니다.
+     */
+    public static async getFileSize(filePath: string): Promise<string> {
+        try {
+            const stats = await fs.promises.stat(filePath);
+            const bytes = stats.size;
+            
+            if (bytes === 0) return '0 B';
+            
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        } catch (error) {
+            console.error('Error getting file size:', error);
+            return 'Unknown';
+        }
+    }
 }

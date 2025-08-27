@@ -28,10 +28,10 @@
 
         .header {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            flex-direction: column;
+            gap: 15px;
             margin-bottom: 20px;
-            padding-bottom: 10px;
+            padding-bottom: 15px;
             border-bottom: 1px solid var(--vscode-panel-border);
         }
 
@@ -42,8 +42,12 @@
 
         .controls {
             display: flex;
-            gap: 10px;
             align-items: center;
+            gap: 10px;
+            padding: 5px;
+            background: var(--vscode-panel-background);
+            border-radius: 8px;
+            border: 1px solid var(--vscode-panel-border);
         }
 
         .control-group {
@@ -76,6 +80,11 @@
             background: var(--vscode-button-secondaryBackground);
             color: var(--vscode-button-secondaryForeground);
             cursor: not-allowed;
+        }
+
+        .btn.active {
+            background: #4CAF50;
+            color: white;
         }
 
         .main-content {
@@ -112,16 +121,33 @@
             transition: transform 0.3s ease;
         }
 
-        .image-info {
-            position: absolute;
-            bottom: 10px;
-            left: 10px;
-            background: var(--vscode-notifications-background);
-            color: var(--vscode-notifications-foreground);
-            padding: 8px 12px;
-            border-radius: 4px;
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
             font-size: 12px;
-            opacity: 0.8;
+            color: var(--vscode-descriptionForeground);
+            padding: 5px;
+            background: var(--vscode-panel-background);
+            border-radius: 6px;
+            border: 1px solid var(--vscode-panel-border);
+        }
+
+        .file-info-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .file-info-label {
+            font-size: 10px;
+            opacity: 0.7;
+        }
+
+        .file-info-value {
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-weight: 500;
         }
 
         .loading {
@@ -143,36 +169,17 @@
             padding: 20px;
         }
 
-        .zoom-controls {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            padding: 15px;
-            background: var(--vscode-panel-background);
-            border-radius: 8px;
-            border: 1px solid var(--vscode-panel-border);
-        }
 
-        .zoom-slider {
-            width: 150px;
-        }
-
-        .zoom-value {
-            font-family: 'Monaco', 'Menlo', monospace;
-            font-size: 14px;
-            color: var(--vscode-editor-foreground);
-            min-width: 60px;
-        }
 
         .filter-controls {
             display: flex;
-            align-items: center;
-            gap: 15px;
-            padding: 15px;
+            flex-direction: column;
+            gap: 10px;
+            padding: 10px;
             background: var(--vscode-panel-background);
             border-radius: 8px;
             border: 1px solid var(--vscode-panel-border);
-            margin-top: 10px;
+            margin-bottom: 15px;
         }
 
         .filter-group {
@@ -191,16 +198,15 @@
             width: 100px;
         }
 
-        .filter-value {
-            font-family: 'Monaco', 'Menlo', monospace;
-            font-size: 12px;
-            color: var(--vscode-editor-foreground);
-            min-width: 40px;
-        }
-
         .filter-presets {
             display: flex;
             gap: 5px;
+        }
+
+        .filter-sliders {
+            display: flex;
+            gap: 15px;
+            align-items: center;
         }
 
         .preset-btn {
@@ -228,60 +234,43 @@
     <div class="container">
         <div class="header">
             <div class="title">🖼️ {{fileName}}</div>
-            <div class="controls">
-                <div class="control-group">
-                    <button id="rotateLeft" class="btn">🔄 Left</button>
-                    <button id="rotateRight" class="btn">🔄 Right</button>
-                </div>
-                <div class="control-group">
-                    <button id="flipHorizontal" class="btn">↔️ Flip H</button>
-                    <button id="flipVertical" class="btn">↕️ Flip V</button>
-                </div>
-                <div class="control-group">
-                    <button id="reset" class="btn">🔄 Reset</button>
-                    <button id="fitToScreen" class="btn">📐 Fit</button>
-                </div>
-            </div>
         </div>
 
         <div class="main-content">
-            <div class="image-container">
-                <div id="loading" class="loading">Loading image...</div>
-                <div id="error" class="error" style="display: none;"></div>
-                <div id="imageWrapper" class="image-wrapper" style="display: none;">
-                    <img id="image" src="{{imageSrc}}" alt="{{fileName}}">
-                    <div id="imageInfo" class="image-info"></div>
+            <div class="file-info" id="fileInfo" style="display: none;">
+                <div class="file-info-item">
+                    <div class="file-info-label">Size</div>
+                    <div class="file-info-value" id="sizeInfo">--</div>
+                </div>
+                <div class="file-info-item">
+                    <div class="file-info-label">Format</div>
+                    <div class="file-info-value" id="formatInfo">--</div>
+                </div>
+                <div class="file-info-item">
+                    <div class="file-info-label">File Size</div>
+                    <div class="file-info-value" id="fileSizeInfo">--</div>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <div class="control-group">
+                    <button id="rotate" class="btn">🔄</button>
+                </div>
+                <div class="control-group">
+                    <button id="flipHorizontal" class="btn">↔️</button>
+                    <button id="flipVertical" class="btn">↕️</button>
+                </div>
+                <div class="control-group">
+                    <button id="reset" class="btn">⏹️ Reset</button>
+                    <button id="fitToScreen" class="btn">📐 Fit</button>
+                    <button id="zoomOut" class="btn">🔍-</button>
+                    <button id="zoomIn" class="btn">🔍+</button>
+                    <button id="toggleFilters" class="btn">🎨</button>
                 </div>
             </div>
 
-            <div class="zoom-controls">
-                <button id="zoomOut" class="btn">🔍-</button>
-                <input type="range" id="zoomSlider" class="zoom-slider" min="10" max="500" value="100" step="10">
-                <button id="zoomIn" class="btn">🔍+</button>
-                <div id="zoomValue" class="zoom-value">100%</div>
-            </div>
 
-            <div class="filter-controls">
-                <div class="filter-group">
-                    <label>Brightness:</label>
-                    <input type="range" id="brightnessSlider" class="filter-slider" min="0" max="200" value="100" step="5">
-                    <div id="brightnessValue" class="filter-value">100%</div>
-                </div>
-                <div class="filter-group">
-                    <label>Contrast:</label>
-                    <input type="range" id="contrastSlider" class="filter-slider" min="0" max="200" value="100" step="5">
-                    <div id="contrastValue" class="filter-value">100%</div>
-                </div>
-                <div class="filter-group">
-                    <label>Saturation:</label>
-                    <input type="range" id="saturationSlider" class="filter-slider" min="0" max="200" value="100" step="5">
-                    <div id="saturationValue" class="filter-value">100%</div>
-                </div>
-                <div class="filter-group">
-                    <label>Grayscale:</label>
-                    <input type="range" id="grayscaleSlider" class="filter-slider" min="0" max="100" value="0" step="5">
-                    <div id="grayscaleValue" class="filter-value">0%</div>
-                </div>
+            <div class="filter-controls" id="filterControls" style="display: none;">
                 <div class="filter-presets">
                     <button id="presetNormal" class="preset-btn active">Normal</button>
                     <button id="presetBright" class="preset-btn">Bright</button>
@@ -289,6 +278,32 @@
                     <button id="presetVintage" class="preset-btn">Vintage</button>
                     <button id="presetBw" class="preset-btn">B&W</button>
                     <button id="presetReset" class="preset-btn">Reset</button>
+                </div>
+                <div class="filter-sliders">
+                    <div class="filter-group">
+                        <label>Brightness:</label>
+                        <input type="range" id="brightnessSlider" class="filter-slider" min="0" max="200" value="100" step="5">
+                    </div>
+                    <div class="filter-group">
+                        <label>Contrast:</label>
+                        <input type="range" id="contrastSlider" class="filter-slider" min="0" max="200" value="100" step="5">
+                    </div>
+                    <div class="filter-group">
+                        <label>Saturation:</label>
+                        <input type="range" id="saturationSlider" class="filter-slider" min="0" max="200" value="100" step="5">
+                    </div>
+                    <div class="filter-group">
+                        <label>Grayscale:</label>
+                        <input type="range" id="grayscaleSlider" class="filter-slider" min="0" max="100" value="0" step="5">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="image-container">
+                <div id="loading" class="loading">Loading image...</div>
+                <div id="error" class="error" style="display: none;"></div>
+                <div id="imageWrapper" class="image-wrapper" style="display: none;">
+                    <img id="image" src="{{imageSrc}}" alt="{{fileName}}">
                 </div>
             </div>
         </div>
@@ -304,6 +319,8 @@
         let isFlippedVertical = false;
         let originalWidth = 0;
         let originalHeight = 0;
+        let imageFormat = '';
+        let fileSize = '';
         
         // Filter state
         let brightness = 100;
@@ -316,27 +333,25 @@
         const imageWrapper = document.getElementById('imageWrapper');
         const loadingDiv = document.getElementById('loading');
         const errorDiv = document.getElementById('error');
-        const imageInfoDiv = document.getElementById('imageInfo');
-        const zoomSlider = document.getElementById('zoomSlider');
-        const zoomValue = document.getElementById('zoomValue');
+        const fileInfoDiv = document.getElementById('fileInfo');
+        const sizeInfoDiv = document.getElementById('sizeInfo');
+        const formatInfoDiv = document.getElementById('formatInfo');
+        const fileSizeInfoDiv = document.getElementById('fileSizeInfo');
         const zoomInBtn = document.getElementById('zoomIn');
         const zoomOutBtn = document.getElementById('zoomOut');
-        const rotateLeftBtn = document.getElementById('rotateLeft');
-        const rotateRightBtn = document.getElementById('rotateRight');
+        const rotateBtn = document.getElementById('rotate');
         const flipHorizontalBtn = document.getElementById('flipHorizontal');
         const flipVerticalBtn = document.getElementById('flipVertical');
         const resetBtn = document.getElementById('reset');
         const fitToScreenBtn = document.getElementById('fitToScreen');
         
         // Filter elements
+        const filterControls = document.getElementById('filterControls');
+        const toggleFiltersBtn = document.getElementById('toggleFilters');
         const brightnessSlider = document.getElementById('brightnessSlider');
-        const brightnessValue = document.getElementById('brightnessValue');
         const contrastSlider = document.getElementById('contrastSlider');
-        const contrastValue = document.getElementById('contrastValue');
         const saturationSlider = document.getElementById('saturationSlider');
-        const saturationValue = document.getElementById('saturationValue');
         const grayscaleSlider = document.getElementById('grayscaleSlider');
-        const grayscaleValue = document.getElementById('grayscaleValue');
         
         // Preset buttons
         const presetNormal = document.getElementById('presetNormal');
@@ -356,8 +371,17 @@
                 originalWidth = image.naturalWidth;
                 originalHeight = image.naturalHeight;
                 
+                // Get image format from file extension
+                const fileName = '{{fileName}}';
+                const extension = fileName.split('.').pop().toUpperCase();
+                imageFormat = extension;
+                
+                // Get file size from template variable
+                fileSize = '{{fileSize}}';
+                
                 loadingDiv.style.display = 'none';
                 imageWrapper.style.display = 'block';
+                fileInfoDiv.style.display = 'flex';
                 
                 updateImageInfo();
                 fitToScreen();
@@ -375,20 +399,13 @@
 
         function setupEventListeners() {
             // Zoom controls
-            zoomSlider.addEventListener('input', (e) => {
-                currentZoom = parseInt(e.target.value);
-                updateZoom();
-            });
-
             zoomInBtn.addEventListener('click', () => {
                 currentZoom = Math.min(500, currentZoom + 25);
-                zoomSlider.value = currentZoom;
                 updateZoom();
             });
 
             zoomOutBtn.addEventListener('click', () => {
                 currentZoom = Math.max(10, currentZoom - 25);
-                zoomSlider.value = currentZoom;
                 updateZoom();
             });
 
@@ -398,17 +415,11 @@
                 const delta = e.deltaY > 0 ? -1 : 1;
                 const zoomChange = e.ctrlKey ? 10 : 25; // Ctrl+wheel for fine control
                 currentZoom = Math.max(10, Math.min(500, currentZoom + (delta * zoomChange)));
-                zoomSlider.value = currentZoom;
                 updateZoom();
             });
 
             // Rotation controls
-            rotateLeftBtn.addEventListener('click', () => {
-                currentRotation = (currentRotation - 90) % 360;
-                updateTransform();
-            });
-
-            rotateRightBtn.addEventListener('click', () => {
+            rotateBtn.addEventListener('click', () => {
                 currentRotation = (currentRotation + 90) % 360;
                 updateTransform();
             });
@@ -433,28 +444,31 @@
                 fitToScreen();
             });
 
+            // Toggle filters
+            toggleFiltersBtn.addEventListener('click', () => {
+                const isVisible = filterControls.style.display !== 'none';
+                filterControls.style.display = isVisible ? 'none' : 'flex';
+                toggleFiltersBtn.classList.toggle('active', !isVisible);
+            });
+
             // Filter controls
             brightnessSlider.addEventListener('input', (e) => {
                 brightness = parseInt(e.target.value);
-                brightnessValue.textContent = brightness + '%';
                 updateFilters();
             });
 
             contrastSlider.addEventListener('input', (e) => {
                 contrast = parseInt(e.target.value);
-                contrastValue.textContent = contrast + '%';
                 updateFilters();
             });
 
             saturationSlider.addEventListener('input', (e) => {
                 saturation = parseInt(e.target.value);
-                saturationValue.textContent = saturation + '%';
                 updateFilters();
             });
 
             grayscaleSlider.addEventListener('input', (e) => {
                 grayscale = parseInt(e.target.value);
-                grayscaleValue.textContent = grayscale + '%';
                 updateFilters();
             });
 
@@ -499,7 +513,6 @@
         }
 
         function updateZoom() {
-            zoomValue.textContent = currentZoom + '%';
             updateTransform();
         }
 
@@ -548,24 +561,19 @@
                     break;
             }
             
-            // Update sliders and values
+            // Update sliders
             brightnessSlider.value = brightness;
-            brightnessValue.textContent = brightness + '%';
             contrastSlider.value = contrast;
-            contrastValue.textContent = contrast + '%';
             saturationSlider.value = saturation;
-            saturationValue.textContent = saturation + '%';
             grayscaleSlider.value = grayscale;
-            grayscaleValue.textContent = grayscale + '%';
             
             updateFilters();
         }
 
         function updateImageInfo() {
-            const displayWidth = Math.round(originalWidth * currentZoom / 100);
-            const displayHeight = Math.round(originalHeight * currentZoom / 100);
-            
-            imageInfoDiv.textContent = `${originalWidth}×${originalHeight} | ${displayWidth}×${displayHeight} | ${currentZoom}%`;
+            sizeInfoDiv.textContent = `${originalWidth}×${originalHeight}`;
+            formatInfoDiv.textContent = imageFormat;
+            fileSizeInfoDiv.textContent = fileSize;
         }
 
         function resetImage() {
@@ -574,7 +582,6 @@
             isFlippedHorizontal = false;
             isFlippedVertical = false;
             
-            zoomSlider.value = currentZoom;
             updateZoom();
             updateImageInfo();
             
@@ -592,7 +599,6 @@
             const scale = Math.min(scaleX, scaleY, 1); // Don't scale up beyond 100%
             
             currentZoom = Math.round(scale * 100);
-            zoomSlider.value = currentZoom;
             updateZoom();
             updateImageInfo();
         }
