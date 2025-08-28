@@ -1,8 +1,14 @@
 {
   "name": "vscode-omni-viewer",
   "displayName": "VSCode Omni Viewer",
+  "publisher": "battlecook",
   "description": "A VSCode extension for viewing audio, video, and image files",
   "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/battlecook/vscode-omni-viewer.git"
+  },
+  "license": "MIT",
   "engines": {
     "vscode": "^1.74.0"
   },
