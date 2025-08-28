@@ -87,6 +87,15 @@
             color: white;
         }
 
+        .btn.save-btn {
+            background: var(--vscode-button-prominentBackground);
+            color: var(--vscode-button-prominentForeground);
+        }
+
+        .btn.save-btn:hover {
+            background: var(--vscode-button-prominentHoverBackground);
+        }
+
         .main-content {
             flex: 1;
             display: flex;
@@ -228,6 +237,86 @@
             background: var(--vscode-button-background);
             color: var(--vscode-button-foreground);
         }
+
+        /* Modal styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal {
+            background: var(--vscode-panel-background);
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 8px;
+            padding: 20px;
+            min-width: 400px;
+            max-width: 500px;
+        }
+
+        .modal-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: var(--vscode-editor-foreground);
+        }
+
+        .modal-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 4px;
+            background: var(--vscode-input-background);
+            color: var(--vscode-input-foreground);
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+
+        .modal-input:focus {
+            outline: none;
+            border-color: var(--vscode-focusBorder);
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .modal-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.2s;
+        }
+
+        .modal-btn.primary {
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+        }
+
+        .modal-btn.primary:hover {
+            background: var(--vscode-button-hoverBackground);
+        }
+
+        .modal-btn.secondary {
+            background: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+        }
+
+        .modal-btn.secondary:hover {
+            background: var(--vscode-button-secondaryHoverBackground);
+        }
     </style>
 </head>
 <body>
@@ -266,6 +355,7 @@
                     <button id="zoomOut" class="btn">🔍-</button>
                     <button id="zoomIn" class="btn">🔍+</button>
                     <button id="toggleFilters" class="btn">🎨</button>
+                    <button id="saveFiltered" class="btn save-btn">💾 Save</button>
                 </div>
             </div>
 
@@ -309,6 +399,26 @@
         </div>
     </div>
 
+    <!-- Filename Input Modal -->
+    <div id="filenameModal" class="modal-overlay" style="display: none;">
+        <div class="modal">
+            <div class="modal-title">💾 Save to Workspace</div>
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; font-size: 12px; color: var(--vscode-descriptionForeground);">
+                    File path:
+                </label>
+                <div id="savePathInfo" style="margin-top: 8px; padding: 6px 8px; background: var(--vscode-textBlockQuote-background); border-radius: 4px; font-family: 'Monaco', 'Menlo', monospace; font-size: 11px; color: var(--vscode-descriptionForeground);">
+                    <span id="currentPath">Loading path...</span>
+                </div>
+            </div>
+            <input type="text" id="filenameInput" class="modal-input" placeholder="Enter filename...">
+            <div class="modal-buttons">
+                <button id="cancelSave" class="modal-btn secondary">Cancel</button>
+                <button id="confirmSave" class="modal-btn primary">Save</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const vscode = acquireVsCodeApi();
         
@@ -344,6 +454,7 @@
         const flipVerticalBtn = document.getElementById('flipVertical');
         const resetBtn = document.getElementById('reset');
         const fitToScreenBtn = document.getElementById('fitToScreen');
+        const saveFilteredBtn = document.getElementById('saveFiltered');
         
         // Filter elements
         const filterControls = document.getElementById('filterControls');
@@ -360,6 +471,13 @@
         const presetVintage = document.getElementById('presetVintage');
         const presetBw = document.getElementById('presetBw');
         const presetReset = document.getElementById('presetReset');
+
+        // Modal elements
+        const filenameModal = document.getElementById('filenameModal');
+        const filenameInput = document.getElementById('filenameInput');
+        const cancelSaveBtn = document.getElementById('cancelSave');
+        const confirmSaveBtn = document.getElementById('confirmSave');
+        const currentPathSpan = document.getElementById('currentPath');
 
         // Initialize the image viewer
         function initImageViewer() {
@@ -444,6 +562,11 @@
                 fitToScreen();
             });
 
+            // Save filtered image
+            saveFilteredBtn.addEventListener('click', () => {
+                saveFilteredImage();
+            });
+
             // Toggle filters
             toggleFiltersBtn.addEventListener('click', () => {
                 const isVisible = filterControls.style.display !== 'none';
@@ -480,6 +603,42 @@
             presetBw.addEventListener('click', () => applyPreset('bw'));
             presetReset.addEventListener('click', () => applyPreset('reset'));
 
+            // Modal event listeners
+            cancelSaveBtn.addEventListener('click', () => {
+                filenameModal.style.display = 'none';
+                filenameInput.value = '';
+            });
+
+            confirmSaveBtn.addEventListener('click', () => {
+                const fileName = filenameInput.value.trim();
+                if (fileName) {
+                    filenameModal.style.display = 'none';
+                    saveFilteredImageWithName(fileName);
+                }
+            });
+
+            // Close modal on overlay click
+            filenameModal.addEventListener('click', (e) => {
+                if (e.target === filenameModal) {
+                    filenameModal.style.display = 'none';
+                    filenameInput.value = '';
+                }
+            });
+
+            // Handle Enter key in modal
+            filenameInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    confirmSaveBtn.click();
+                } else if (e.key === 'Escape') {
+                    cancelSaveBtn.click();
+                }
+            });
+
+            // Update path when filename changes
+            filenameInput.addEventListener('input', updateSavePath);
+
+
+
             // Keyboard shortcuts
             document.addEventListener('keydown', (e) => {
                 switch(e.key) {
@@ -502,11 +661,17 @@
                         break;
                     case 'ArrowLeft':
                         e.preventDefault();
-                        rotateLeftBtn.click();
+                        rotateBtn.click();
                         break;
                     case 'ArrowRight':
                         e.preventDefault();
-                        rotateRightBtn.click();
+                        rotateBtn.click();
+                        break;
+                    case 's':
+                        if (e.ctrlKey || e.metaKey) {
+                            e.preventDefault();
+                            saveFilteredBtn.click();
+                        }
                         break;
                 }
             });
@@ -601,6 +766,113 @@
             currentZoom = Math.round(scale * 100);
             updateZoom();
             updateImageInfo();
+        }
+
+        function saveFilteredImage() {
+            // Generate default filename with timestamp
+            const originalName = '{{fileName}}';
+            const nameWithoutExt = originalName.substring(0, originalName.lastIndexOf('.'));
+            const extension = originalName.substring(originalName.lastIndexOf('.'));
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            const defaultFileName = `${nameWithoutExt}_filtered_${timestamp}${extension}`;
+            
+            // Show modal with default filename
+            filenameInput.value = defaultFileName;
+            filenameInput.focus();
+            filenameInput.select();
+            filenameModal.style.display = 'flex';
+            
+            // Update path display
+            updateSavePath();
+        }
+
+        function updateSavePath() {
+            const fileName = filenameInput.value.trim() || 'filename.png';
+            
+            // Show workspace path
+            const workspacePath = '{{workspacePath}}';
+            if (workspacePath) {
+                currentPathSpan.textContent = `${workspacePath}/${fileName}`;
+            } else {
+                currentPathSpan.textContent = `[Workspace folder]/${fileName}`;
+            }
+        }
+
+        function updatePathFromVSCode(path) {
+            currentPathSpan.textContent = path;
+        }
+
+
+
+        function saveFilteredImageWithName(fileName) {
+            // Validate filename
+            const originalName = '{{fileName}}';
+            const extension = originalName.substring(originalName.lastIndexOf('.'));
+            
+            if (!fileName.toLowerCase().endsWith(extension.toLowerCase())) {
+                alert(`Filename should end with ${extension}`);
+                return;
+            }
+            
+            const invalidChars = /[<>:"/\\|?*]/;
+            if (invalidChars.test(fileName)) {
+                alert('Filename contains invalid characters');
+                return;
+            }
+            
+            // Create canvas to apply filters
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Set canvas size to original image size
+            canvas.width = originalWidth;
+            canvas.height = originalHeight;
+            
+            // Apply current filters to canvas context
+            ctx.filter = `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%) grayscale(${grayscale}%)`;
+            
+            // Apply transformations
+            ctx.save();
+            
+            // Move to center for rotation
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            
+            // Apply rotation
+            ctx.rotate((currentRotation * Math.PI) / 180);
+            
+            // Apply flips
+            const scaleX = isFlippedHorizontal ? -1 : 1;
+            const scaleY = isFlippedVertical ? -1 : 1;
+            ctx.scale(scaleX, scaleY);
+            
+            // Draw image centered
+            ctx.drawImage(image, -originalWidth / 2, -originalHeight / 2, originalWidth, originalHeight);
+            
+            ctx.restore();
+            
+            // Convert to blob and save
+            canvas.toBlob((blob) => {
+                if (blob) {
+                    // Convert blob to base64 for sending to VSCode extension
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        const base64Data = reader.result;
+                        const base64Content = base64Data.split(',')[1]; // Remove data URL prefix
+                        
+                        // Send message to VSCode extension to save in workspace
+                        vscode.postMessage({ 
+                            command: 'saveFilteredImage', 
+                            fileName: fileName,
+                            imageData: base64Content
+                        });
+                        
+                        vscode.postMessage({ command: 'log', text: `Filtered image saved as ${fileName}` });
+                    };
+                    reader.readAsDataURL(blob);
+                } else {
+                    vscode.postMessage({ command: 'error', text: 'Failed to create filtered image' });
+                }
+            }, 'image/png', 0.9);
         }
 
         // Initialize when page loads

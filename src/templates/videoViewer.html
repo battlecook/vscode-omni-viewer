@@ -44,6 +44,40 @@
             display: flex;
             gap: 10px;
             align-items: center;
+            padding: 5px;
+            background: var(--vscode-panel-background);
+            border-radius: 8px;
+            border: 1px solid var(--vscode-panel-border);
+            margin-bottom: 20px;
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+            padding: 5px;
+            background: var(--vscode-panel-background);
+            border-radius: 6px;
+            border: 1px solid var(--vscode-panel-border);
+        }
+
+        .file-info-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .file-info-label {
+            font-size: 10px;
+            opacity: 0.7;
+        }
+
+        .file-info-value {
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-weight: 500;
         }
 
         .control-group {
@@ -115,18 +149,6 @@
             background: #000;
         }
 
-        .video-info {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: var(--vscode-notifications-background);
-            color: var(--vscode-notifications-foreground);
-            padding: 8px 12px;
-            border-radius: 4px;
-            font-size: 12px;
-            opacity: 0.8;
-        }
-
         .loading {
             display: flex;
             justify-content: center;
@@ -146,11 +168,11 @@
             padding: 20px;
         }
 
-        .playback-controls {
+        .controls {
             display: flex;
             align-items: center;
-            gap: 15px;
-            padding: 15px;
+            gap: 10px;
+            padding: 5px;
             background: var(--vscode-panel-background);
             border-radius: 8px;
             border: 1px solid var(--vscode-panel-border);
@@ -187,66 +209,44 @@
             border-radius: 4px;
             font-size: 12px;
         }
-
-        .loop-controls {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .loop-input {
-            width: 80px;
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <div class="title">🎬 {{fileName}}</div>
-            <div class="controls">
-                <div class="control-group">
-                    <label>Loop:</label>
-                    <input type="checkbox" id="loopEnabled">
-                </div>
-                <div class="control-group loop-controls">
-                    <label>Start:</label>
-                    <input type="number" id="loopStart" class="loop-input" step="0.1" min="0" placeholder="0">
-                    <label>End:</label>
-                    <input type="number" id="loopEnd" class="loop-input" step="0.1" min="0" placeholder="0">
-                </div>
-            </div>
         </div>
 
         <div class="main-content">
-            <div class="video-container">
-                <div id="loading" class="loading">Loading video...</div>
-                <div id="error" class="error" style="display: none;"></div>
-                <div id="videoWrapper" class="video-wrapper" style="display: none;">
-                    <video id="video" controls>
-                        <source src="{{videoSrc}}" type="video/mp4">
-                        Your browser does not support the video tag.
-                    </video>
-                    <div id="videoInfo" class="video-info"></div>
+            <div class="file-info" id="fileInfo" style="display: none;">
+                <div class="file-info-item">
+                    <div class="file-info-label">Duration</div>
+                    <div class="file-info-value" id="durationInfo">--</div>
+                </div>
+                <div class="file-info-item">
+                    <div class="file-info-label">Resolution</div>
+                    <div class="file-info-value" id="resolutionInfo">--</div>
+                </div>
+                <div class="file-info-item">
+                    <div class="file-info-label">Format</div>
+                    <div class="file-info-value" id="formatInfo">--</div>
+                </div>
+                <div class="file-info-item">
+                    <div class="file-info-label">File Size</div>
+                    <div class="file-info-value" id="fileSizeInfo">--</div>
                 </div>
             </div>
-
-            <div class="playback-controls">
-                <button id="playPause" class="btn">▶️</button>
-                <button id="stop" class="btn">⏹️</button>
-                <button id="skipBackward" class="btn">⏪ -10s</button>
-                <button id="skipForward" class="btn">⏩ +10s</button>
-                
-                <div class="time-display">
-                    <div id="currentTime">00:00</div>
-                    <div id="duration">00:00</div>
+            
+            <div class="controls">
+                <div class="control-group">
+                    <button id="playPause" class="btn">▶️</button>
+                    <button id="stop" class="btn">⏹️</button>
                 </div>
-
-                <div class="volume-control">
-                    <label>🔊</label>
-                    <input type="range" id="volume" class="volume-slider" min="0" max="1" step="0.1" value="0.5">
+                <div class="control-group">
+                    <button id="skipBackward" class="btn">⏪ -10s</button>
+                    <button id="skipForward" class="btn">⏩ +10s</button>
                 </div>
-
-                <div class="speed-control">
+                <div class="control-group">
                     <label>Speed:</label>
                     <select id="playbackSpeed" class="speed-select">
                         <option value="0.25">0.25x</option>
@@ -260,6 +260,18 @@
                     </select>
                 </div>
             </div>
+            <div class="video-container">
+                <div id="loading" class="loading">Loading video...</div>
+                <div id="error" class="error" style="display: none;"></div>
+                <div id="videoWrapper" class="video-wrapper" style="display: none;">
+                    <video id="video" controls>
+                        <source src="{{videoSrc}}" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+            </div>
+
+
         </div>
     </div>
 
@@ -268,28 +280,26 @@
         
         // Video state
         let isPlaying = false;
-        let loopEnabled = false;
-        let loopStart = 0;
-        let loopEnd = 0;
         let originalDuration = 0;
+        let videoFormat = '';
+        let fileSize = '';
         
         // DOM elements
         const video = document.getElementById('video');
         const videoWrapper = document.getElementById('videoWrapper');
         const loadingDiv = document.getElementById('loading');
         const errorDiv = document.getElementById('error');
-        const videoInfoDiv = document.getElementById('videoInfo');
+
+        const fileInfoDiv = document.getElementById('fileInfo');
+        const durationInfoDiv = document.getElementById('durationInfo');
+        const resolutionInfoDiv = document.getElementById('resolutionInfo');
+        const formatInfoDiv = document.getElementById('formatInfo');
+        const fileSizeInfoDiv = document.getElementById('fileSizeInfo');
         const playPauseBtn = document.getElementById('playPause');
         const stopBtn = document.getElementById('stop');
         const skipBackwardBtn = document.getElementById('skipBackward');
         const skipForwardBtn = document.getElementById('skipForward');
-        const volumeSlider = document.getElementById('volume');
         const playbackSpeedSelect = document.getElementById('playbackSpeed');
-        const loopEnabledCheckbox = document.getElementById('loopEnabled');
-        const loopStartInput = document.getElementById('loopStart');
-        const loopEndInput = document.getElementById('loopEnd');
-        const currentTimeDiv = document.getElementById('currentTime');
-        const durationDiv = document.getElementById('duration');
 
         // Initialize the video viewer
         function initVideoViewer() {
@@ -300,16 +310,21 @@
             video.onloadedmetadata = function() {
                 originalDuration = video.duration;
                 
+                // Get video format from file extension
+                const fileName = '{{fileName}}';
+                const extension = fileName.split('.').pop().toUpperCase();
+                videoFormat = extension;
+                
+                // Get file size from template variable
+                fileSize = '{{fileSize}}';
+                
                 loadingDiv.style.display = 'none';
                 videoWrapper.style.display = 'block';
+                fileInfoDiv.style.display = 'flex';
                 
-                updateDuration();
-                updateVideoInfo();
+                updateFileInfo();
                 
-                // Set loop end default value
-                if (!loopEndInput.value) {
-                    loopEndInput.placeholder = originalDuration.toFixed(1);
-                }
+
                 
                 vscode.postMessage({ command: 'log', text: 'Video loaded successfully' });
             };
@@ -347,30 +362,13 @@
                 video.currentTime = Math.min(video.duration, video.currentTime + 10);
             });
 
-            // Volume control
-            volumeSlider.addEventListener('input', (e) => {
-                const volume = parseFloat(e.target.value);
-                video.volume = volume;
-            });
-
             // Playback speed control
             playbackSpeedSelect.addEventListener('change', (e) => {
                 const speed = parseFloat(e.target.value);
                 video.playbackRate = speed;
             });
 
-            // Loop controls
-            loopEnabledCheckbox.addEventListener('change', (e) => {
-                loopEnabled = e.target.checked;
-            });
 
-            loopStartInput.addEventListener('change', (e) => {
-                loopStart = parseFloat(e.target.value) || 0;
-            });
-
-            loopEndInput.addEventListener('change', (e) => {
-                loopEnd = parseFloat(e.target.value) || 0;
-            });
 
             // Video events
             video.addEventListener('play', () => {
@@ -384,25 +382,12 @@
             });
 
             video.addEventListener('ended', () => {
-                if (loopEnabled && loopEnd > loopStart) {
-                    // Loop playback
-                    setTimeout(() => {
-                        video.currentTime = loopStart;
-                        video.play();
-                    }, 100);
-                } else {
-                    isPlaying = false;
-                    playPauseBtn.textContent = '▶️';
-                }
+                isPlaying = false;
+                playPauseBtn.textContent = '▶️';
             });
 
             video.addEventListener('timeupdate', () => {
-                updateCurrentTime();
-                
-                // Check for loop end
-                if (loopEnabled && loopEnd > loopStart && video.currentTime >= loopEnd) {
-                    video.currentTime = loopStart;
-                }
+                // Time update event
             });
 
             video.addEventListener('loadeddata', () => {
@@ -436,32 +421,23 @@
             });
         }
 
-        function updateCurrentTime() {
-            const currentTime = video.currentTime;
-            const minutes = Math.floor(currentTime / 60);
-            const seconds = Math.floor(currentTime % 60);
-            currentTimeDiv.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-        }
-
-        function updateDuration() {
+        function updateFileInfo() {
             const duration = video.duration;
+            const width = video.videoWidth;
+            const height = video.videoHeight;
+            
             if (duration && !isNaN(duration)) {
                 const minutes = Math.floor(duration / 60);
                 const seconds = Math.floor(duration % 60);
-                durationDiv.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                durationInfoDiv.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
             }
-        }
-
-        function updateVideoInfo() {
-            const width = video.videoWidth;
-            const height = video.videoHeight;
-            const duration = video.duration;
             
-            if (width && height && duration) {
-                const minutes = Math.floor(duration / 60);
-                const seconds = Math.floor(duration % 60);
-                videoInfoDiv.textContent = `${width}×${height} | ${minutes}:${seconds.toString().padStart(2, '0')}`;
+            if (width && height) {
+                resolutionInfoDiv.textContent = `${width}×${height}`;
             }
+            
+            formatInfoDiv.textContent = videoFormat;
+            fileSizeInfoDiv.textContent = fileSize;
         }
 
         // Initialize when page loads
@@ -472,3 +448,4 @@
     </script>
 </body>
 </html>
+

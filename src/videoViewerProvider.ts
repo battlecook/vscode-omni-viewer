@@ -22,7 +22,6 @@ export class VideoViewerProvider implements vscode.CustomReadonlyEditorProvider 
         webviewPanel: vscode.WebviewPanel,
         _token: vscode.CancellationToken
     ): Promise<void> {
-        // 웹뷰 옵션 설정
         webviewPanel.webview.options = TemplateUtils.getWebviewOptions(this.context);
 
         const videoUri = document.uri;
@@ -30,34 +29,29 @@ export class VideoViewerProvider implements vscode.CustomReadonlyEditorProvider 
         const videoFileName = path.basename(videoPath);
 
         try {
-            // 비디오 파일을 data URL로 변환
             const mimeType = FileUtils.getVideoMimeType(videoPath);
             const videoData = await FileUtils.fileToDataUrl(videoPath, mimeType);
+            
+            const fileSize = await FileUtils.getFileSize(videoPath);
 
-            // HTML 템플릿 로드 및 변수 치환
             const html = await TemplateUtils.loadTemplate(this.context, 'videoViewer.html', {
                 fileName: videoFileName,
-                videoSrc: videoData
+                videoSrc: videoData,
+                fileSize: fileSize
             });
 
-            // 웹뷰에 HTML 설정
             webviewPanel.webview.html = html;
 
-            // 메시지 리스너 설정
             MessageHandler.setupMessageListener(webviewPanel.webview);
 
         } catch (error) {
             console.error('Error setting up video viewer:', error);
             
-            // 에러 페이지 표시
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
             webviewPanel.webview.html = this.getErrorHtml(videoFileName, errorMessage);
         }
     }
 
-    /**
-     * 에러 발생 시 표시할 HTML을 생성합니다.
-     */
     private getErrorHtml(fileName: string, errorMessage: string): string {
         return `<!DOCTYPE html>
 <html lang="en">

@@ -22,7 +22,6 @@ export class ImageViewerProvider implements vscode.CustomReadonlyEditorProvider 
         webviewPanel: vscode.WebviewPanel,
         _token: vscode.CancellationToken
     ): Promise<void> {
-        // 웹뷰 옵션 설정
         webviewPanel.webview.options = TemplateUtils.getWebviewOptions(this.context);
 
         const imageUri = document.uri;
@@ -30,38 +29,36 @@ export class ImageViewerProvider implements vscode.CustomReadonlyEditorProvider 
         const imageFileName = path.basename(imagePath);
 
         try {
-            // 이미지 파일을 data URL로 변환
             const mimeType = FileUtils.getImageMimeType(imagePath);
             const imageData = await FileUtils.fileToDataUrl(imagePath, mimeType);
             
-            // 파일 크기 가져오기
             const fileSize = await FileUtils.getFileSize(imagePath);
 
-            // HTML 템플릿 로드 및 변수 치환
+            // Get workspace folder path
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            const workspacePath = workspaceFolders && workspaceFolders.length > 0 
+                ? workspaceFolders[0].uri.fsPath 
+                : '';
+
             const html = await TemplateUtils.loadTemplate(this.context, 'imageViewer.html', {
                 fileName: imageFileName,
                 imageSrc: imageData,
-                fileSize: fileSize
+                fileSize: fileSize,
+                workspacePath: workspacePath
             });
 
-            // 웹뷰에 HTML 설정
             webviewPanel.webview.html = html;
 
-            // 메시지 리스너 설정
             MessageHandler.setupMessageListener(webviewPanel.webview);
 
         } catch (error) {
             console.error('Error setting up image viewer:', error);
             
-            // 에러 페이지 표시
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
             webviewPanel.webview.html = this.getErrorHtml(imageFileName, errorMessage);
         }
     }
 
-    /**
-     * 에러 발생 시 표시할 HTML을 생성합니다.
-     */
     private getErrorHtml(fileName: string, errorMessage: string): string {
         return `<!DOCTYPE html>
 <html lang="en">

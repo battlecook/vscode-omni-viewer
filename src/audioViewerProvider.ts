@@ -22,7 +22,6 @@ export class AudioViewerProvider implements vscode.CustomReadonlyEditorProvider 
         webviewPanel: vscode.WebviewPanel,
         _token: vscode.CancellationToken
     ): Promise<void> {
-        // 웹뷰 옵션 설정
         webviewPanel.webview.options = TemplateUtils.getWebviewOptions(this.context);
 
         const audioUri = document.uri;
@@ -30,34 +29,26 @@ export class AudioViewerProvider implements vscode.CustomReadonlyEditorProvider 
         const audioFileName = path.basename(audioPath);
 
         try {
-            // 오디오 파일을 data URL로 변환
             const mimeType = FileUtils.getAudioMimeType(audioPath);
             const audioData = await FileUtils.fileToDataUrl(audioPath, mimeType);
 
-            // HTML 템플릿 로드 및 변수 치환
             const html = await TemplateUtils.loadTemplate(this.context, 'audio/audioViewer.html', {
                 fileName: audioFileName,
                 audioSrc: audioData
             });
 
-            // 웹뷰에 HTML 설정
             webviewPanel.webview.html = html;
 
-            // 메시지 리스너 설정
             MessageHandler.setupMessageListener(webviewPanel.webview);
 
         } catch (error) {
             console.error('Error setting up audio viewer:', error);
             
-            // 에러 페이지 표시
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
             webviewPanel.webview.html = this.getErrorHtml(audioFileName, errorMessage);
         }
     }
 
-    /**
-     * 에러 발생 시 표시할 HTML을 생성합니다.
-     */
     private getErrorHtml(fileName: string, errorMessage: string): string {
         return `<!DOCTYPE html>
 <html lang="en">

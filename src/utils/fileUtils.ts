@@ -2,14 +2,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 export class FileUtils {
-    /**
-     * 파일 크기 제한 (50MB)
-     */
     private static readonly MAX_FILE_SIZE = 50 * 1024 * 1024;
 
-    /**
-     * 오디오 파일의 MIME 타입을 반환합니다.
-     */
     public static getAudioMimeType(filePath: string): string {
         const ext = path.extname(filePath).toLowerCase();
         const mimeTypes: { [key: string]: string } = {
@@ -23,9 +17,6 @@ export class FileUtils {
         return mimeTypes[ext] || 'audio/wav';
     }
 
-    /**
-     * 비디오 파일의 MIME 타입을 반환합니다.
-     */
     public static getVideoMimeType(filePath: string): string {
         const ext = path.extname(filePath).toLowerCase();
         const mimeTypes: { [key: string]: string } = {
@@ -40,9 +31,6 @@ export class FileUtils {
         return mimeTypes[ext] || 'video/mp4';
     }
 
-    /**
-     * 이미지 파일의 MIME 타입을 반환합니다.
-     */
     public static getImageMimeType(filePath: string): string {
         const ext = path.extname(filePath).toLowerCase();
         const mimeTypes: { [key: string]: string } = {
@@ -57,9 +45,6 @@ export class FileUtils {
         return mimeTypes[ext] || 'image/jpeg';
     }
 
-    /**
-     * 파일을 base64로 인코딩하여 data URL을 생성합니다.
-     */
     public static async fileToDataUrl(filePath: string, mimeType: string): Promise<string> {
         try {
             const buffer = await fs.promises.readFile(filePath);
@@ -77,9 +62,6 @@ export class FileUtils {
         }
     }
 
-    /**
-     * 파일 크기를 읽기 쉬운 형태로 포맷팅합니다.
-     */
     public static async getFileSize(filePath: string): Promise<string> {
         try {
             const stats = await fs.promises.stat(filePath);

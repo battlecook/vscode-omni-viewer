@@ -3,9 +3,6 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 
 export class TemplateUtils {
-    /**
-     * HTML 템플릿을 로드하고 변수를 치환합니다.
-     */
     public static async loadTemplate(
         context: vscode.ExtensionContext,
         templateName: string,
@@ -16,10 +13,8 @@ export class TemplateUtils {
         try {
             let template = await fs.promises.readFile(templatePath, 'utf8');
             
-            // CSS와 JavaScript 파일들을 인라인으로 포함
             template = await this.inlineExternalFiles(context, templatePath, template);
             
-            // 변수 치환
             for (const [key, value] of Object.entries(variables)) {
                 const placeholder = `{{${key}}}`;
                 template = template.replace(new RegExp(placeholder, 'g'), value);
@@ -32,13 +27,9 @@ export class TemplateUtils {
         }
     }
 
-    /**
-     * 외부 CSS와 JavaScript 파일들을 인라인으로 포함시킵니다.
-     */
     private static async inlineExternalFiles(context: vscode.ExtensionContext, templatePath: string, html: string): Promise<string> {
         const templateDir = path.dirname(templatePath);
         
-        // CSS 파일 인라인 포함
         const cssMatch = html.match(/<link[^>]*href="([^"]*\.css)"[^>]*>/g);
         if (cssMatch) {
             for (const linkTag of cssMatch) {
@@ -65,7 +56,6 @@ export class TemplateUtils {
                 if (srcMatch) {
                     const jsRelativePath = srcMatch[1];
                     
-                    // CDN 스크립트는 건너뛰기
                     if (jsRelativePath.startsWith('http://') || jsRelativePath.startsWith('https://')) {
                         continue;
                     }
@@ -86,9 +76,6 @@ export class TemplateUtils {
         return html;
     }
 
-    /**
-     * 웹뷰 옵션을 설정합니다.
-     */
     public static getWebviewOptions(context: vscode.ExtensionContext): vscode.WebviewOptions {
         return {
             enableScripts: true,
