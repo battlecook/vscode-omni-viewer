@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Viewer - {{fileName}}</title>
+    <link rel="stylesheet" href="css/imageViewer.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="title">🖼️ {{fileName}}</div>
+        </div>
+
+        <div class="main-content">
+            <div class="file-info" id="fileInfo" style="display: none;">
+                <div class="file-info-item">
+                    <div class="file-info-label">Size</div>
+                    <div class="file-info-value" id="sizeInfo">--</div>
+                </div>
+                <div class="file-info-item">
+                    <div class="file-info-label">Format</div>
+                    <div class="file-info-value" id="formatInfo">--</div>
+                </div>
+                <div class="file-info-item">
+                    <div class="file-info-label">File Size</div>
+                    <div class="file-info-value" id="fileSizeInfo">--</div>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <div class="control-group">
+                    <button id="rotate" class="btn">🔄</button>
+                </div>
+                <div class="control-group">
+                    <button id="flipHorizontal" class="btn">↔️</button>
+                    <button id="flipVertical" class="btn">↕️</button>
+                </div>
+                <div class="control-group">
+                    <button id="reset" class="btn">⏹️ Reset</button>
+                    <button id="fitToScreen" class="btn">📐 Fit</button>
+                    <button id="zoomOut" class="btn">🔍-</button>
+                    <button id="zoomIn" class="btn">🔍+</button>
+                    <button id="toggleFilters" class="btn">🎨</button>
+                    <button id="saveFiltered" class="btn save-btn">💾 Save</button>
+                </div>
+            </div>
+
+            <div class="filter-controls" id="filterControls" style="display: none;">
+                <div class="filter-presets">
+                    <button id="presetNormal" class="preset-btn active">Normal</button>
+                    <button id="presetBright" class="preset-btn">Bright</button>
+                    <button id="presetDark" class="preset-btn">Dark</button>
+                    <button id="presetVintage" class="preset-btn">Vintage</button>
+                    <button id="presetBw" class="preset-btn">B&W</button>
+                    <button id="presetReset" class="preset-btn">Reset</button>
+                </div>
+                <div class="filter-sliders">
+                    <div class="filter-group">
+                        <label>Brightness:</label>
+                        <input type="range" id="brightnessSlider" class="filter-slider" min="0" max="200" value="100" step="5">
+                    </div>
+                    <div class="filter-group">
+                        <label>Contrast:</label>
+                        <input type="range" id="contrastSlider" class="filter-slider" min="0" max="200" value="100" step="5">
+                    </div>
+                    <div class="filter-group">
+                        <label>Saturation:</label>
+                        <input type="range" id="saturationSlider" class="filter-slider" min="0" max="200" value="100" step="5">
+                    </div>
+                    <div class="filter-group">
+                        <label>Grayscale:</label>
+                        <input type="range" id="grayscaleSlider" class="filter-slider" min="0" max="100" value="0" step="5">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="image-container">
+                <div id="loading" class="loading">Loading image...</div>
+                <div id="error" class="error" style="display: none;"></div>
+                <div id="imageWrapper" class="image-wrapper" style="display: none;">
+                    <img id="image" src="{{imageSrc}}" alt="{{fileName}}">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filename Input Modal -->
+    <div id="filenameModal" class="modal-overlay" style="display: none;">
+        <div class="modal">
+            <div class="modal-title">💾 Save to Workspace</div>
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; font-size: 12px; color: var(--vscode-descriptionForeground);">
+                    File path:
+                </label>
+                <div id="savePathInfo" style="margin-top: 8px; padding: 6px 8px; background: var(--vscode-textBlockQuote-background); border-radius: 4px; font-family: 'Monaco', 'Menlo', monospace; font-size: 11px; color: var(--vscode-descriptionForeground);">
+                    <span id="currentPath">Loading path...</span>
+                </div>
+            </div>
+            <input type="text" id="filenameInput" class="modal-input" placeholder="Enter filename...">
+            <div class="modal-buttons">
+                <button id="cancelSave" class="modal-btn secondary">Cancel</button>
+                <button id="confirmSave" class="modal-btn primary">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/imageViewer.js"></script>
+</body>
+</html>

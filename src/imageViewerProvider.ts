@@ -40,7 +40,7 @@ export class ImageViewerProvider implements vscode.CustomReadonlyEditorProvider 
                 ? workspaceFolders[0].uri.fsPath 
                 : '';
 
-            const html = await TemplateUtils.loadTemplate(this.context, 'imageViewer.html', {
+            const html = await TemplateUtils.loadTemplate(this.context, 'image/imageViewer.html', {
                 fileName: imageFileName,
                 imageSrc: imageData,
                 fileSize: fileSize,
