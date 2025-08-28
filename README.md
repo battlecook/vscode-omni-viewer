@@ -12,6 +12,7 @@ A comprehensive audio, image, and video viewer extension for VSCode and Cursor.
 - **Zoom Controls**: Waveform zoom in/out and fit to screen
 - **Volume Control**: Real-time volume adjustment
 - **Playback Speed**: Multiple playback speed options
+- **Audio Information**: Duration, sample rate, channels, bit depth, file size, format display
 
 ### Supported Audio Formats
 - MP3, WAV, OGG, FLAC, AAC, M4A
@@ -23,8 +24,11 @@ A comprehensive audio, image, and video viewer extension for VSCode and Cursor.
 - **Rotation**: 90-degree left/right rotation
 - **Flip**: Horizontal/vertical flip
 - **Fit to Screen**: Automatic screen size fitting
+- **Image Filters**: Brightness, contrast, saturation, grayscale adjustments
+- **Filter Presets**: Normal, Bright, Dark, Vintage, B&W presets
+- **Save Functionality**: Save filtered images to workspace
 - **Keyboard Shortcuts**: Quick operation shortcuts
-- **Image Information**: Resolution and size information display
+- **Image Information**: Resolution, format, and file size information display
 
 ### Supported Image Formats
 - JPG, JPEG, PNG, GIF, BMP, WebP, SVG
@@ -38,7 +42,7 @@ A comprehensive audio, image, and video viewer extension for VSCode and Cursor.
 - **Skip Controls**: 10-second forward/backward skip
 - **Volume Control**: Real-time volume adjustment
 - **Keyboard Shortcuts**: Spacebar, arrow keys, etc.
-- **Video Information**: Resolution and duration display
+- **Video Information**: Resolution, duration, and file size display
 
 ### Supported Video Formats
 - MP4, AVI, MOV, WMV, FLV, WebM, MKV
@@ -106,19 +110,38 @@ A comprehensive audio, image, and video viewer extension for VSCode and Cursor.
 - **WaveSurfer.js**: Audio visualization and playback
 - **VSCode Extension API**: Extension development
 - **WebView**: Custom editor implementation
+- **HTML5 Canvas**: Image manipulation and filters
 
 ### Project Structure
 ```
 vscode-omni-viewer/
 ├── src/
-│   ├── extension.ts          # Main extension entry point
-│   ├── audioViewerProvider.ts # Audio viewer provider
-│   ├── imageViewerProvider.ts # Image viewer provider
-│   └── videoViewerProvider.ts # Video viewer provider
-├── out/                     # Compiled JavaScript files
-├── package.json            # Extension configuration
-├── tsconfig.json          # TypeScript configuration
-└── README.md              # Project documentation
+│   ├── extension.ts              # Main extension entry point
+│   ├── audioViewerProvider.ts    # Audio viewer provider
+│   ├── imageViewerProvider.ts    # Image viewer provider
+│   ├── videoViewerProvider.ts    # Video viewer provider
+│   ├── utils/
+│   │   ├── fileUtils.ts          # File handling utilities
+│   │   ├── messageHandler.ts     # WebView message handling
+│   │   └── templateUtils.ts      # Template loading utilities
+│   └── templates/
+│       ├── audio/
+│       │   ├── audioViewer.html  # Audio viewer template
+│       │   ├── css/
+│       │   │   └── audioViewer.css
+│       │   └── js/
+│       │       └── audioViewer.js
+│       ├── image/
+│       │   ├── imageViewer.html  # Image viewer template
+│       │   ├── css/
+│       │   │   └── imageViewer.css
+│       │   └── js/
+│       │       └── imageViewer.js
+│       └── videoViewer.html      # Video viewer template
+├── out/                          # Compiled JavaScript files
+├── package.json                  # Extension configuration
+├── tsconfig.json                # TypeScript configuration
+└── README.md                    # Project documentation
 ```
 
 ### Key Feature Implementation
@@ -128,18 +151,27 @@ vscode-omni-viewer/
 - Spectrogram plugin integration
 - Region selection and loop playback logic
 - Real-time audio processing and event handling
+- Audio metadata extraction and display
 
 #### Image Viewer (imageViewerProvider.ts)
 - CSS Transform-based image transformations
+- Canvas-based image filtering system
 - Responsive zoom and rotation features
 - Keyboard event handling
 - Image metadata display
+- Save functionality with workspace integration
 
 #### Video Viewer (videoViewerProvider.ts)
 - HTML5 Video API utilization
 - Playback speed and volume control
 - Loop region playback implementation
 - Keyboard shortcut support
+- Video metadata display
+
+#### Utilities
+- **FileUtils**: File type detection, MIME type mapping, file size calculation
+- **MessageHandler**: WebView communication between extension and frontend
+- **TemplateUtils**: HTML template loading and variable substitution
 
 ## 📝 License
 
@@ -165,6 +197,11 @@ npm run watch          # Real-time TypeScript compilation
 npm run compile        # One-time compilation
 npm run lint           # Code linting
 
+# Testing
+npm run test           # Run tests
+npm run test:watch     # Run tests in watch mode
+npm run test:coverage  # Run tests with coverage
+
 # Packaging
 npm run vscode:prepublish  # Production build
 ```
@@ -188,4 +225,5 @@ npm run vscode:prepublish  # Production build
 - Audio files are loaded as Base64 for WebView compatibility
 - Large files may take time to load initially
 - Memory usage scales with file size
-- Recommended file size: < 100MB for optimal performance
+- Recommended file size: < 50MB for optimal performance
+- Maximum file size limit: 50MB per file
