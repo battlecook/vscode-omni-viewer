@@ -218,7 +218,6 @@ npm run vscode:prepublish  # Production build
 
 ### Known Issues
 - Large file handling optimization needed
-- Mobile device support improvements
 
 ## 📊 Performance Notes
 
