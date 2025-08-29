@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.0] - 2025-08-29
 
 ### Added
 - Package metadata (publisher, license, repository fields)
@@ -14,12 +14,6 @@
   - Statistics view with detailed file and data information
   - Keyboard shortcuts (Ctrl+F for search, Ctrl+C for copy)
   - Support for CSV and TSV file formats
-
-### Changed
-
-### Deprecated
-
-### Removed
 
 ### Fixed
 - Audio file metadata display now shows accurate sample rate, channels, bit depth, and duration information instead of estimated values
