@@ -3,7 +3,7 @@
   "displayName": "omni-viewer",
   "publisher": "battlecook",
   "description": "A VSCode extension for viewing audio, video, and image files",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
@@ -13,15 +13,17 @@
     "vscode": "^1.74.0"
   },
   "categories": [
-    "Visualization",
+    "Other"
+  ],
+  "tags": [
     "Media",
-    "Other",
     "Audio",
     "Video",
     "Image",
+    "CSV",
     "Viewers"
   ],
-  "icon": "https://eyedealisty-website.web.app/img/omniviewer/logo.png",
+  "icon": "img/icon.png",
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {

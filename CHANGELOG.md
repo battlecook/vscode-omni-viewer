@@ -1,5 +1,21 @@
 # Changelog
 
+## [unreleased] 
+
+### Added
+- img directory for extension assets
+
+### Changed
+- Fixed icon path configuration for proper extension packaging
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
 ## [0.1.0] - 2025-08-29
 
 ### Added
