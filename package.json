@@ -106,6 +106,19 @@
           }
         ],
         "priority": "default"
+      },
+      {
+        "viewType": "omni-viewer.csvViewer",
+        "displayName": "CSV Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.csv"
+          },
+          {
+            "filenamePattern": "*.tsv"
+          }
+        ],
+        "priority": "default"
       }
     ]
   },

@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { AudioViewerProvider } from './audioViewerProvider';
 import { ImageViewerProvider } from './imageViewerProvider';
 import { VideoViewerProvider } from './videoViewerProvider';
+import { CsvViewerProvider } from './csvViewerProvider';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Omni Viewer extension is now active!');
@@ -10,6 +11,7 @@ export function activate(context: vscode.ExtensionContext) {
     const audioViewerProvider = new AudioViewerProvider(context);
     const imageViewerProvider = new ImageViewerProvider(context);
     const videoViewerProvider = new VideoViewerProvider(context);
+    const csvViewerProvider = new CsvViewerProvider(context);
 
     // Register commands
     const openAudioViewer = vscode.commands.registerCommand('omni-viewer.openAudioViewer', (uri: vscode.Uri) => {
@@ -33,6 +35,14 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.videoViewer');
         } else {
             vscode.window.showErrorMessage('No video file selected');
+        }
+    });
+
+    const openCsvViewer = vscode.commands.registerCommand('omni-viewer.openCsvViewer', (uri: vscode.Uri) => {
+        if (uri) {
+            vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.csvViewer');
+        } else {
+            vscode.window.showErrorMessage('No CSV file selected');
         }
     });
 
@@ -64,13 +74,24 @@ export function activate(context: vscode.ExtensionContext) {
         }
     );
 
+    const csvEditorRegistration = vscode.window.registerCustomEditorProvider(
+        'omni-viewer.csvViewer',
+        csvViewerProvider,
+        {
+            webviewOptions: { retainContextWhenHidden: true },
+            supportsMultipleEditorsPerDocument: false
+        }
+    );
+
     context.subscriptions.push(
         openAudioViewer,
         openImageViewer,
         openVideoViewer,
+        openCsvViewer,
         audioEditorRegistration,
         imageEditorRegistration,
-        videoEditorRegistration
+        videoEditorRegistration,
+        csvEditorRegistration
     );
 }
 

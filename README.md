@@ -1,6 +1,6 @@
 # VSCode Omni Viewer
 
-A comprehensive audio, image, and video viewer extension for VSCode and Cursor.
+A comprehensive audio, image, video, and CSV viewer extension for VSCode and Cursor.
 
 ## 🎵 Audio Viewer Features
 
@@ -52,6 +52,23 @@ A comprehensive audio, image, and video viewer extension for VSCode and Cursor.
 
 ### Supported Video Formats
 - MP4, AVI, MOV, WMV, FLV, WebM, MKV
+
+## 📊 CSV Viewer Features
+
+### Advanced CSV Viewer
+- **Table Display**: Clean, sortable table view of CSV data
+- **Search & Filter**: Real-time search across all columns
+- **Column Sorting**: Click headers to sort by any column (numeric/text aware)
+- **Pagination**: Handle large datasets with page navigation
+- **Copy to Clipboard**: Copy filtered data to clipboard (tab-separated format)
+- **Statistics View**: Display detailed file and data statistics
+- **Keyboard Shortcuts**: Ctrl+F for search, Ctrl+C for copy
+- **File Information**: Row count, column count, and file size display
+- **Responsive Design**: Works on different screen sizes
+
+### Supported CSV Formats
+- CSV (Comma-Separated Values)
+- TSV (Tab-Separated Values)
 
 ## 🚀 Installation and Usage
 

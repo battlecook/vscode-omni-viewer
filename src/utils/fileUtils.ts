@@ -109,4 +109,76 @@ export class FileUtils {
             };
         }
     }
+
+    public static async readCsvFile(filePath: string): Promise<{
+        headers: string[];
+        rows: string[][];
+        totalRows: number;
+        totalColumns: number;
+        fileSize: string;
+    }> {
+        try {
+            const content = await fs.promises.readFile(filePath, 'utf-8');
+            const lines = content.split('\n').filter(line => line.trim() !== '');
+            
+            if (lines.length === 0) {
+                throw new Error('CSV file is empty');
+            }
+
+            // Parse CSV (simple implementation - assumes comma-separated values)
+            const rows: string[][] = [];
+            for (const line of lines) {
+                // Simple CSV parsing - split by comma, handle quoted values
+                const row = this.parseCsvLine(line);
+                rows.push(row);
+            }
+
+            const headers = rows[0] || [];
+            const dataRows = rows.slice(1);
+            const fileSize = await this.getFileSize(filePath);
+
+            return {
+                headers,
+                rows: dataRows,
+                totalRows: dataRows.length,
+                totalColumns: headers.length,
+                fileSize
+            };
+        } catch (error) {
+            console.error('Error reading CSV file:', error);
+            throw error;
+        }
+    }
+
+    private static parseCsvLine(line: string): string[] {
+        const result: string[] = [];
+        let current = '';
+        let inQuotes = false;
+        
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            
+            if (char === '"') {
+                if (inQuotes && line[i + 1] === '"') {
+                    // Escaped quote
+                    current += '"';
+                    i++;
+                } else {
+                    // Toggle quote state
+                    inQuotes = !inQuotes;
+                }
+            } else if (char === ',' && !inQuotes) {
+                // End of field
+                result.push(current.trim());
+                current = '';
+            } else {
+                current += char;
+            }
+        }
+        
+        // Add the last field
+        result.push(current.trim());
+        
+        return result;
+    }
 }
