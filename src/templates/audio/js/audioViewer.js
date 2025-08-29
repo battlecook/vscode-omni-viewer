@@ -29,6 +29,21 @@ const CONSTANTS = {
 // Audio file source
 const audioSrc = '{{audioSrc}}';
 
+// Get metadata from server
+const getMetadata = () => {
+    try {
+        const metadataScript = document.getElementById('metadata-script');
+        if (metadataScript && metadataScript.textContent) {
+            return JSON.parse(metadataScript.textContent);
+        }
+    } catch (error) {
+        console.warn('Error parsing metadata:', error);
+    }
+    return {};
+};
+
+const audioMetadata = getMetadata();
+
 // State management
 const state = {
     wavesurfer: null,
@@ -553,8 +568,13 @@ const regionManager = {
 
 // File info management
 const fileInfoManager = {
-    updateDuration() {
-        const duration = state.wavesurfer.getDuration();
+    updateDuration(durationFromMetadata = null) {
+        let duration = durationFromMetadata;
+        
+        if (!duration) {
+            duration = state.wavesurfer.getDuration();
+        }
+        
         if (duration && !isNaN(duration)) {
             const minutes = Math.floor(duration / 60);
             const seconds = Math.floor(duration % 60);
@@ -565,33 +585,41 @@ const fileInfoManager = {
     updateFileInfo() {
         try {
             const decodedData = state.wavesurfer.getDecodedData();
-            if (!decodedData) return;
+            
+            // Use server metadata if available, fallback to decoded data
+            const sampleRate = audioMetadata.sampleRate || (decodedData?.sampleRate || CONSTANTS.WAVESURFER.SAMPLE_RATE);
+            const channels = audioMetadata.channels || (decodedData?.numberOfChannels || 2);
+            const bitDepth = audioMetadata.bitDepth || (decodedData?.length > 0 ? (decodedData instanceof Float32Array ? 32 : 16) : '--');
+            const format = audioMetadata.format || this.detectFormat();
+            const fileSize = audioMetadata.fileSize || (decodedData ? this.estimateFileSize(decodedData) : '--');
+            const duration = audioMetadata.duration || (decodedData ? decodedData.length / sampleRate : '--');
 
-            // Sample Rate
-            elements.sampleRateInfo.textContent = `${decodedData.sampleRate} Hz`;
-            
-            // Channels
-            elements.channelsInfo.textContent = decodedData.numberOfChannels;
-            
-            // Bit Depth
-            const bitDepth = decodedData.length > 0 ? 
-                (decodedData instanceof Float32Array ? 32 : 16) : '--';
+            // Update UI elements
+            elements.sampleRateInfo.textContent = sampleRate ? `${sampleRate} Hz` : '--';
+            elements.channelsInfo.textContent = channels || '--';
             elements.bitDepthInfo.textContent = bitDepth === '--' ? '--' : `${bitDepth} bit`;
+            elements.formatInfo.textContent = format || '--';
+            elements.fileSizeInfo.textContent = fileSize || '--';
             
-            // Format
-            const format = this.detectFormat();
-            elements.formatInfo.textContent = format;
-            
-            // File Size
-            const estimatedSize = decodedData.length * decodedData.numberOfChannels * 2;
-            const sizeInKB = Math.round(estimatedSize / 1024);
-            const sizeInMB = (estimatedSize / (1024 * 1024)).toFixed(1);
-            elements.fileSizeInfo.textContent = sizeInMB > 1 ? `${sizeInMB} MB` : `${sizeInKB} KB`;
+            // Update duration if available
+            if (duration && duration !== '--') {
+                this.updateDuration(duration);
+            } else {
+                this.updateDuration();
+            }
             
             elements.fileInfo.style.display = 'flex';
         } catch (error) {
             console.warn('Error updating file info:', error);
         }
+    },
+
+    estimateFileSize(decodedData) {
+        if (!decodedData) return '--';
+        const estimatedSize = decodedData.length * decodedData.numberOfChannels * 2;
+        const sizeInKB = Math.round(estimatedSize / 1024);
+        const sizeInMB = (estimatedSize / (1024 * 1024)).toFixed(1);
+        return sizeInMB > 1 ? `${sizeInMB} MB` : `${sizeInKB} KB`;
     },
 
     detectFormat() {

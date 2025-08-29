@@ -31,10 +31,12 @@ export class AudioViewerProvider implements vscode.CustomReadonlyEditorProvider 
         try {
             const mimeType = FileUtils.getAudioMimeType(audioPath);
             const audioData = await FileUtils.fileToDataUrl(audioPath, mimeType);
+            const metadata = await FileUtils.getAudioMetadata(audioPath);
 
             const html = await TemplateUtils.loadTemplate(this.context, 'audio/audioViewer.html', {
                 fileName: audioFileName,
-                audioSrc: audioData
+                audioSrc: audioData,
+                metadata: JSON.stringify(metadata)
             });
 
             webviewPanel.webview.html = html;

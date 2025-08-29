@@ -1,5 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs';
+import * as mm from 'music-metadata';
 
 export class FileUtils {
     private static readonly MAX_FILE_SIZE = 50 * 1024 * 1024;
@@ -77,6 +78,35 @@ export class FileUtils {
         } catch (error) {
             console.error('Error getting file size:', error);
             return 'Unknown';
+        }
+    }
+
+    public static async getAudioMetadata(filePath: string): Promise<{
+        sampleRate?: number;
+        channels?: number;
+        bitDepth?: number;
+        duration?: number;
+        format?: string;
+        fileSize?: string;
+    }> {
+        try {
+            const metadata = await mm.parseFile(filePath);
+            const format = metadata.format;
+            
+            return {
+                sampleRate: format.sampleRate,
+                channels: format.numberOfChannels,
+                bitDepth: format.bitsPerSample,
+                duration: format.duration,
+                format: format.container || path.extname(filePath).toUpperCase().slice(1),
+                fileSize: await this.getFileSize(filePath)
+            };
+        } catch (error) {
+            console.error('Error reading audio metadata:', error);
+            return {
+                format: path.extname(filePath).toUpperCase().slice(1),
+                fileSize: await this.getFileSize(filePath)
+            };
         }
     }
 }
