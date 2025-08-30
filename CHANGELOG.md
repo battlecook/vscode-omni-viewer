@@ -13,6 +13,15 @@
   - Save changes functionality for raw data modifications
   - Keyboard shortcuts for all major operations
 
+### Fixed
+- **CSV file saving issues in custom editor**
+  - Fixed VS Code API injection for CSV viewer
+  - Resolved data persistence issues where changes were only stored in memory
+  - Added proper document URI handling in MessageHandler for accurate file saving
+  - Updated CSV viewer to use direct vscode API instead of window.vscode
+  - Ensured all CSV operations (cell edit, add/delete rows/columns) save to actual file
+  - Added comprehensive logging for debugging save operations
+
 ### Changed
 - Fixed icon path configuration for proper extension packaging
 - **CSV Viewer UI/UX improvements**

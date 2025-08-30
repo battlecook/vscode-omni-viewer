@@ -46,6 +46,8 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
+
+
     // Register custom editors
     const audioEditorRegistration = vscode.window.registerCustomEditorProvider(
         'omni-viewer.audioViewer',
@@ -82,6 +84,10 @@ export function activate(context: vscode.ExtensionContext) {
             supportsMultipleEditorsPerDocument: false
         }
     );
+
+
+
+
 
     context.subscriptions.push(
         openAudioViewer,

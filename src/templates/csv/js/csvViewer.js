@@ -1,4 +1,6 @@
 // CSV Viewer JavaScript
+const vscode = acquireVsCodeApi();
+
 class CsvViewer {
     constructor() {
         this.csvData = null;
@@ -9,7 +11,6 @@ class CsvViewer {
         this.sortDirection = 'asc';
         this.searchTerm = '';
         this.isTableView = true; // true for table view, false for raw view
-        this.isRawDataModified = false; // Track if raw data has been modified
         this.contextMenuTarget = null; // Store the target element for context menu
         
         this.init();
@@ -96,6 +97,22 @@ class CsvViewer {
                 const td = document.createElement('td');
                 td.textContent = cell || '';
                 td.title = cell || ''; // Tooltip for truncated content
+                td.className = 'editable-cell';
+                td.setAttribute('data-row', startIndex + rowIndex);
+                td.setAttribute('data-col', cellIndex);
+                
+                // Store the original row index for proper data mapping
+                // Find the original row index by comparing with the original data
+                const originalRowIndex = this.findOriginalRowIndex(row);
+                td.setAttribute('data-original-row', originalRowIndex);
+                
+                // Add click event for cell editing
+                td.addEventListener('click', (e) => {
+                    if (this.isTableView) {
+                        this.startCellEdit(td, startIndex + rowIndex, cellIndex, originalRowIndex);
+                    }
+                });
+                
                 tr.appendChild(td);
             });
 
@@ -261,7 +278,7 @@ class CsvViewer {
         const rawDataWrapper = document.getElementById('rawDataWrapper');
         const toggleBtn = document.getElementById('toggleView');
         const pagination = document.getElementById('pagination');
-        const saveBtn = document.getElementById('saveRawData');
+        const searchContainer = document.getElementById('searchContainer');
 
         if (this.isTableView) {
             // Show table view
@@ -269,7 +286,7 @@ class CsvViewer {
             if (rawDataWrapper) rawDataWrapper.style.display = 'none';
             if (toggleBtn) toggleBtn.textContent = '📄 Raw View';
             if (pagination) pagination.style.display = 'flex';
-            if (saveBtn) saveBtn.style.display = 'none';
+            if (searchContainer) searchContainer.style.display = 'flex';
             this.renderDataRows();
         } else {
             // Show raw view
@@ -277,7 +294,7 @@ class CsvViewer {
             if (rawDataWrapper) rawDataWrapper.style.display = 'block';
             if (toggleBtn) toggleBtn.textContent = '📊 Table View';
             if (pagination) pagination.style.display = 'none';
-            if (saveBtn) saveBtn.style.display = this.isRawDataModified ? 'inline-block' : 'none';
+            if (searchContainer) searchContainer.style.display = 'none';
             this.renderRawData();
         }
     }
@@ -309,10 +326,9 @@ class CsvViewer {
             textarea.value = rawCsv;
             textarea.placeholder = 'Edit CSV data here...';
             
-            // Add change event listener
+            // Add change event listener for real-time saving
             textarea.addEventListener('input', () => {
-                this.isRawDataModified = true;
-                this.updateSaveButton();
+                this.saveRawDataChanges();
             });
             
             // Replace the pre element with textarea
@@ -320,8 +336,6 @@ class CsvViewer {
         } else {
             // Update existing textarea value
             rawDataEl.value = rawCsv;
-            this.isRawDataModified = false;
-            this.updateSaveButton();
         }
     }
 
@@ -332,81 +346,7 @@ class CsvViewer {
         }
     }
 
-    saveRawData() {
-        const rawDataEl = document.getElementById('rawData');
-        if (!rawDataEl || rawDataEl.tagName !== 'TEXTAREA') {
-            this.showNotification('Raw data element not found', 'error');
-            return;
-        }
 
-        const rawCsvText = rawDataEl.value.trim();
-        if (!rawCsvText) {
-            this.showNotification('Raw data is empty', 'error');
-            return;
-        }
-
-        try {
-            // Parse the raw CSV text
-            const lines = rawCsvText.split('\n').filter(line => line.trim());
-            if (lines.length === 0) {
-                this.showNotification('No valid CSV data found', 'error');
-                return;
-            }
-
-            // Parse headers
-            const headers = this.parseCsvLine(lines[0]);
-            if (headers.length === 0) {
-                this.showNotification('Invalid CSV headers', 'error');
-                return;
-            }
-
-            // Parse data rows
-            const newRows = [];
-            for (let i = 1; i < lines.length; i++) {
-                const row = this.parseCsvLine(lines[i]);
-                if (row.length > 0) {
-                    // Pad row if it's shorter than headers
-                    while (row.length < headers.length) {
-                        row.push('');
-                    }
-                    // Truncate row if it's longer than headers
-                    newRows.push(row.slice(0, headers.length));
-                }
-            }
-
-            // Update the data
-            this.csvData.headers = headers;
-            this.csvData.rows = newRows;
-            this.csvData.totalRows = newRows.length;
-            this.csvData.totalColumns = headers.length;
-            
-            // Reset filtered data and search
-            this.filteredData = [...this.csvData.rows];
-            this.searchTerm = '';
-            this.currentPage = 1;
-            this.sortColumn = null;
-            this.sortDirection = 'asc';
-
-            // Update file info
-            this.updateFileInfo();
-
-            // Mark as not modified
-            this.isRawDataModified = false;
-            this.updateSaveButton();
-
-            // Show success message
-            this.showNotification(`CSV data updated successfully! (${newRows.length} rows, ${headers.length} columns)`, 'success');
-
-            // If in table view, refresh the table
-            if (this.isTableView) {
-                this.renderTable();
-            }
-
-        } catch (error) {
-            console.error('Error parsing CSV data:', error);
-            this.showNotification(`Failed to parse CSV data: ${error.message}`, 'error');
-        }
-    }
 
     parseCsvLine(line) {
         const result = [];
@@ -553,6 +493,7 @@ class CsvViewer {
         this.filteredData = [...this.csvData.rows];
         this.updateFileInfo();
         this.refreshView();
+        this.saveChanges();
         this.showNotification('New row added', 'success');
     }
 
@@ -569,6 +510,7 @@ class CsvViewer {
         this.filteredData = [...this.csvData.rows];
         this.updateFileInfo();
         this.refreshView();
+        this.saveChanges();
         this.showNotification(`New column "${columnName}" added`, 'success');
     }
 
@@ -583,6 +525,7 @@ class CsvViewer {
         this.filteredData = [...this.csvData.rows];
         this.updateFileInfo();
         this.refreshView();
+        this.saveChanges();
         this.showNotification('Last row deleted', 'success');
     }
 
@@ -603,6 +546,7 @@ class CsvViewer {
         this.filteredData = [...this.csvData.rows];
         this.updateFileInfo();
         this.refreshView();
+        this.saveChanges();
         this.showNotification('Last column deleted', 'success');
     }
 
@@ -613,6 +557,7 @@ class CsvViewer {
         this.filteredData = [...this.csvData.rows];
         this.updateFileInfo();
         this.refreshView();
+        this.saveChanges();
         this.showNotification('Row inserted at the top', 'success');
     }
 
@@ -623,6 +568,7 @@ class CsvViewer {
         this.filteredData = [...this.csvData.rows];
         this.updateFileInfo();
         this.refreshView();
+        this.saveChanges();
         this.showNotification('Row inserted at the bottom', 'success');
     }
 
@@ -639,6 +585,7 @@ class CsvViewer {
         this.filteredData = [...this.csvData.rows];
         this.updateFileInfo();
         this.refreshView();
+        this.saveChanges();
         this.showNotification(`Column "${columnName}" inserted at the left`, 'success');
     }
 
@@ -655,6 +602,7 @@ class CsvViewer {
         this.filteredData = [...this.csvData.rows];
         this.updateFileInfo();
         this.refreshView();
+        this.saveChanges();
         this.showNotification(`Column "${columnName}" inserted at the right`, 'success');
     }
 
@@ -707,9 +655,12 @@ class CsvViewer {
                 rawDataEl.value = newValue;
                 rawDataEl.setSelectionRange(newCursorPos, newCursorPos);
                 
-                // Mark as modified
+                // Mark as modified and save
                 this.isRawDataModified = true;
                 this.updateSaveButton();
+                
+                // Save changes immediately
+                this.saveRawDataChanges();
                 
                 // Focus back to textarea
                 rawDataEl.focus();
@@ -805,11 +756,7 @@ class CsvViewer {
             toggleViewBtn.addEventListener('click', () => this.toggleView());
         }
 
-        // Save raw data button
-        const saveRawDataBtn = document.getElementById('saveRawData');
-        if (saveRawDataBtn) {
-            saveRawDataBtn.addEventListener('click', () => this.saveRawData());
-        }
+
 
         // Context menu
         const contextMenu = document.getElementById('contextMenu');
@@ -871,12 +818,7 @@ class CsvViewer {
                         e.preventDefault();
                         this.exportToJson();
                         break;
-                    case 's':
-                        e.preventDefault();
-                        if (!this.isTableView && this.isRawDataModified) {
-                            this.saveRawData();
-                        }
-                        break;
+
                 }
             }
         });
@@ -897,6 +839,156 @@ class CsvViewer {
         if (errorEl) {
             errorEl.textContent = message;
             errorEl.style.display = 'flex';
+        }
+    }
+
+    findOriginalRowIndex(filteredRow) {
+        // Find the original row index by comparing with the original data
+        for (let i = 0; i < this.csvData.rows.length; i++) {
+            if (JSON.stringify(this.csvData.rows[i]) === JSON.stringify(filteredRow)) {
+                return i;
+            }
+        }
+        // If not found, return -1
+        return -1;
+    }
+
+    startCellEdit(td, rowIndex, colIndex, originalRowIndex) {
+        // Don't edit if already editing
+        if (td.querySelector('input')) return;
+
+        const originalValue = td.textContent;
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = originalValue;
+        input.className = 'cell-edit-input';
+        
+        // Style the input to match the cell
+        input.style.width = '100%';
+        input.style.height = '100%';
+        input.style.border = 'none';
+        input.style.outline = 'none';
+        input.style.padding = '0';
+        input.style.margin = '0';
+        input.style.fontSize = 'inherit';
+        input.style.fontFamily = 'inherit';
+        input.style.backgroundColor = 'var(--vscode-input-background)';
+        input.style.color = 'var(--vscode-input-foreground)';
+        
+        // Clear the cell content and add input
+        td.innerHTML = '';
+        td.appendChild(input);
+        input.focus();
+        input.select();
+
+        // Handle input events
+        const handleInput = (e) => {
+            if (e.key === 'Enter') {
+                this.finishCellEdit(td, rowIndex, colIndex, input.value, originalRowIndex);
+            } else if (e.key === 'Escape') {
+                this.cancelCellEdit(td, originalValue);
+            }
+        };
+
+        const handleBlur = () => {
+            this.finishCellEdit(td, rowIndex, colIndex, input.value, originalRowIndex);
+        };
+
+        input.addEventListener('keydown', handleInput);
+        input.addEventListener('blur', handleBlur);
+    }
+
+    finishCellEdit(td, rowIndex, colIndex, newValue, originalRowIndex) {
+        // Update the filtered data
+        if (rowIndex < this.filteredData.length) {
+            this.filteredData[rowIndex][colIndex] = newValue;
+        }
+
+        // Update the original data using the provided original row index
+        if (originalRowIndex !== -1 && originalRowIndex < this.csvData.rows.length) {
+            this.csvData.rows[originalRowIndex][colIndex] = newValue;
+        } else {
+            console.warn('Invalid original row index:', originalRowIndex);
+        }
+
+        // Update the cell display
+        td.innerHTML = '';
+        td.textContent = newValue;
+        td.title = newValue;
+
+        // Save changes immediately
+        this.saveChanges();
+    }
+
+    cancelCellEdit(td, originalValue) {
+        td.innerHTML = '';
+        td.textContent = originalValue;
+        td.title = originalValue;
+    }
+
+    saveChanges() { 
+        // Send the updated data to the extension
+        console.log('Sending saveChanges message:', {
+            headers: this.csvData.headers,
+            rows: this.csvData.rows
+        });
+        
+        vscode.postMessage({
+            command: 'saveChanges',
+            data: {
+                headers: this.csvData.headers,
+                rows: this.csvData.rows
+            }
+        });
+    }
+
+    saveRawDataChanges() {
+        const rawDataEl = document.getElementById('rawData');
+        if (!rawDataEl || rawDataEl.tagName !== 'TEXTAREA') {
+            return;
+        }
+
+        const rawCsvText = rawDataEl.value.trim();
+        if (!rawCsvText) {
+            return;
+        }
+
+        try {
+            // Parse the raw CSV text
+            const lines = rawCsvText.split('\n').filter(line => line.trim());
+            if (lines.length === 0) {
+                return;
+            }
+
+            // Parse headers
+            const headers = this.parseCsvLine(lines[0]);
+            if (headers.length === 0) {
+                return;
+            }
+
+            // Parse data rows
+            const newRows = [];
+            for (let i = 1; i < lines.length; i++) {
+                const row = this.parseCsvLine(lines[i]);
+                if (row.length > 0) {
+                    // Pad row if it's shorter than headers
+                    while (row.length < headers.length) {
+                        row.push('');
+                    }
+                    // Truncate row if it's longer than headers
+                    newRows.push(row.slice(0, headers.length));
+                }
+            }
+
+            // Update the data
+            this.csvData.headers = headers;
+            this.csvData.rows = newRows;
+            this.filteredData = [...newRows];
+
+            // Save changes immediately
+            this.saveChanges();
+        } catch (error) {
+            console.error('Error parsing raw CSV data:', error);
         }
     }
 }

@@ -341,3 +341,21 @@ body {
 .table-wrapper::-webkit-scrollbar-thumb:hover {
     background: var(--vscode-scrollbarSlider-hoverBackground);
 }
+
+/* Editable cell styles */
+.editable-cell {
+    cursor: pointer;
+    transition: background-color 0.1s ease;
+}
+
+.editable-cell:hover {
+    background-color: var(--vscode-list-hoverBackground) !important;
+}
+
+.cell-edit-input {
+    background-color: var(--vscode-input-background) !important;
+    color: var(--vscode-input-foreground) !important;
+    border: 2px solid var(--vscode-focusBorder) !important;
+    border-radius: 2px;
+    box-sizing: border-box;
+}

@@ -37,17 +37,10 @@ export class CsvViewerProvider implements vscode.CustomReadonlyEditorProvider {
                 csvData: csvData
             });
 
-            // Inject VSCode API into the webview
-            const vscodeApiScript = `
-                <script>
-                    const vscode = acquireVsCodeApi();
-                </script>
-            `;
-            
-            const modifiedHtml = html.replace('</head>', `${vscodeApiScript}</head>`);
-            webviewPanel.webview.html = modifiedHtml;
+            webviewPanel.webview.html = html;
 
-            MessageHandler.setupMessageListener(webviewPanel.webview);
+            // Setup message listener with document URI for saving
+            MessageHandler.setupMessageListener(webviewPanel.webview, document.uri);
 
         } catch (error) {
             console.error('Error setting up CSV viewer:', error);
