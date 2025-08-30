@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased] 
+## [0.1.1] - 2025-08-30
 
 ### Added
 - img directory for extension assets
