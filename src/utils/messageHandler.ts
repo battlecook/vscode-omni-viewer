@@ -31,6 +31,7 @@ export class MessageHandler {
                 break;
 
 
+
             default:
                 console.log('Unknown message command:', message.command);
         }
@@ -89,6 +90,8 @@ export class MessageHandler {
             console.error('Error saving filtered image:', error);
         }
     }
+
+
 
     public static setupMessageListener(
         webview: vscode.Webview,

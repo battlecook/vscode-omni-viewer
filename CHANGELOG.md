@@ -4,13 +4,29 @@
 
 ### Added
 - img directory for extension assets
+- **Enhanced CSV Viewer with advanced editing capabilities**
+  - Raw data view with editable textarea for direct CSV editing
+  - Custom context menu for table and raw view operations
+  - Row and column management (add, delete, insert)
+  - Clipboard paste functionality in raw view
+  - JSON export to clipboard with size validation
+  - Save changes functionality for raw data modifications
+  - Keyboard shortcuts for all major operations
 
 ### Changed
 - Fixed icon path configuration for proper extension packaging
+- **CSV Viewer UI/UX improvements**
+  - Removed "Show Stats" button, replaced with "Copy JSON" functionality
+  - Added "Toggle View" button to switch between table and raw data views
+  - Raw view now matches table view width for consistent layout
+  - Context menu only appears in table view (disabled in raw view for cleaner editing)
+  - All notification messages converted to English for consistency
 
 ### Deprecated
 
 ### Removed
+- **CSV Viewer: "Show Stats" functionality**
+- Default browser context menu in CSV viewer areas
 
 ### Fixed
 

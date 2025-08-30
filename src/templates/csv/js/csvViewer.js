@@ -8,6 +8,9 @@ class CsvViewer {
         this.sortColumn = null;
         this.sortDirection = 'asc';
         this.searchTerm = '';
+        this.isTableView = true; // true for table view, false for raw view
+        this.isRawDataModified = false; // Track if raw data has been modified
+        this.contextMenuTarget = null; // Store the target element for context menu
         
         this.init();
     }
@@ -72,7 +75,8 @@ class CsvViewer {
         // Render data rows
         this.renderDataRows();
 
-        tableWrapper.style.display = 'block';
+        // Set initial view
+        this.updateView();
     }
 
     renderDataRows() {
@@ -134,7 +138,11 @@ class CsvViewer {
         });
 
         this.currentPage = 1;
-        this.renderTable();
+        if (this.isTableView) {
+            this.renderDataRows();
+        } else {
+            this.renderRawData();
+        }
     }
 
     searchTable(term) {
@@ -149,7 +157,11 @@ class CsvViewer {
             );
         }
 
-        this.renderDataRows();
+        if (this.isTableView) {
+            this.renderDataRows();
+        } else {
+            this.renderRawData();
+        }
     }
 
     rowMatchesSearch(row) {
@@ -204,27 +216,510 @@ class CsvViewer {
         });
     }
 
-    showStats() {
-        const stats = {
-            totalRows: this.csvData.totalRows,
-            filteredRows: this.filteredData.length,
-            columns: this.csvData.totalColumns,
-            fileSize: this.csvData.fileSize,
-            searchActive: this.searchTerm !== '',
-            sortActive: this.sortColumn !== null
+    exportToJson() {
+        const exportData = {
+            headers: this.csvData.headers,
+            rows: this.filteredData,
+            metadata: {
+                totalRows: this.csvData.totalRows,
+                filteredRows: this.filteredData.length,
+                columns: this.csvData.totalColumns,
+                fileSize: this.csvData.fileSize,
+                searchActive: this.searchTerm !== '',
+                sortActive: this.sortColumn !== null,
+                sortColumn: this.sortColumn,
+                sortDirection: this.sortDirection,
+                exportDate: new Date().toISOString()
+            }
         };
 
-        const statsText = `
-📊 CSV Statistics:
-• Total Rows: ${stats.totalRows}
-• Filtered Rows: ${stats.filteredRows}
-• Columns: ${stats.columns}
-• File Size: ${stats.fileSize}
-• Search Active: ${stats.searchActive ? 'Yes' : 'No'}
-• Sort Active: ${stats.sortActive ? `Column ${this.sortColumn + 1} (${this.sortDirection})` : 'No'}
-        `.trim();
+        const jsonString = JSON.stringify(exportData, null, 2);
+        const dataSize = new Blob([jsonString]).size;
+        const maxSize = 1024 * 1024; // 1MB 제한
 
-        this.showNotification(statsText, 'info');
+        if (dataSize > maxSize) {
+            this.showNotification(`JSON data is too large (${(dataSize / 1024 / 1024).toFixed(2)}MB). Cannot copy to clipboard.`, 'error');
+            return;
+        }
+
+        // Copy to clipboard
+        navigator.clipboard.writeText(jsonString).then(() => {
+            this.showNotification(`JSON data copied to clipboard! (${(dataSize / 1024).toFixed(1)}KB)`, 'success');
+        }).catch(err => {
+            console.error('Failed to copy JSON to clipboard:', err);
+            this.showNotification('Failed to copy to clipboard.', 'error');
+        });
+    }
+
+    toggleView() {
+        this.isTableView = !this.isTableView;
+        this.updateView();
+    }
+
+    updateView() {
+        const tableWrapper = document.getElementById('tableWrapper');
+        const rawDataWrapper = document.getElementById('rawDataWrapper');
+        const toggleBtn = document.getElementById('toggleView');
+        const pagination = document.getElementById('pagination');
+        const saveBtn = document.getElementById('saveRawData');
+
+        if (this.isTableView) {
+            // Show table view
+            if (tableWrapper) tableWrapper.style.display = 'block';
+            if (rawDataWrapper) rawDataWrapper.style.display = 'none';
+            if (toggleBtn) toggleBtn.textContent = '📄 Raw View';
+            if (pagination) pagination.style.display = 'flex';
+            if (saveBtn) saveBtn.style.display = 'none';
+            this.renderDataRows();
+        } else {
+            // Show raw view
+            if (tableWrapper) tableWrapper.style.display = 'none';
+            if (rawDataWrapper) rawDataWrapper.style.display = 'block';
+            if (toggleBtn) toggleBtn.textContent = '📊 Table View';
+            if (pagination) pagination.style.display = 'none';
+            if (saveBtn) saveBtn.style.display = this.isRawDataModified ? 'inline-block' : 'none';
+            this.renderRawData();
+        }
+    }
+
+    renderRawData() {
+        const rawDataEl = document.getElementById('rawData');
+        if (!rawDataEl) return;
+
+        // Create raw CSV format
+        const headers = this.csvData.headers.join(',');
+        const rows = this.filteredData.map(row => 
+            row.map(cell => {
+                // Escape commas and quotes in CSV format
+                if (cell && (cell.includes(',') || cell.includes('"'))) {
+                    return `"${cell.replace(/"/g, '""')}"`;
+                }
+                return cell || '';
+            }).join(',')
+        ).join('\n');
+        
+        const rawCsv = `${headers}\n${rows}`;
+        
+        // Check if element is already a textarea
+        if (rawDataEl.tagName !== 'TEXTAREA') {
+            // Convert pre to textarea
+            const textarea = document.createElement('textarea');
+            textarea.id = 'rawData';
+            textarea.className = 'raw-data editable';
+            textarea.value = rawCsv;
+            textarea.placeholder = 'Edit CSV data here...';
+            
+            // Add change event listener
+            textarea.addEventListener('input', () => {
+                this.isRawDataModified = true;
+                this.updateSaveButton();
+            });
+            
+            // Replace the pre element with textarea
+            rawDataEl.parentNode.replaceChild(textarea, rawDataEl);
+        } else {
+            // Update existing textarea value
+            rawDataEl.value = rawCsv;
+            this.isRawDataModified = false;
+            this.updateSaveButton();
+        }
+    }
+
+    updateSaveButton() {
+        const saveBtn = document.getElementById('saveRawData');
+        if (saveBtn) {
+            saveBtn.style.display = this.isRawDataModified ? 'inline-block' : 'none';
+        }
+    }
+
+    saveRawData() {
+        const rawDataEl = document.getElementById('rawData');
+        if (!rawDataEl || rawDataEl.tagName !== 'TEXTAREA') {
+            this.showNotification('Raw data element not found', 'error');
+            return;
+        }
+
+        const rawCsvText = rawDataEl.value.trim();
+        if (!rawCsvText) {
+            this.showNotification('Raw data is empty', 'error');
+            return;
+        }
+
+        try {
+            // Parse the raw CSV text
+            const lines = rawCsvText.split('\n').filter(line => line.trim());
+            if (lines.length === 0) {
+                this.showNotification('No valid CSV data found', 'error');
+                return;
+            }
+
+            // Parse headers
+            const headers = this.parseCsvLine(lines[0]);
+            if (headers.length === 0) {
+                this.showNotification('Invalid CSV headers', 'error');
+                return;
+            }
+
+            // Parse data rows
+            const newRows = [];
+            for (let i = 1; i < lines.length; i++) {
+                const row = this.parseCsvLine(lines[i]);
+                if (row.length > 0) {
+                    // Pad row if it's shorter than headers
+                    while (row.length < headers.length) {
+                        row.push('');
+                    }
+                    // Truncate row if it's longer than headers
+                    newRows.push(row.slice(0, headers.length));
+                }
+            }
+
+            // Update the data
+            this.csvData.headers = headers;
+            this.csvData.rows = newRows;
+            this.csvData.totalRows = newRows.length;
+            this.csvData.totalColumns = headers.length;
+            
+            // Reset filtered data and search
+            this.filteredData = [...this.csvData.rows];
+            this.searchTerm = '';
+            this.currentPage = 1;
+            this.sortColumn = null;
+            this.sortDirection = 'asc';
+
+            // Update file info
+            this.updateFileInfo();
+
+            // Mark as not modified
+            this.isRawDataModified = false;
+            this.updateSaveButton();
+
+            // Show success message
+            this.showNotification(`CSV data updated successfully! (${newRows.length} rows, ${headers.length} columns)`, 'success');
+
+            // If in table view, refresh the table
+            if (this.isTableView) {
+                this.renderTable();
+            }
+
+        } catch (error) {
+            console.error('Error parsing CSV data:', error);
+            this.showNotification(`Failed to parse CSV data: ${error.message}`, 'error');
+        }
+    }
+
+    parseCsvLine(line) {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            
+            if (char === '"') {
+                if (inQuotes && line[i + 1] === '"') {
+                    // Escaped quote
+                    current += '"';
+                    i++; // Skip next quote
+                } else {
+                    // Toggle quote state
+                    inQuotes = !inQuotes;
+                }
+            } else if (char === ',' && !inQuotes) {
+                // End of field
+                result.push(current);
+                current = '';
+            } else {
+                current += char;
+            }
+        }
+        
+        // Add the last field
+        result.push(current);
+        
+        return result;
+    }
+
+    // Context Menu Methods
+    showContextMenu(event, target) {
+        event.preventDefault();
+        this.contextMenuTarget = target;
+        
+        const contextMenu = document.getElementById('contextMenu');
+        if (!contextMenu) return;
+        
+        // Clear existing menu items
+        contextMenu.innerHTML = '';
+        
+        // Add menu items based on current view
+        if (this.isTableView) {
+            // Table view menu items
+            this.addMenuItem(contextMenu, 'addRow', '➕ Add Row');
+            this.addMenuItem(contextMenu, 'addColumn', '➕ Add Column');
+            this.addSeparator(contextMenu);
+            this.addMenuItem(contextMenu, 'insertRowAbove', '⬆️ Insert Row Above');
+            this.addMenuItem(contextMenu, 'insertRowBelow', '⬇️ Insert Row Below');
+            this.addMenuItem(contextMenu, 'insertColumnLeft', '⬅️ Insert Column Left');
+            this.addMenuItem(contextMenu, 'insertColumnRight', '➡️ Insert Column Right');
+        } else {
+            // Raw view menu items
+            this.addMenuItem(contextMenu, 'paste', '📋 Paste');
+            this.addSeparator(contextMenu);
+            this.addMenuItem(contextMenu, 'addRow', '➕ Add Row');
+            this.addMenuItem(contextMenu, 'addColumn', '➕ Add Column');
+            this.addSeparator(contextMenu);
+            this.addMenuItem(contextMenu, 'deleteRow', '🗑️ Delete Row');
+            this.addMenuItem(contextMenu, 'deleteColumn', '🗑️ Delete Column');
+            this.addSeparator(contextMenu);
+            this.addMenuItem(contextMenu, 'insertRowAbove', '⬆️ Insert Row Above');
+            this.addMenuItem(contextMenu, 'insertRowBelow', '⬇️ Insert Row Below');
+            this.addMenuItem(contextMenu, 'insertColumnLeft', '⬅️ Insert Column Left');
+            this.addMenuItem(contextMenu, 'insertColumnRight', '➡️ Insert Column Right');
+        }
+        
+        // Position the context menu
+        contextMenu.style.left = event.pageX + 'px';
+        contextMenu.style.top = event.pageY + 'px';
+        contextMenu.style.display = 'block';
+        
+        // Add click outside listener
+        setTimeout(() => {
+            document.addEventListener('click', this.hideContextMenu.bind(this), { once: true });
+        }, 0);
+    }
+
+    addMenuItem(container, action, text) {
+        const menuItem = document.createElement('div');
+        menuItem.className = 'context-menu-item';
+        menuItem.setAttribute('data-action', action);
+        menuItem.textContent = text;
+        container.appendChild(menuItem);
+    }
+
+    addSeparator(container) {
+        const separator = document.createElement('div');
+        separator.className = 'context-menu-separator';
+        container.appendChild(separator);
+    }
+
+    hideContextMenu() {
+        const contextMenu = document.getElementById('contextMenu');
+        if (contextMenu) {
+            contextMenu.style.display = 'none';
+        }
+        this.contextMenuTarget = null;
+    }
+
+    handleContextMenuAction(action) {
+        if (!this.contextMenuTarget) return;
+        
+        switch (action) {
+            case 'paste':
+                this.pasteFromClipboard();
+                break;
+            case 'addRow':
+                this.addRow();
+                break;
+            case 'addColumn':
+                this.addColumn();
+                break;
+            case 'deleteRow':
+                this.deleteRow();
+                break;
+            case 'deleteColumn':
+                this.deleteColumn();
+                break;
+            case 'insertRowAbove':
+                this.insertRowAbove();
+                break;
+            case 'insertRowBelow':
+                this.insertRowBelow();
+                break;
+            case 'insertColumnLeft':
+                this.insertColumnLeft();
+                break;
+            case 'insertColumnRight':
+                this.insertColumnRight();
+                break;
+        }
+        
+        this.hideContextMenu();
+    }
+
+    addRow() {
+        const newRow = new Array(this.csvData.headers.length).fill('');
+        this.csvData.rows.push(newRow);
+        this.csvData.totalRows++;
+        this.filteredData = [...this.csvData.rows];
+        this.updateFileInfo();
+        this.refreshView();
+        this.showNotification('New row added', 'success');
+    }
+
+    addColumn() {
+        const columnName = `Column${this.csvData.headers.length + 1}`;
+        this.csvData.headers.push(columnName);
+        this.csvData.totalColumns++;
+        
+        // Add empty cells to all rows
+        this.csvData.rows.forEach(row => {
+            row.push('');
+        });
+        
+        this.filteredData = [...this.csvData.rows];
+        this.updateFileInfo();
+        this.refreshView();
+        this.showNotification(`New column "${columnName}" added`, 'success');
+    }
+
+    deleteRow() {
+        if (this.csvData.rows.length <= 1) {
+            this.showNotification('Cannot delete the last row', 'error');
+            return;
+        }
+        
+        this.csvData.rows.pop();
+        this.csvData.totalRows--;
+        this.filteredData = [...this.csvData.rows];
+        this.updateFileInfo();
+        this.refreshView();
+        this.showNotification('Last row deleted', 'success');
+    }
+
+    deleteColumn() {
+        if (this.csvData.headers.length <= 1) {
+            this.showNotification('Cannot delete the last column', 'error');
+            return;
+        }
+        
+        this.csvData.headers.pop();
+        this.csvData.totalColumns--;
+        
+        // Remove last cell from all rows
+        this.csvData.rows.forEach(row => {
+            row.pop();
+        });
+        
+        this.filteredData = [...this.csvData.rows];
+        this.updateFileInfo();
+        this.refreshView();
+        this.showNotification('Last column deleted', 'success');
+    }
+
+    insertRowAbove() {
+        const newRow = new Array(this.csvData.headers.length).fill('');
+        this.csvData.rows.unshift(newRow);
+        this.csvData.totalRows++;
+        this.filteredData = [...this.csvData.rows];
+        this.updateFileInfo();
+        this.refreshView();
+        this.showNotification('Row inserted at the top', 'success');
+    }
+
+    insertRowBelow() {
+        const newRow = new Array(this.csvData.headers.length).fill('');
+        this.csvData.rows.push(newRow);
+        this.csvData.totalRows++;
+        this.filteredData = [...this.csvData.rows];
+        this.updateFileInfo();
+        this.refreshView();
+        this.showNotification('Row inserted at the bottom', 'success');
+    }
+
+    insertColumnLeft() {
+        const columnName = `Column${this.csvData.headers.length + 1}`;
+        this.csvData.headers.unshift(columnName);
+        this.csvData.totalColumns++;
+        
+        // Add empty cells to the beginning of all rows
+        this.csvData.rows.forEach(row => {
+            row.unshift('');
+        });
+        
+        this.filteredData = [...this.csvData.rows];
+        this.updateFileInfo();
+        this.refreshView();
+        this.showNotification(`Column "${columnName}" inserted at the left`, 'success');
+    }
+
+    insertColumnRight() {
+        const columnName = `Column${this.csvData.headers.length + 1}`;
+        this.csvData.headers.push(columnName);
+        this.csvData.totalColumns++;
+        
+        // Add empty cells to the end of all rows
+        this.csvData.rows.forEach(row => {
+            row.push('');
+        });
+        
+        this.filteredData = [...this.csvData.rows];
+        this.updateFileInfo();
+        this.refreshView();
+        this.showNotification(`Column "${columnName}" inserted at the right`, 'success');
+    }
+
+    refreshView() {
+        if (this.isTableView) {
+            this.renderTable();
+        } else {
+            this.renderRawData();
+        }
+    }
+
+    async pasteFromClipboard() {
+        try {
+            const clipboardText = await navigator.clipboard.readText();
+            if (!clipboardText) {
+                this.showNotification('No text in clipboard.', 'error');
+                return;
+            }
+
+            if (this.isTableView) {
+                // In table view, show notification that paste is only available in raw view
+                this.showNotification('Paste is only available in Raw View.', 'info');
+                return;
+            }
+
+            // In raw view, paste the text
+            const rawDataEl = document.getElementById('rawData');
+            if (rawDataEl && rawDataEl.tagName === 'TEXTAREA') {
+                // Get cursor position
+                const start = rawDataEl.selectionStart;
+                const end = rawDataEl.selectionEnd;
+                const currentValue = rawDataEl.value;
+                
+                // Check if all text is selected
+                const isAllSelected = (start === 0 && end === currentValue.length);
+                
+                let newValue;
+                let newCursorPos;
+                
+                if (isAllSelected) {
+                    // Replace all content
+                    newValue = clipboardText;
+                    newCursorPos = clipboardText.length;
+                } else {
+                    // Insert at cursor position
+                    newValue = currentValue.substring(0, start) + clipboardText + currentValue.substring(end);
+                    newCursorPos = start + clipboardText.length;
+                }
+                
+                rawDataEl.value = newValue;
+                rawDataEl.setSelectionRange(newCursorPos, newCursorPos);
+                
+                // Mark as modified
+                this.isRawDataModified = true;
+                this.updateSaveButton();
+                
+                // Focus back to textarea
+                rawDataEl.focus();
+                
+                this.showNotification('Content pasted from clipboard.', 'success');
+            }
+        } catch (error) {
+            console.error('Failed to paste from clipboard:', error);
+            this.showNotification('Failed to paste from clipboard.', 'error');
+        }
     }
 
     showNotification(message, type = 'info') {
@@ -298,11 +793,48 @@ class CsvViewer {
             copyToClipboardBtn.addEventListener('click', () => this.copyToClipboard());
         }
 
-        // Show stats button
-        const showStatsBtn = document.getElementById('showStats');
-        if (showStatsBtn) {
-            showStatsBtn.addEventListener('click', () => this.showStats());
+        // Export JSON button
+        const exportJsonBtn = document.getElementById('exportJson');
+        if (exportJsonBtn) {
+            exportJsonBtn.addEventListener('click', () => this.exportToJson());
         }
+
+        // Toggle view button
+        const toggleViewBtn = document.getElementById('toggleView');
+        if (toggleViewBtn) {
+            toggleViewBtn.addEventListener('click', () => this.toggleView());
+        }
+
+        // Save raw data button
+        const saveRawDataBtn = document.getElementById('saveRawData');
+        if (saveRawDataBtn) {
+            saveRawDataBtn.addEventListener('click', () => this.saveRawData());
+        }
+
+        // Context menu
+        const contextMenu = document.getElementById('contextMenu');
+        if (contextMenu) {
+            contextMenu.addEventListener('click', (e) => {
+                const menuItem = e.target.closest('.context-menu-item');
+                if (menuItem) {
+                    const action = menuItem.getAttribute('data-action');
+                    if (action) {
+                        this.handleContextMenuAction(action);
+                    }
+                }
+            });
+        }
+
+        // Disable default context menu and add custom one
+        document.addEventListener('contextmenu', (e) => {
+            // Only show context menu on table area (not raw data area)
+            const target = e.target;
+            const isTableArea = target.closest('#tableWrapper');
+            
+            if (isTableArea) {
+                this.showContextMenu(e, target);
+            }
+        });
 
         // Pagination buttons
         const prevPageBtn = document.getElementById('prevPage');
@@ -326,6 +858,24 @@ class CsvViewer {
                     case 'c':
                         e.preventDefault();
                         this.copyToClipboard();
+                        break;
+                    case 'v':
+                        e.preventDefault();
+                        if (this.isTableView) {
+                            this.toggleView();
+                        } else {
+                            this.pasteFromClipboard();
+                        }
+                        break;
+                    case 'j':
+                        e.preventDefault();
+                        this.exportToJson();
+                        break;
+                    case 's':
+                        e.preventDefault();
+                        if (!this.isTableView && this.isRawDataModified) {
+                            this.saveRawData();
+                        }
                         break;
                 }
             }

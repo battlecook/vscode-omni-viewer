@@ -25,7 +25,9 @@
             
             <div class="view-controls">
                 <button id="copyToClipboard" class="btn">📋 Copy to Clipboard</button>
-                <button id="showStats" class="btn">📊 Show Stats</button>
+                <button id="exportJson" class="btn">📄 Copy JSON</button>
+                <button id="toggleView" class="btn">📊 Toggle View</button>
+                <button id="saveRawData" class="btn" style="display: none;">💾 Save Changes</button>
             </div>
         </div>
 
@@ -50,6 +52,10 @@
                 </table>
             </div>
             
+            <div id="rawDataWrapper" class="raw-data-wrapper" style="display: none;">
+                <pre id="rawData" class="raw-data"></pre>
+            </div>
+            
             <div id="pagination" class="pagination" style="display: none;">
                 <button id="prevPage" class="btn btn-secondary">← Previous</button>
                 <span id="pageInfo">Page 1 of 1</span>
@@ -57,6 +63,9 @@
             </div>
         </div>
     </div>
+
+    <!-- Context Menu -->
+    <div id="contextMenu" class="context-menu" style="display: none;"></div>
 
     <script id="csv-data" type="application/json">{{csvData}}</script>
     <script src="js/csvViewer.js"></script>
