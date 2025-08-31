@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.2.0] - 2025-08-30
+## [0.2.0] - 2025-09-01
 
 ### Added
 - **Audio Viewer: Spacebar keyboard shortcut** for play/pause toggle
@@ -32,15 +32,11 @@
   - **Enhanced font size control** - added number input field alongside slider for precise control
   - **Improved element stacking** - selected elements automatically move to front
 
-### Deprecated
-
 ### Removed
 - **Image Viewer: Duplicate "Reset" preset button** (functionality merged into "Original" button)
 - **Audio Viewer: Zoom controls** (🔍+, 🔍-, 📐 Fit buttons) due to non-functioning state
 - **Image Viewer: Separate "Save Edit" button** - functionality merged into main "Save" button
 - **Image Viewer: Size slider for shapes** - replaced with drag-to-resize handles for rectangles
-
-### Security
 
 ## [0.1.1] - 2025-08-30
 
