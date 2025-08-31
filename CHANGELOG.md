@@ -1,5 +1,28 @@
 # Changelog
 
+## [unreleased] 
+
+### Added
+- **Audio Viewer: Spacebar keyboard shortcut** for play/pause toggle
+- **Audio Viewer: Visual feedback for playback state** - play button turns red when audio is playing
+
+### Fixed
+
+### Changed
+- **Image Viewer UI improvements**
+  - Changed "Normal" preset button to "Original" for clearer meaning
+  - Removed duplicate "Reset" preset button to eliminate redundancy
+  - Added scrollbar support to image viewer for better navigation when images extend below cursor
+  - Updated scrollbar styling to match VSCode theme
+
+### Deprecated
+
+### Removed
+- **Image Viewer: Duplicate "Reset" preset button** (functionality merged into "Original" button)
+- **Audio Viewer: Zoom controls** (🔍+, 🔍-, 📐 Fit buttons) due to non-functioning state
+
+### Security
+
 ## [0.1.1] - 2025-08-30
 
 ### Added
@@ -31,15 +54,9 @@
   - Context menu only appears in table view (disabled in raw view for cleaner editing)
   - All notification messages converted to English for consistency
 
-### Deprecated
-
 ### Removed
 - **CSV Viewer: "Show Stats" functionality**
 - Default browser context menu in CSV viewer areas
-
-### Fixed
-
-### Security
 
 ## [0.1.0] - 2025-08-29
 
@@ -58,8 +75,6 @@
 
 ### Fixed
 - Audio file metadata display now shows accurate sample rate, channels, bit depth, and duration information instead of estimated values
-
-### Security
 
 ## [0.0.1] - 2025-08-28
 

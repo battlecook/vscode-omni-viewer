@@ -48,7 +48,6 @@ const presetBright = document.getElementById('presetBright');
 const presetDark = document.getElementById('presetDark');
 const presetVintage = document.getElementById('presetVintage');
 const presetBw = document.getElementById('presetBw');
-const presetReset = document.getElementById('presetReset');
 
 // Modal elements
 const filenameModal = document.getElementById('filenameModal');
@@ -179,7 +178,6 @@ function setupEventListeners() {
     presetDark.addEventListener('click', () => applyPreset('dark'));
     presetVintage.addEventListener('click', () => applyPreset('vintage'));
     presetBw.addEventListener('click', () => applyPreset('bw'));
-    presetReset.addEventListener('click', () => applyPreset('reset'));
 
     // Modal event listeners
     cancelSaveBtn.addEventListener('click', () => {
@@ -296,10 +294,6 @@ function applyPreset(preset) {
             brightness = 100; contrast = 120; saturation = 0; grayscale = 100;
             presetBw.classList.add('active');
             break;
-        case 'reset':
-            brightness = 100; contrast = 100; saturation = 100; grayscale = 0;
-            presetReset.classList.add('active');
-            break;
     }
     
     // Update sliders
@@ -327,7 +321,7 @@ function resetImage() {
     updateImageInfo();
     
     // Reset filters
-    applyPreset('reset');
+    applyPreset('normal');
 }
 
 function fitToScreen() {
