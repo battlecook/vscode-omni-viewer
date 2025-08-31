@@ -140,6 +140,7 @@ body {
     max-width: 100%;
     transform-origin: center center;
     margin: auto;
+    overflow: visible;
 }
 
 #image {
@@ -147,6 +148,8 @@ body {
     object-fit: contain;
     transition: transform 0.3s ease;
     display: block;
+    z-index: 1;
+    position: relative;
 }
 
 .file-info {
@@ -255,6 +258,195 @@ body {
     color: var(--vscode-button-foreground);
 }
 
+/* Edit Mode Styles */
+.edit-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+    background: var(--vscode-panel-background);
+    border-radius: 8px;
+    border: 1px solid var(--vscode-panel-border);
+    margin-bottom: 15px;
+}
+
+.edit-tools {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+}
+
+.edit-btn {
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border: none;
+    padding: 4px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    transition: background 0.2s;
+}
+
+.edit-btn:hover {
+    background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.edit-btn.active {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+}
+
+.edit-properties {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.property-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.property-group label {
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    min-width: 60px;
+}
+
+.property-group input[type="color"] {
+    width: 30px;
+    height: 25px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    background: linear-gradient(45deg, transparent 0%, transparent 50%, #ccc 50%, #ccc 100%);
+}
+
+.property-group input[type="range"] {
+    width: 80px;
+}
+
+.property-group input[type="text"] {
+    padding: 4px 8px;
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 3px;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    font-size: 11px;
+    width: 120px;
+}
+
+.edit-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    z-index: 9999;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 255, 0, 0.05);
+    overflow: visible;
+    border: 1px solid rgba(255, 0, 0, 0.3);
+    box-sizing: border-box;
+}
+
+.edit-canvas.active {
+    pointer-events: auto;
+    cursor: crosshair;
+}
+
+.edit-canvas.select-mode {
+    cursor: pointer;
+}
+
+.shape-element {
+    position: absolute;
+    cursor: move;
+    user-select: none;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.6);
+    border: 2px solid rgba(0, 0, 0, 0.8);
+    opacity: 1;
+}
+
+.shape-element.selected {
+    outline: 2px dashed #007acc;
+    outline-offset: 2px;
+}
+
+.shape-element .resize-handle {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: #007acc;
+    border: 1px solid white;
+    border-radius: 50%;
+    cursor: se-resize;
+    z-index: 10001;
+}
+
+.shape-element .resize-handle.top-left {
+    top: -4px;
+    left: -4px;
+    cursor: nw-resize;
+}
+
+.shape-element .resize-handle.top-right {
+    top: -4px;
+    right: -4px;
+    cursor: ne-resize;
+}
+
+.shape-element .resize-handle.bottom-left {
+    bottom: -4px;
+    left: -4px;
+    cursor: sw-resize;
+}
+
+.shape-element .resize-handle.bottom-right {
+    bottom: -4px;
+    right: -4px;
+    cursor: se-resize;
+}
+
+.text-element {
+    position: absolute;
+    cursor: move;
+    user-select: none;
+    background: transparent;
+    padding: 0;
+    min-width: 30px;
+    min-height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    font-weight: bold;
+    opacity: 1;
+}
+
+.text-element.selected {
+    outline: 2px dashed #007acc;
+    outline-offset: 2px;
+}
+
+.text-element.editing {
+    outline: 2px solid #007acc;
+    outline-offset: 2px;
+}
+
+.text-element input {
+    border: none;
+    background: transparent;
+    outline: none;
+    font-size: inherit;
+    font-family: inherit;
+    color: inherit;
+    width: 100%;
+    text-align: center;
+}
+
 /* Modal styles */
 .modal-overlay {
     position: fixed;
@@ -266,7 +458,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 1000;
+    z-index: 100000;
 }
 
 .modal {

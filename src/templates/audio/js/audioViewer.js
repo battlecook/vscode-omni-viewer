@@ -708,8 +708,6 @@ const eventHandlers = {
 
     setupKeyboardEvents() {
         document.addEventListener('keydown', (e) => {
-            console.log('Key pressed:', e.code, 'Target:', e.target.tagName);
-            // 스페이스바로 재생/일시정지 토글
             if (e.code === 'Space' && !e.target.matches('input, textarea')) {
                 console.log('Space key detected, triggering play/pause');
                 e.preventDefault();

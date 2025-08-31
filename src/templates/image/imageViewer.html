@@ -41,12 +41,46 @@
                     <button id="fitToScreen" class="btn">📐 Fit</button>
                     <button id="zoomOut" class="btn">🔍-</button>
                     <button id="zoomIn" class="btn">🔍+</button>
-                    <button id="toggleFilters" class="btn">🎨</button>
+                    <button id="toggleEditMode" class="btn">🎨</button>
                     <button id="saveFiltered" class="btn save-btn">💾 Save</button>
                 </div>
             </div>
 
-            <div class="filter-controls" id="filterControls" style="display: none;">
+            <div class="edit-controls" id="editControls" style="display: none;">
+                <div class="edit-tools">
+                    <button id="addText" class="edit-btn">📝 Text</button>
+                    <button id="addCircle" class="edit-btn">⭕ Circle</button>
+                    <button id="addRectangle" class="edit-btn">⬜ Rectangle</button>
+                    <button id="selectTool" class="edit-btn active">👆 Select</button>
+                    <button id="deleteSelected" class="edit-btn">🗑️ Delete</button>
+                </div>
+                <div class="edit-properties" id="editProperties" style="display: none;">
+                    <div class="property-group">
+                        <label>Fill Color:</label>
+                        <input type="color" id="shapeColor" value="#ff0000">
+                        <label style="margin-left: 10px;">Opacity:</label>
+                        <input type="range" id="fillOpacity" min="0" max="100" value="100" style="width: 60px;">
+                        <span id="fillOpacityValue" style="font-size: 11px; margin-left: 5px;">100%</span>
+                    </div>
+                    <div class="property-group">
+                        <label>Border Color:</label>
+                        <input type="color" id="borderColor" value="#000000">
+                        <label style="margin-left: 10px;">Opacity:</label>
+                        <input type="range" id="borderOpacity" min="0" max="100" value="100" style="width: 60px;">
+                        <span id="borderOpacityValue" style="font-size: 11px; margin-left: 5px;">100%</span>
+                    </div>
+
+                    <div class="property-group">
+                        <label>Text:</label>
+                        <input type="text" id="textInput" placeholder="Enter text...">
+                    </div>
+                    <div class="property-group">
+                        <label>Font Size:</label>
+                        <input type="range" id="fontSize" min="12" max="48" value="16">
+                        <input type="number" id="fontSizeInput" min="12" max="48" value="16" style="width: 50px; margin-left: 5px;">
+                    </div>
+                </div>
+                
                 <div class="filter-presets">
                     <button id="presetNormal" class="preset-btn active">Original</button>
                     <button id="presetBright" class="preset-btn">Bright</button>
@@ -79,6 +113,7 @@
                 <div id="error" class="error" style="display: none;"></div>
                 <div id="imageWrapper" class="image-wrapper" style="display: none;">
                     <img id="image" src="{{imageSrc}}" alt="{{fileName}}">
+                    <div id="editCanvas" class="edit-canvas"></div>
                 </div>
             </div>
         </div>

@@ -1,12 +1,25 @@
 # Changelog
 
-## [unreleased] 
+## [0.2.0] - 2025-08-30
 
 ### Added
 - **Audio Viewer: Spacebar keyboard shortcut** for play/pause toggle
 - **Audio Viewer: Visual feedback for playback state** - play button turns red when audio is playing
+- **Image Viewer: Advanced editing mode** with comprehensive drawing and text tools
+  - Text element support with customizable font size and color
+  - Circle and rectangle shape tools with size and color customization
+  - Independent opacity controls for fill and border colors
+  - Drag and drop functionality for all elements
+  - Resize handles for rectangle elements
+  - Element selection with automatic bring-to-front functionality
+  - Property panel with context-aware controls (text vs shape properties)
 
 ### Fixed
+- **Image Viewer: Canvas positioning issues** - fixed edit canvas alignment with image
+- **Image Viewer: Element selection priority** - topmost elements are now selected first
+- **Image Viewer: Color opacity application** - fixed transparent color handling for shapes and text
+- **Image Viewer: Border opacity support** - border colors now properly support transparency
+- **Image Viewer: Text element styling** - removed background and border for cleaner appearance
 
 ### Changed
 - **Image Viewer UI improvements**
@@ -14,12 +27,18 @@
   - Removed duplicate "Reset" preset button to eliminate redundancy
   - Added scrollbar support to image viewer for better navigation when images extend below cursor
   - Updated scrollbar styling to match VSCode theme
+  - **Unified save functionality** - single "Save" button handles both filtered and edited images
+  - **Simplified property panel** - shows only relevant controls based on selected element type
+  - **Enhanced font size control** - added number input field alongside slider for precise control
+  - **Improved element stacking** - selected elements automatically move to front
 
 ### Deprecated
 
 ### Removed
 - **Image Viewer: Duplicate "Reset" preset button** (functionality merged into "Original" button)
 - **Audio Viewer: Zoom controls** (🔍+, 🔍-, 📐 Fit buttons) due to non-functioning state
+- **Image Viewer: Separate "Save Edit" button** - functionality merged into main "Save" button
+- **Image Viewer: Size slider for shapes** - replaced with drag-to-resize handles for rectangles
 
 ### Security
 
