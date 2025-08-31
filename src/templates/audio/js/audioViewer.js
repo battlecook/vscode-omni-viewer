@@ -11,7 +11,7 @@ const CONSTANTS = {
         CURSOR_WIDTH: 1,
         BAR_GAP: 3,
         SAMPLE_RATE: 44100,
-        ZOOM_LEVELS: { IN: 50, OUT: 20, FIT: 100 }
+    
     },
     TIMELINE: {
         MIN_TICK_PIXELS: 100,
@@ -63,9 +63,6 @@ const state = {
 const elements = {
     playPause: document.getElementById('playPause'),
     stop: document.getElementById('stop'),
-    zoomIn: document.getElementById('zoomIn'),
-    zoomOut: document.getElementById('zoomOut'),
-    fitToScreen: document.getElementById('fitToScreen'),
     volume: document.getElementById('volume'),
     loopEnabled: document.getElementById('loopEnabled'),
     loopControls: document.getElementById('loopControls'),
@@ -653,6 +650,7 @@ const fileInfoManager = {
 const eventHandlers = {
     setupPlayPause() {
         elements.playPause.addEventListener('click', async () => {
+            console.log('Play/Pause button clicked, current state:', state.isPlaying);
             try {
                 if (state.isPlaying) {
                     state.wavesurfer.pause();
@@ -695,20 +693,6 @@ const eventHandlers = {
         });
     },
 
-    setupZoom() {
-        elements.zoomIn.addEventListener('click', () => {
-            state.wavesurfer.zoom(CONSTANTS.WAVESURFER.ZOOM_LEVELS.IN);
-        });
-
-        elements.zoomOut.addEventListener('click', () => {
-            state.wavesurfer.zoom(CONSTANTS.WAVESURFER.ZOOM_LEVELS.OUT);
-        });
-
-        elements.fitToScreen.addEventListener('click', () => {
-            state.wavesurfer.zoom(CONSTANTS.WAVESURFER.ZOOM_LEVELS.FIT);
-        });
-    },
-
     setupVolume() {
         elements.volume.addEventListener('input', (e) => {
             const volume = parseFloat(e.target.value);
@@ -722,20 +706,41 @@ const eventHandlers = {
         });
     },
 
+    setupKeyboardEvents() {
+        document.addEventListener('keydown', (e) => {
+            console.log('Key pressed:', e.code, 'Target:', e.target.tagName);
+            // 스페이스바로 재생/일시정지 토글
+            if (e.code === 'Space' && !e.target.matches('input, textarea')) {
+                console.log('Space key detected, triggering play/pause');
+                e.preventDefault();
+                elements.playPause.click();
+            }
+        });
+    },
+
     setupWaveSurferEvents() {
         state.wavesurfer.on('play', () => {
+            console.log('WaveSurfer play event triggered');
             state.isPlaying = true;
             elements.playPause.textContent = '⏸️';
+            elements.playPause.classList.add('playing');
+            console.log('Button text changed to pause icon');
         });
 
         state.wavesurfer.on('pause', () => {
+            console.log('WaveSurfer pause event triggered');
             state.isPlaying = false;
             elements.playPause.textContent = '▶️';
+            elements.playPause.classList.remove('playing');
+            console.log('Button text changed to play icon');
         });
 
         state.wavesurfer.on('stop', () => {
+            console.log('WaveSurfer stop event triggered');
             state.isPlaying = false;
             elements.playPause.textContent = '▶️';
+            elements.playPause.classList.remove('playing');
+            console.log('Button text changed to play icon');
         });
 
         state.wavesurfer.on('finish', () => {
@@ -753,9 +758,11 @@ const eventHandlers = {
             } else {
                 state.isPlaying = false;
                 elements.playPause.textContent = '▶️';
+                elements.playPause.classList.remove('playing');
             }
         });
 
+        // Loop functionality
         let loopCheckInterval = null;
         
         state.wavesurfer.on('play', () => {
@@ -800,7 +807,6 @@ const eventHandlers = {
         });
 
         state.wavesurfer.on('ready', () => {
-            
             setTimeout(() => {
                 audioContextManager.checkState();
             }, 100);
@@ -848,7 +854,12 @@ async function initAudioViewer() {
         };
 
         const setupUserInteractionHandler = () => {
-            const handleUserInteraction = async () => {
+            const handleUserInteraction = async (e) => {
+                // 스페이스바는 재생/일시정지용으로 예약
+                if (e.type === 'keydown' && e.code === 'Space') {
+                    return;
+                }
+                
                 document.removeEventListener('click', handleUserInteraction);
                 document.removeEventListener('keydown', handleUserInteraction);
                 document.removeEventListener('touchstart', handleUserInteraction);
@@ -871,6 +882,7 @@ async function initAudioViewer() {
         const setupAfterDecode = async () => {
             if (state.isSetupComplete) return;
             
+            console.log('Setting up audio viewer after decode...');
             state.isSetupComplete = true;
             
             await pluginManager.setupSpectrogram();
@@ -890,12 +902,14 @@ async function initAudioViewer() {
             }
             
             // Set up event listeners
+            console.log('Setting up event listeners...');
             eventHandlers.setupPlayPause();
             eventHandlers.setupStop();
-            eventHandlers.setupZoom();
             eventHandlers.setupVolume();
             eventHandlers.setupLoop();
             eventHandlers.setupWaveSurferEvents();
+            eventHandlers.setupKeyboardEvents(); // 키보드 이벤트를 마지막에 등록
+            console.log('Event listeners setup complete');
             
             // Update info
             fileInfoManager.updateDuration();

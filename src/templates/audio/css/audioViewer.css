@@ -85,6 +85,15 @@ body {
     color: var(--vscode-button-prominentForeground);
 }
 
+.btn.playing {
+    background: #dc3545 !important;
+    color: white !important;
+}
+
+.btn.playing:hover {
+    background: #c82333 !important;
+}
+
 .main-content {
     flex: 1;
     display: flex;
