@@ -76,7 +76,7 @@ A comprehensive audio, image, video, and CSV viewer extension for VSCode and Cur
 
 **VSCode Marketplace:**
 
-- **[VSCode Marketplace](https://marketplace.visualstudio.com/items?itemName=battlecook.vscode-omni-viewer)** - Official VSCode Marketplace
+- **[VSCode Marketplace](https://marketplace.visualstudio.com/items?itemName=battlecook.omni-viewer)** - Official VSCode Marketplace
 - **[Open VSX Registry](https://open-vsx.org/extension/battlecook/omni-viewer)** - Open Source VSX Registry
 
 ### Development Setup
