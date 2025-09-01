@@ -2,6 +2,8 @@
 
 A comprehensive audio, image, video, and CSV viewer extension for VSCode and Cursor.
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/eyedealisty)
+
 ## 🎵 Audio Viewer Features
 
 ![Audio Viewer Screenshot](https://eyedealisty-website.web.app/img/omniviewer/audio-screenshot.jpg)
