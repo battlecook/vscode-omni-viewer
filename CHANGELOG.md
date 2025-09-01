@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.1] - 2025-09-01
+
+### Fixed
+- **Build system: External dependencies not included in VSIX package**
+  - Add webpack configuration to properly bundle external npm packages
+  - Fix music-metadata dependency not being included in packaged extension
+  - Resolve ES module compatibility issues with music-metadata package
+  - Update build scripts to use webpack instead of TypeScript compiler only
+
+### Changed
+- **Build system improvements**
+  - Replace tsc compilation with webpack bundling for production builds
+  - Install webpack, webpack-cli, and ts-loader as development dependencies
+  - Bundle all external dependencies into single files for proper VS Code extension packaging
+  - Maintain source maps for debugging capabilities
+
 ## [0.2.0] - 2025-09-01
 
 ### Added

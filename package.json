@@ -3,7 +3,7 @@
   "displayName": "omni-viewer",
   "publisher": "battlecook",
   "description": "A VSCode extension for viewing audio, image, video, and csv files",
-  "version": "0.1.1",
+  "version": "0.2.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
@@ -127,8 +127,8 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
+    "compile": "webpack --mode production",
+    "watch": "webpack --mode development --watch",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src --ext ts",
     "test": "jest",
@@ -146,8 +146,12 @@
     "@typescript-eslint/parser": "^6.21.0",
     "eslint": "^8.39.0",
     "jest": "^29.7.0",
+    "path-browserify": "^1.0.1",
     "ts-jest": "^29.1.1",
-    "typescript": "^5.0.4"
+    "ts-loader": "^9.5.4",
+    "typescript": "^5.0.4",
+    "webpack": "^5.101.3",
+    "webpack-cli": "^6.0.1"
   },
   "dependencies": {
     "music-metadata": "^11.8.3"

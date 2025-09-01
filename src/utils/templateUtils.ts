@@ -1,7 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import * as vscode from 'vscode';
-import * as crypto from 'crypto';
 
 export class TemplateUtils {
     public static async loadTemplate(
@@ -86,9 +85,5 @@ export class TemplateUtils {
                 vscode.Uri.file(path.join(context.extensionPath, 'src', 'templates'))
             ]
         };
-    }
-
-    public static getNonce(): string {
-        return crypto.randomBytes(16).toString('base64');
     }
 }
