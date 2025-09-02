@@ -7,11 +7,11 @@ class CsvViewer {
         this.filteredData = [];
         this.currentPage = 1;
         this.rowsPerPage = 100;
-        this.sortColumn = null;
-        this.sortDirection = 'asc';
         this.searchTerm = '';
         this.isTableView = true; // true for table view, false for raw view
         this.contextMenuTarget = null; // Store the target element for context menu
+        this.saveRawDataTimeout = null; // Debounce timer for raw data saving
+        this.isPasting = false; // Flag to prevent double processing during paste
         
         this.init();
     }
@@ -62,12 +62,16 @@ class CsvViewer {
         this.csvData.headers.forEach((header, index) => {
             const th = document.createElement('th');
             th.textContent = header;
-            th.className = 'sortable';
-            th.onclick = () => this.sortTable(index);
+            th.className = 'editable-header';
+            th.setAttribute('data-col', index);
+            th.title = header || ''; // Tooltip for truncated content
             
-            if (this.sortColumn === index) {
-                th.classList.add(`sort-${this.sortDirection}`);
-            }
+            // Add click event for header editing
+            th.addEventListener('click', (e) => {
+                if (this.isTableView) {
+                    this.startHeaderEdit(th, index);
+                }
+            });
             
             headerRow.appendChild(th);
         });
@@ -127,40 +131,7 @@ class CsvViewer {
         this.updatePagination();
     }
 
-    sortTable(columnIndex) {
-        if (this.sortColumn === columnIndex) {
-            this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
-        } else {
-            this.sortColumn = columnIndex;
-            this.sortDirection = 'asc';
-        }
-
-        this.filteredData.sort((a, b) => {
-            const aVal = a[columnIndex] || '';
-            const bVal = b[columnIndex] || '';
-            
-            let comparison = 0;
-            
-            // Try numeric comparison first
-            const aNum = parseFloat(aVal);
-            const bNum = parseFloat(bVal);
-            
-            if (!isNaN(aNum) && !isNaN(bNum)) {
-                comparison = aNum - bNum;
-            } else {
-                comparison = aVal.localeCompare(bVal);
-            }
-            
-            return this.sortDirection === 'asc' ? comparison : -comparison;
-        });
-
-        this.currentPage = 1;
-        if (this.isTableView) {
-            this.renderDataRows();
-        } else {
-            this.renderRawData();
-        }
-    }
+    
 
     searchTable(term) {
         this.searchTerm = term.toLowerCase();
@@ -243,9 +214,6 @@ class CsvViewer {
                 columns: this.csvData.totalColumns,
                 fileSize: this.csvData.fileSize,
                 searchActive: this.searchTerm !== '',
-                sortActive: this.sortColumn !== null,
-                sortColumn: this.sortColumn,
-                sortDirection: this.sortDirection,
                 exportDate: new Date().toISOString()
             }
         };
@@ -317,25 +285,44 @@ class CsvViewer {
         
         const rawCsv = `${headers}\n${rows}`;
         
+        // Normalize the CSV text to prevent line ending issues
+        const normalizedCsv = rawCsv
+            .replace(/\r\n/g, '\n')
+            .replace(/\r/g, '\n')
+            .replace(/\n+/g, '\n');
+        
         // Check if element is already a textarea
         if (rawDataEl.tagName !== 'TEXTAREA') {
             // Convert pre to textarea
             const textarea = document.createElement('textarea');
             textarea.id = 'rawData';
             textarea.className = 'raw-data editable';
-            textarea.value = rawCsv;
+            textarea.value = normalizedCsv;
             textarea.placeholder = 'Edit CSV data here...';
             
-            // Add change event listener for real-time saving
-            textarea.addEventListener('input', () => {
-                this.saveRawDataChanges();
-            });
+            // Add change event listener for real-time saving (only once)
+            if (!textarea.hasAttribute('data-input-listener-added')) {
+                const inputListener = () => {
+                    // Skip processing if currently pasting to prevent double processing
+                    if (this.isPasting) {
+                        return;
+                    }
+                    this.saveRawDataChanges();
+                };
+                textarea.addEventListener('input', inputListener);
+                textarea.setAttribute('data-input-listener-added', 'true');
+            }
             
             // Replace the pre element with textarea
             rawDataEl.parentNode.replaceChild(textarea, rawDataEl);
         } else {
-            // Update existing textarea value
-            rawDataEl.value = rawCsv;
+            // Update existing textarea value without triggering input event
+            const currentValue = rawDataEl.value;
+            if (currentValue !== normalizedCsv) {
+                // Clear completely and set new value to prevent any residue
+                rawDataEl.value = '';
+                rawDataEl.value = normalizedCsv;
+            }
         }
     }
 
@@ -551,59 +538,121 @@ class CsvViewer {
     }
 
     insertRowAbove() {
+        const targetInfo = this.getTargetCellInfo();
+        if (!targetInfo) {
+            this.showNotification('Please right-click on a table cell', 'error');
+            return;
+        }
+
         const newRow = new Array(this.csvData.headers.length).fill('');
-        this.csvData.rows.unshift(newRow);
+        this.csvData.rows.splice(targetInfo.rowIndex, 0, newRow);
         this.csvData.totalRows++;
         this.filteredData = [...this.csvData.rows];
         this.updateFileInfo();
         this.refreshView();
         this.saveChanges();
-        this.showNotification('Row inserted at the top', 'success');
+        this.showNotification(`Row inserted above row ${targetInfo.rowIndex + 1}`, 'success');
     }
 
     insertRowBelow() {
+        const targetInfo = this.getTargetCellInfo();
+        if (!targetInfo) {
+            this.showNotification('Please right-click on a table cell', 'error');
+            return;
+        }
+
         const newRow = new Array(this.csvData.headers.length).fill('');
-        this.csvData.rows.push(newRow);
+        this.csvData.rows.splice(targetInfo.rowIndex + 1, 0, newRow);
         this.csvData.totalRows++;
         this.filteredData = [...this.csvData.rows];
         this.updateFileInfo();
         this.refreshView();
         this.saveChanges();
-        this.showNotification('Row inserted at the bottom', 'success');
+        this.showNotification(`Row inserted below row ${targetInfo.rowIndex + 1}`, 'success');
     }
 
     insertColumnLeft() {
+        const targetInfo = this.getTargetCellInfo();
+        if (!targetInfo) {
+            this.showNotification('Please right-click on a table cell', 'error');
+            return;
+        }
+
         const columnName = `Column${this.csvData.headers.length + 1}`;
-        this.csvData.headers.unshift(columnName);
+        this.csvData.headers.splice(targetInfo.colIndex, 0, columnName);
         this.csvData.totalColumns++;
         
-        // Add empty cells to the beginning of all rows
+        // Add empty cells to the specified position in all rows
         this.csvData.rows.forEach(row => {
-            row.unshift('');
+            row.splice(targetInfo.colIndex, 0, '');
         });
         
         this.filteredData = [...this.csvData.rows];
         this.updateFileInfo();
         this.refreshView();
         this.saveChanges();
-        this.showNotification(`Column "${columnName}" inserted at the left`, 'success');
+        this.showNotification(`Column "${columnName}" inserted to the left of column ${targetInfo.colIndex + 1}`, 'success');
     }
 
     insertColumnRight() {
+        const targetInfo = this.getTargetCellInfo();
+        if (!targetInfo) {
+            this.showNotification('Please right-click on a table cell', 'error');
+            return;
+        }
+
         const columnName = `Column${this.csvData.headers.length + 1}`;
-        this.csvData.headers.push(columnName);
+        this.csvData.headers.splice(targetInfo.colIndex + 1, 0, columnName);
         this.csvData.totalColumns++;
         
-        // Add empty cells to the end of all rows
+        // Add empty cells to the specified position in all rows
         this.csvData.rows.forEach(row => {
-            row.push('');
+            row.splice(targetInfo.colIndex + 1, 0, '');
         });
         
         this.filteredData = [...this.csvData.rows];
         this.updateFileInfo();
         this.refreshView();
         this.saveChanges();
-        this.showNotification(`Column "${columnName}" inserted at the right`, 'success');
+        this.showNotification(`Column "${columnName}" inserted to the right of column ${targetInfo.colIndex + 1}`, 'success');
+    }
+
+    getTargetCellInfo() {
+        if (!this.contextMenuTarget) return null;
+        
+        // Find the closest td or th element
+        const cell = this.contextMenuTarget.closest('td, th');
+        if (!cell) return null;
+        
+        // Find the row (tr) containing this cell
+        const row = cell.closest('tr');
+        if (!row) return null;
+        
+        // Get row index
+        let rowIndex = -1;
+        if (row.parentElement.tagName === 'THEAD') {
+            // Header row
+            rowIndex = 0;
+        } else {
+            // Data row - find the actual row index in the original data
+            const rowCells = Array.from(row.cells);
+            const rowData = rowCells.map(cell => cell.textContent || '');
+            
+            // Find the original row index
+            for (let i = 0; i < this.csvData.rows.length; i++) {
+                if (JSON.stringify(this.csvData.rows[i]) === JSON.stringify(rowData)) {
+                    rowIndex = i;
+                    break;
+                }
+            }
+        }
+        
+        // Get column index
+        const colIndex = Array.from(row.cells).indexOf(cell);
+        
+        if (rowIndex === -1 || colIndex === -1) return null;
+        
+        return { rowIndex, colIndex };
     }
 
     refreshView() {
@@ -621,6 +670,20 @@ class CsvViewer {
                 this.showNotification('No text in clipboard.', 'error');
                 return;
             }
+
+            // Debug: Log clipboard content
+            console.log('Clipboard content:', {
+                text: clipboardText,
+                length: clipboardText.length,
+                lines: clipboardText.split('\n').length,
+                hasDuplicateLines: this.checkForDuplicateLines(clipboardText),
+                normalizedLines: clipboardText
+                    .replace(/\r\n/g, '\n')
+                    .replace(/\r/g, '\n')
+                    .replace(/\n+/g, '\n')
+                    .split('\n')
+                    .filter(line => line.trim() !== '').length
+            });
 
             if (this.isTableView) {
                 // In table view, show notification that paste is only available in raw view
@@ -642,16 +705,30 @@ class CsvViewer {
                 let newValue;
                 let newCursorPos;
                 
-                if (isAllSelected) {
-                    // Replace all content
-                    newValue = clipboardText;
-                    newCursorPos = clipboardText.length;
-                } else {
-                    // Insert at cursor position
-                    newValue = currentValue.substring(0, start) + clipboardText + currentValue.substring(end);
-                    newCursorPos = start + clipboardText.length;
-                }
+                // Always replace all content when pasting to prevent duplication
+                newValue = clipboardText;
+                newCursorPos = clipboardText.length;
                 
+                // Debug: Log before and after values
+                console.log('Before paste:', {
+                    currentValue: currentValue,
+                    currentValueLength: currentValue.length,
+                    start: start,
+                    end: end,
+                    isAllSelected: isAllSelected,
+                    willReplaceAll: true
+                });
+                console.log('After paste:', {
+                    newValue: newValue,
+                    newValueLength: newValue.length,
+                    clipboardTextLength: clipboardText.length
+                });
+                
+                // Set a flag to prevent input event processing during paste
+                this.isPasting = true;
+                
+                // Clear the textarea completely and set new value
+                rawDataEl.value = '';
                 rawDataEl.value = newValue;
                 rawDataEl.setSelectionRange(newCursorPos, newCursorPos);
                 
@@ -659,11 +736,16 @@ class CsvViewer {
                 this.isRawDataModified = true;
                 this.updateSaveButton();
                 
-                // Save changes immediately
-                this.saveRawDataChanges();
-                
                 // Focus back to textarea
                 rawDataEl.focus();
+                
+                // Manually trigger save after paste (without triggering input event)
+                this.saveRawDataChanges();
+                
+                // Reset the flag after a short delay to allow normal input processing
+                setTimeout(() => {
+                    this.isPasting = false;
+                }, 100);
                 
                 this.showNotification('Content pasted from clipboard.', 'success');
             }
@@ -671,6 +753,17 @@ class CsvViewer {
             console.error('Failed to paste from clipboard:', error);
             this.showNotification('Failed to paste from clipboard.', 'error');
         }
+    }
+
+    checkForDuplicateLines(text) {
+        const lines = text.split('\n');
+        const uniqueLines = new Set(lines);
+        return {
+            totalLines: lines.length,
+            uniqueLines: uniqueLines.size,
+            hasDuplicates: lines.length !== uniqueLines.size,
+            duplicateLines: lines.filter((line, index) => lines.indexOf(line) !== index)
+        };
     }
 
     showNotification(message, type = 'info') {
@@ -926,6 +1019,71 @@ class CsvViewer {
         td.title = originalValue;
     }
 
+    startHeaderEdit(th, colIndex) {
+        // Don't edit if already editing
+        if (th.querySelector('input')) return;
+
+        const originalValue = th.textContent;
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = originalValue;
+        input.className = 'header-edit-input';
+        
+        // Style the input to match the header
+        input.style.width = '100%';
+        input.style.height = '100%';
+        input.style.border = 'none';
+        input.style.outline = 'none';
+        input.style.padding = '0';
+        input.style.margin = '0';
+        input.style.fontSize = 'inherit';
+        input.style.fontFamily = 'inherit';
+        input.style.fontWeight = 'bold';
+        input.style.backgroundColor = 'var(--vscode-input-background)';
+        input.style.color = 'var(--vscode-input-foreground)';
+        
+        // Clear the header content and add input
+        th.innerHTML = '';
+        th.appendChild(input);
+        input.focus();
+        input.select();
+
+        // Handle input events
+        const handleInput = (e) => {
+            if (e.key === 'Enter') {
+                this.finishHeaderEdit(th, colIndex, input.value, originalValue);
+            } else if (e.key === 'Escape') {
+                this.cancelHeaderEdit(th, originalValue);
+            }
+        };
+
+        const handleBlur = () => {
+            this.finishHeaderEdit(th, colIndex, input.value, originalValue);
+        };
+
+        input.addEventListener('keydown', handleInput);
+        input.addEventListener('blur', handleBlur);
+    }
+
+    finishHeaderEdit(th, colIndex, newValue, originalValue) {
+        // Update the header data
+        this.csvData.headers[colIndex] = newValue;
+
+        // Update the header display
+        th.innerHTML = '';
+        th.textContent = newValue;
+        th.title = newValue;
+
+        // Save changes immediately
+        this.saveChanges();
+    }
+
+    cancelHeaderEdit(th, originalValue) {
+        th.innerHTML = '';
+        th.textContent = originalValue;
+        th.title = originalValue;
+    }
+
     saveChanges() { 
         // Send the updated data to the extension
         console.log('Sending saveChanges message:', {
@@ -943,6 +1101,18 @@ class CsvViewer {
     }
 
     saveRawDataChanges() {
+        // Clear existing timeout to prevent multiple rapid calls
+        if (this.saveRawDataTimeout) {
+            clearTimeout(this.saveRawDataTimeout);
+        }
+
+        // Debounce the save operation
+        this.saveRawDataTimeout = setTimeout(() => {
+            this._performRawDataSave();
+        }, 300); // Wait 300ms after last input
+    }
+
+    _performRawDataSave() {
         const rawDataEl = document.getElementById('rawData');
         if (!rawDataEl || rawDataEl.tagName !== 'TEXTAREA') {
             return;
@@ -954,8 +1124,31 @@ class CsvViewer {
         }
 
         try {
-            // Parse the raw CSV text
-            const lines = rawCsvText.split('\n').filter(line => line.trim());
+            // Normalize line endings and parse the raw CSV text with detailed debugging
+            const normalizedText = rawCsvText
+                .replace(/\r\n/g, '\n')  // Windows line endings
+                .replace(/\r/g, '\n')    // Mac line endings
+                .replace(/\n+/g, '\n');  // Multiple consecutive newlines to single
+            
+            const rawLines = normalizedText.split('\n');
+            const lines = rawLines.filter(line => line.trim() !== '');
+            
+            console.log('Raw CSV text analysis:', {
+                originalLength: rawCsvText.length,
+                normalizedLength: normalizedText.length,
+                rawLinesCount: rawLines.length,
+                filteredLinesCount: lines.length,
+                emptyLinesCount: rawLines.length - lines.length,
+                rawLines: rawLines.map((line, index) => ({
+                    index,
+                    content: line,
+                    length: line.length,
+                    trimmed: line.trim(),
+                    isEmpty: line.trim() === '',
+                    hasHiddenChars: line.length !== line.trim().length
+                }))
+            });
+            
             if (lines.length === 0) {
                 return;
             }
@@ -965,6 +1158,8 @@ class CsvViewer {
             if (headers.length === 0) {
                 return;
             }
+
+            console.log('Parsed headers:', headers);
 
             // Parse data rows
             const newRows = [];
@@ -980,15 +1175,52 @@ class CsvViewer {
                 }
             }
 
-            // Update the data
-            this.csvData.headers = headers;
-            this.csvData.rows = newRows;
-            this.filteredData = [...newRows];
+            console.log('Parsed rows:', {
+                totalRows: newRows.length,
+                sampleRows: newRows.slice(0, 3),
+                lastRow: newRows[newRows.length - 1]
+            });
+
+            // IMPORTANT: Completely replace the data, don't append
+            this.csvData.headers = [...headers]; // Create new array
+            this.csvData.rows = [...newRows];    // Create new array
+            this.filteredData = [...newRows];    // Create new array
+
+            // Reset pagination
+            this.currentPage = 1;
+
+            // Validate data integrity
+            if (this.csvData.rows.length !== newRows.length) {
+                console.warn('Data integrity check failed: rows count mismatch');
+                this.csvData.rows = [...newRows];
+                this.filteredData = [...newRows];
+            }
+
+            // Additional validation: check if the data makes sense
+            if (newRows.length > 1000) {
+                console.warn('Suspiciously large number of rows:', newRows.length);
+            }
+            
+            // Log the actual data being saved
+            console.log('Final data to be saved:', {
+                headersCount: this.csvData.headers.length,
+                rowsCount: this.csvData.rows.length,
+                firstRow: this.csvData.rows[0],
+                lastRow: this.csvData.rows[this.csvData.rows.length - 1],
+                totalDataSize: JSON.stringify(this.csvData).length
+            });
+
+            console.log('Data updated successfully:', {
+                headers: this.csvData.headers,
+                rowsCount: this.csvData.rows.length,
+                filteredCount: this.filteredData.length
+            });
 
             // Save changes immediately
             this.saveChanges();
         } catch (error) {
             console.error('Error parsing raw CSV data:', error);
+            this.showNotification('CSV 파싱 오류: ' + error.message, 'error');
         }
     }
 }

@@ -167,22 +167,20 @@ body {
     background: var(--vscode-list-activeSelectionBackground);
 }
 
-.csv-table th.sortable::after {
-    content: '↕';
-    position: absolute;
-    right: 8px;
-    color: var(--vscode-descriptionForeground);
-    font-size: 12px;
+.csv-table th.editable-header {
+    cursor: pointer;
+    user-select: none;
 }
 
-.csv-table th.sort-asc::after {
-    content: '↑';
-    color: var(--vscode-editor-foreground);
+.csv-table th.editable-header:hover {
+    background: var(--vscode-list-hoverBackground);
 }
 
-.csv-table th.sort-desc::after {
-    content: '↓';
-    color: var(--vscode-editor-foreground);
+.header-edit-input {
+    background: var(--vscode-input-background) !important;
+    color: var(--vscode-input-foreground) !important;
+    border: 1px solid var(--vscode-focusBorder) !important;
+    border-radius: 2px;
 }
 
 .csv-table td {

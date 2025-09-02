@@ -13,7 +13,6 @@ A comprehensive audio, image, video, and CSV viewer extension for VSCode and Cur
 - **Spectrogram**: Frequency analysis with spectrogram view
 - **Region Selection**: Set start/end times for specific regions
 - **Loop Playback**: Repeat playback of selected regions
-- **Zoom Controls**: Waveform zoom in/out and fit to screen
 - **Volume Control**: Real-time volume adjustment
 - **Playback Speed**: Multiple playback speed options
 - **Audio Information**: Duration, sample rate, channels, bit depth, file size, format display
@@ -56,6 +55,8 @@ A comprehensive audio, image, video, and CSV viewer extension for VSCode and Cur
 - MP4, AVI, MOV, WMV, FLV, WebM, MKV
 
 ## 📊 CSV Viewer Features
+
+![CSV Viewer Screenshot](https://eyedealisty-website.web.app/img/omniviewer/csv-screenshot.jpg)
 
 ### Advanced CSV Viewer
 - **Table Display**: Clean, sortable table view of CSV data
