@@ -31,12 +31,40 @@ jobs:
     - name: Package VSIX
       run: vsce package
       
+    - name: Extract version changelog
+      id: changelog
+      run: |
+        # Extract the version from the git tag (remove 'v' prefix)
+        VERSION=${GITHUB_REF#refs/tags/v}
+        
+        # Extract changelog content for this specific version
+        # Look for the section starting with ## [version] and extract until the next ## or end of file
+        awk -v version="$VERSION" '
+        /^## \[' version '\]/ {
+          in_section = 1
+          print
+          next
+        }
+        /^## \[/ && in_section {
+          exit
+        }
+        in_section {
+          print
+        }
+        ' CHANGELOG.md > version_changelog.md
+        
+        # Read the extracted content
+        CHANGELOG_CONTENT=$(cat version_changelog.md)
+        echo "changelog<<EOF" >> $GITHUB_OUTPUT
+        echo "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         files: |
           *.vsix
-        body_path: CHANGELOG.md
+        body: ${{ steps.changelog.outputs.changelog }}
         draft: false
         prerelease: false
       env:
