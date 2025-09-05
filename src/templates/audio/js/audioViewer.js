@@ -433,14 +433,12 @@ const regionManager = {
             if (!isNaN(parsedStart)) startSec = parsedStart;
             if (!isNaN(parsedEnd)) endSec = parsedEnd;
 
-            // 시작점이 끝점보다 크면 값 교환
             if (startSec > endSec) {
                 const temp = startSec;
                 startSec = endSec;
                 endSec = temp;
             }
 
-            // 전체 길이를 초과하는 경우 최대 길이로 제한
             if (startSec > duration) {
                 startSec = Math.max(0, duration - CONSTANTS.REGION.MIN_DURATION);
             }
@@ -449,17 +447,14 @@ const regionManager = {
                 endSec = duration;
             }
 
-            // 최소값과 최대값 제한
             startSec = Math.max(0, startSec);
             endSec = Math.min(duration, endSec);
 
-            // 최소 길이 유지
             if (startSec + CONSTANTS.REGION.MIN_DURATION > endSec) {
                 endSec = Math.min(duration, startSec + CONSTANTS.REGION.MIN_DURATION);
             }
 
             try {
-                // 기존 리전 제거
                 if (state.regionsPlugin && state.regionsPlugin.getRegions) {
                     const regions = state.regionsPlugin.getRegions();
                     Object.values(regions).forEach(existingRegion => {
@@ -707,10 +702,32 @@ const eventHandlers = {
     },
 
     setupKeyboardEvents() {
-        document.addEventListener('keydown', (e) => {
+        document.addEventListener('keydown', async (e) => {
             if (e.code === 'Space' && !e.target.matches('input, textarea')) {
                 console.log('Space key detected, triggering play/pause');
                 e.preventDefault();
+                
+                if (!state.audioContextInitialized) {
+                    try {
+                        await audioContextManager.initialize();
+                    } catch (error) {
+                        console.error('AudioContext initialization failed on spacebar:', error);
+                        utils.showStatus('AudioContext initialization failed: ' + error.message);
+                        return;
+                    }
+                }
+                
+                const audioContext = audioContextManager.getWaveSurferAudioContext();
+                if (audioContext?.state === 'suspended') {
+                    try {
+                        await audioContext.resume();
+                    } catch (error) {
+                        console.error('Failed to resume AudioContext on spacebar:', error);
+                        utils.showStatus('Failed to resume AudioContext: ' + error.message);
+                        return;
+                    }
+                }
+                
                 elements.playPause.click();
             }
         });
@@ -853,7 +870,6 @@ async function initAudioViewer() {
 
         const setupUserInteractionHandler = () => {
             const handleUserInteraction = async (e) => {
-                // 스페이스바는 재생/일시정지용으로 예약
                 if (e.type === 'keydown' && e.code === 'Space') {
                     return;
                 }
@@ -875,6 +891,9 @@ async function initAudioViewer() {
             document.addEventListener('touchstart', handleUserInteraction);
         };
 
+        // 키보드 이벤트를 먼저 등록하여 사용자가 바로 스페이스바를 사용할 수 있도록 함
+        eventHandlers.setupKeyboardEvents();
+        
         preloadAudio();
         
         const setupAfterDecode = async () => {
@@ -906,7 +925,6 @@ async function initAudioViewer() {
             eventHandlers.setupVolume();
             eventHandlers.setupLoop();
             eventHandlers.setupWaveSurferEvents();
-            eventHandlers.setupKeyboardEvents(); // 키보드 이벤트를 마지막에 등록
             console.log('Event listeners setup complete');
             
             // Update info

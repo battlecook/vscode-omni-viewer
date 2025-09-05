@@ -1,5 +1,35 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **Image Viewer: Modular architecture with webpack bundling**
+  - Split monolithic imageViewer.js into separate modules for better maintainability
+  - Create dedicated modules: imageViewerMain.js, imageFilters.js, imageEditMode.js, imageSave.js, imageUtils.js
+  - Add webpack configuration for JavaScript module bundling with Babel transpilation
+  - Implement ES6 module system with import/export for better code organization
+
+### Changed
+- **Image Viewer: Code architecture refactoring**
+  - Refactor 1390-line monolithic imageViewer.js into 5 focused modules
+  - Implement class-based architecture for better encapsulation and reusability
+  - Add webpack multi-configuration for TypeScript and JavaScript bundling
+  - Install babel-loader, @babel/core, @babel/preset-env for ES6+ compatibility
+  - Maintain backward compatibility with existing HTML template references
+
+### Removed
+
+## [0.2.2] - 2025-01-27
+
+### Fixed
+- **CSV Viewer: Duplicate data processing in raw view paste operation**
+  - Add isPasting flag to prevent input event handler during paste
+  - Resolve issue where pasting text triggered both paste handler and input event
+  - Ensure single data processing when pasting clipboard content
+- **README: VSCode extension packaging compliance**
+  - Replace SVG image with PNG to comply with VSCode packaging requirements
+  - Use HTML img tag with width="150" for proper ko-fi button sizing
+
 ## [0.2.1] - 2025-09-01
 
 ### Fixed
