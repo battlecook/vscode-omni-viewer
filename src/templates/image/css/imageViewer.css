@@ -296,6 +296,16 @@ body {
     color: var(--vscode-button-foreground);
 }
 
+.selection-info {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    margin-left: 10px;
+    padding: 2px 6px;
+    background: var(--vscode-badge-background);
+    color: var(--vscode-badge-foreground);
+    border-radius: 3px;
+}
+
 .edit-properties {
     display: flex;
     gap: 15px;
@@ -373,6 +383,7 @@ body {
 .shape-element.selected {
     outline: 2px dashed #007acc;
     outline-offset: 2px;
+    box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.3);
 }
 
 .shape-element .resize-handle {
@@ -429,6 +440,7 @@ body {
 .text-element.selected {
     outline: 2px dashed #007acc;
     outline-offset: 2px;
+    box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.3);
 }
 
 .text-element.editing {

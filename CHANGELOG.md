@@ -3,6 +3,16 @@
 ## [Unreleased]
 
 ### Added
+- **Image Editor: Multi-select functionality for editing elements**
+  - Implement Cmd/Ctrl+click multi-selection for shapes and text elements
+  - Enable simultaneous property editing for multiple selected elements (color, opacity, size, text)
+  - Support bulk deletion of selected elements with Delete/Backspace keys
+  - Add keyboard shortcuts: Delete/Backspace for deletion, Escape for deselection
+  - Display selection count in UI ("3 selected" badge)
+  - Handle mixed property values in multi-selection (show average for numeric values, default for colors)
+  - Maintain relative positions when dragging multiple elements together
+  - Improve drag functionality to move all selected elements simultaneously
+
 - **Image Viewer: Modular architecture with webpack bundling**
   - Split monolithic imageViewer.js into separate modules for better maintainability
   - Create dedicated modules: imageViewerMain.js, imageFilters.js, imageEditMode.js, imageSave.js, imageUtils.js

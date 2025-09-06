@@ -7,6 +7,7 @@ export class ImageEditMode {
         this.isEditMode = false;
         this.currentTool = 'select';
         this.selectedElement = null;
+        this.selectedElements = []; // 다중 선택을 위한 배열
         this.elements = [];
         this.nextElementId = 1;
         
@@ -30,6 +31,7 @@ export class ImageEditMode {
         this.textInput = document.getElementById('textInput');
         this.fontSize = document.getElementById('fontSize');
         this.fontSizeInput = document.getElementById('fontSizeInput');
+        this.selectionInfo = document.getElementById('selectionInfo');
     }
     
     setupEventListeners() {
@@ -136,6 +138,9 @@ export class ImageEditMode {
             this.editCanvas.addEventListener('click', (e) => this.handleCanvasClick(e));
             console.log('Canvas click listener added');
         }
+        
+        // 키보드 이벤트 리스너 추가
+        document.addEventListener('keydown', (e) => this.handleKeyDown(e));
         
         console.log('Edit mode event listeners setup complete');
     }
@@ -258,7 +263,7 @@ export class ImageEditMode {
         }
         
         if (this.currentTool === 'select') {
-            this.selectElementAt(x, y);
+            this.selectElementAt(x, y, e.metaKey || e.ctrlKey); // Cmd 또는 Ctrl 키 확인
         } else {
             this.addElementAt(x, y);
         }
@@ -303,22 +308,11 @@ export class ImageEditMode {
         }
     }
     
-    selectElementAt(x, y) {
-        console.log('selectElementAt called with:', x, y);
-        
-        // Deselect current element
-        if (this.selectedElement) {
-            const element = document.querySelector(`[data-element-id="${this.selectedElement.id}"]`);
-            if (element) {
-                element.classList.remove('selected');
-                // Hide resize handles
-                const handles = element.querySelectorAll('.resize-handle');
-                handles.forEach(handle => handle.style.display = 'none');
-            }
-        }
+    selectElementAt(x, y, isMultiSelect = false) {
+        console.log('selectElementAt called with:', x, y, 'multiSelect:', isMultiSelect);
         
         // Find element at position (reverse order to get topmost element first)
-        this.selectedElement = null;
+        let clickedElement = null;
         for (let i = this.elements.length - 1; i >= 0; i--) {
             const element = this.elements[i];
             const elementEl = document.querySelector(`[data-element-id="${element.id}"]`);
@@ -334,33 +328,93 @@ export class ImageEditMode {
             
             console.log(`Element ${element.id} hit test:`, isInside);
             if (isInside) {
-                this.selectedElement = element;
+                clickedElement = element;
                 break; // Found the topmost element, stop searching
             }
         }
         
-        if (this.selectedElement) {
-            console.log('Selected element:', this.selectedElement);
-            const element = document.querySelector(`[data-element-id="${this.selectedElement.id}"]`);
-            if (element) {
-                element.classList.add('selected');
-                // Show resize handles for rectangle
-                if (this.selectedElement.type === 'rectangle') {
-                    const handles = element.querySelectorAll('.resize-handle');
-                    handles.forEach(handle => handle.style.display = 'block');
+        if (clickedElement) {
+            if (isMultiSelect) {
+                // 다중 선택 모드
+                const isAlreadySelected = this.selectedElements.some(el => el.id === clickedElement.id);
+                if (isAlreadySelected) {
+                    // 이미 선택된 요소라면 선택 해제
+                    this.deselectElement(clickedElement);
+                } else {
+                    // 새로운 요소 선택 추가
+                    this.selectedElements.push(clickedElement);
+                    this.selectElement(clickedElement);
                 }
-                
-                // Bring selected element to front
-                this.bringElementToFront(this.selectedElement);
+            } else {
+                // 단일 선택 모드 - 기존 선택 모두 해제
+                this.clearAllSelections();
+                this.selectedElements = [clickedElement];
+                this.selectElement(clickedElement);
             }
+            
+            // Bring selected element to front
+            this.bringElementToFront(clickedElement);
             this.updatePropertiesPanel();
+            
             if (this.onLogMessage) {
-                this.onLogMessage(`Selected ${this.selectedElement.type} element and brought to front`);
+                this.onLogMessage(`Selected ${clickedElement.type} element (${this.selectedElements.length} total selected)`);
             }
         } else {
-            console.log('No element selected');
-            if (this.editProperties) {
-                this.editProperties.style.display = 'none';
+            // 빈 공간 클릭 - 다중 선택이 아닌 경우에만 모든 선택 해제
+            if (!isMultiSelect) {
+                this.clearAllSelections();
+                if (this.editProperties) {
+                    this.editProperties.style.display = 'none';
+                }
+            }
+        }
+    }
+    
+    // 다중 선택을 위한 헬퍼 메서드들
+    selectElement(element) {
+        const elementEl = document.querySelector(`[data-element-id="${element.id}"]`);
+        if (elementEl) {
+            elementEl.classList.add('selected');
+            // Show resize handles for rectangle
+            if (element.type === 'rectangle') {
+                const handles = elementEl.querySelectorAll('.resize-handle');
+                handles.forEach(handle => handle.style.display = 'block');
+            }
+        }
+        this.updateSelectionInfo();
+    }
+    
+    deselectElement(element) {
+        const elementEl = document.querySelector(`[data-element-id="${element.id}"]`);
+        if (elementEl) {
+            elementEl.classList.remove('selected');
+            // Hide resize handles
+            const handles = elementEl.querySelectorAll('.resize-handle');
+            handles.forEach(handle => handle.style.display = 'none');
+        }
+        
+        // 배열에서 제거
+        this.selectedElements = this.selectedElements.filter(el => el.id !== element.id);
+        this.updateSelectionInfo();
+    }
+    
+    clearAllSelections() {
+        this.selectedElements.forEach(element => {
+            this.deselectElement(element);
+        });
+        this.selectedElements = [];
+        this.selectedElement = null;
+        this.updateSelectionInfo();
+    }
+    
+    updateSelectionInfo() {
+        if (this.selectionInfo) {
+            const count = this.selectedElements.length;
+            if (count > 0) {
+                this.selectionInfo.textContent = `${count} selected`;
+                this.selectionInfo.style.display = 'inline';
+            } else {
+                this.selectionInfo.style.display = 'none';
             }
         }
     }
@@ -461,27 +515,60 @@ export class ImageEditMode {
     makeElementDraggable(elementEl, element) {
         let isDragging = false;
         let startX, startY;
+        let initialPositions = []; // 다중 선택 시 초기 위치 저장
         
         elementEl.addEventListener('mousedown', (e) => {
             if (this.currentTool === 'select') {
                 isDragging = true;
                 startX = e.clientX - element.x;
                 startY = e.clientY - element.y;
+                
+                // 다중 선택된 요소들의 초기 위치 저장
+                if (this.selectedElements.length > 1) {
+                    initialPositions = this.selectedElements.map(el => ({
+                        id: el.id,
+                        x: el.x,
+                        y: el.y
+                    }));
+                }
+                
                 e.stopPropagation();
             }
         });
         
         document.addEventListener('mousemove', (e) => {
-            if (isDragging && this.selectedElement && this.selectedElement.id === element.id) {
-                element.x = e.clientX - startX;
-                element.y = e.clientY - startY;
-                elementEl.style.left = element.x + 'px';
-                elementEl.style.top = element.y + 'px';
+            if (isDragging && this.selectedElements.some(el => el.id === element.id)) {
+                const deltaX = e.clientX - startX - element.x;
+                const deltaY = e.clientY - startY - element.y;
+                
+                if (this.selectedElements.length > 1) {
+                    // 다중 선택 시 모든 선택된 요소들을 함께 이동
+                    this.selectedElements.forEach(selectedEl => {
+                        const initialPos = initialPositions.find(pos => pos.id === selectedEl.id);
+                        if (initialPos) {
+                            selectedEl.x = initialPos.x + deltaX;
+                            selectedEl.y = initialPos.y + deltaY;
+                            
+                            const selectedElementEl = document.querySelector(`[data-element-id="${selectedEl.id}"]`);
+                            if (selectedElementEl) {
+                                selectedElementEl.style.left = selectedEl.x + 'px';
+                                selectedElementEl.style.top = selectedEl.y + 'px';
+                            }
+                        }
+                    });
+                } else {
+                    // 단일 선택 시 기존 로직
+                    element.x = e.clientX - startX;
+                    element.y = e.clientY - startY;
+                    elementEl.style.left = element.x + 'px';
+                    elementEl.style.top = element.y + 'px';
+                }
             }
         });
         
         document.addEventListener('mouseup', () => {
             isDragging = false;
+            initialPositions = [];
         });
         
         // Double click to edit text
@@ -524,20 +611,60 @@ export class ImageEditMode {
     
     updatePropertiesPanel() {
         console.log('updatePropertiesPanel called');
-        console.log('selectedElement:', this.selectedElement);
+        console.log('selectedElements:', this.selectedElements);
         console.log('editProperties:', this.editProperties);
         
-        if (!this.selectedElement || !this.editProperties) {
-            console.log('No selected element or editProperties not found');
+        if (this.selectedElements.length === 0 || !this.editProperties) {
+            console.log('No selected elements or editProperties not found');
+            this.editProperties.style.display = 'none';
             return;
         }
         
-        console.log('Updating properties panel with:', {
-            color: this.selectedElement.color,
-            size: this.selectedElement.size,
-            text: this.selectedElement.text,
-            fontSize: this.selectedElement.fontSize
-        });
+        // 다중 선택 시 공통 속성 표시, 단일 선택 시 개별 속성 표시
+        const selectedElement = this.selectedElements[0];
+        
+        // 다중 선택 시 공통 속성 계산
+        let displayProperties = {
+            color: selectedElement.color,
+            borderColor: selectedElement.borderColor || '#000000',
+            fillOpacity: selectedElement.fillOpacity !== undefined ? selectedElement.fillOpacity : 100,
+            borderOpacity: selectedElement.borderOpacity !== undefined ? selectedElement.borderOpacity : 100,
+            size: selectedElement.size,
+            text: selectedElement.text || '',
+            fontSize: selectedElement.fontSize || 24
+        };
+        
+        if (this.selectedElements.length > 1) {
+            // 다중 선택 시 공통 속성 계산
+            const colors = this.selectedElements.map(el => el.color);
+            const borderColors = this.selectedElements.map(el => el.borderColor || '#000000');
+            const fillOpacities = this.selectedElements.map(el => el.fillOpacity !== undefined ? el.fillOpacity : 100);
+            const borderOpacities = this.selectedElements.map(el => el.borderOpacity !== undefined ? el.borderOpacity : 100);
+            const sizes = this.selectedElements.map(el => el.size);
+            const texts = this.selectedElements.map(el => el.text || '');
+            const fontSizes = this.selectedElements.map(el => el.fontSize || 24);
+            
+            // 모든 값이 같은지 확인
+            const allColorsSame = colors.every(color => color === colors[0]);
+            const allBorderColorsSame = borderColors.every(color => color === borderColors[0]);
+            const allFillOpacitiesSame = fillOpacities.every(opacity => opacity === fillOpacities[0]);
+            const allBorderOpacitiesSame = borderOpacities.every(opacity => opacity === borderOpacities[0]);
+            const allSizesSame = sizes.every(size => size === sizes[0]);
+            const allTextsSame = texts.every(text => text === texts[0]);
+            const allFontSizesSame = fontSizes.every(size => size === fontSizes[0]);
+            
+            displayProperties = {
+                color: allColorsSame ? colors[0] : 'mixed',
+                borderColor: allBorderColorsSame ? borderColors[0] : 'mixed',
+                fillOpacity: allFillOpacitiesSame ? fillOpacities[0] : Math.round(fillOpacities.reduce((a, b) => a + b, 0) / fillOpacities.length),
+                borderOpacity: allBorderOpacitiesSame ? borderOpacities[0] : Math.round(borderOpacities.reduce((a, b) => a + b, 0) / borderOpacities.length),
+                size: allSizesSame ? sizes[0] : Math.round(sizes.reduce((a, b) => a + b, 0) / sizes.length),
+                text: allTextsSame ? texts[0] : 'mixed',
+                fontSize: allFontSizesSame ? fontSizes[0] : Math.round(fontSizes.reduce((a, b) => a + b, 0) / fontSizes.length)
+            };
+        }
+        
+        console.log('Updating properties panel with:', displayProperties);
         
         // Show/hide property groups based on element type
         const propertyGroups = this.editProperties.querySelectorAll('.property-group');
@@ -553,49 +680,52 @@ export class ImageEditMode {
                 // Always show fill color for all element types
                 group.style.display = 'flex';
             } else if (borderColorInput || borderOpacityInput) {
-                // Show border properties only for non-text elements
-                group.style.display = this.selectedElement.type !== 'text' ? 'flex' : 'none';
+                // Show border properties for non-text elements or mixed selection
+                const hasTextElements = this.selectedElements.some(el => el.type === 'text');
+                const hasNonTextElements = this.selectedElements.some(el => el.type !== 'text');
+                group.style.display = (hasNonTextElements || (hasTextElements && hasNonTextElements)) ? 'flex' : 'none';
             } else if (textInput || fontSizeInput) {
-                // Show text-related properties only for text elements
-                group.style.display = this.selectedElement.type === 'text' ? 'flex' : 'none';
+                // Show text-related properties for text elements or mixed selection
+                const hasTextElements = this.selectedElements.some(el => el.type === 'text');
+                group.style.display = hasTextElements ? 'flex' : 'none';
             }
         });
         
         // Update values
         if (this.shapeColor) {
-            this.shapeColor.value = this.selectedElement.color;
+            this.shapeColor.value = displayProperties.color === 'mixed' ? '#ff0000' : displayProperties.color;
             console.log('Set shapeColor to:', this.shapeColor.value);
         }
         if (this.borderColor) {
-            this.borderColor.value = this.selectedElement.borderColor || '#000000';
+            this.borderColor.value = displayProperties.borderColor === 'mixed' ? '#000000' : displayProperties.borderColor;
             console.log('Set borderColor to:', this.borderColor.value);
         }
         if (this.fillOpacity) {
-            this.fillOpacity.value = this.selectedElement.fillOpacity !== undefined ? this.selectedElement.fillOpacity : 100;
+            this.fillOpacity.value = displayProperties.fillOpacity;
             if (this.fillOpacityValue) {
-                this.fillOpacityValue.textContent = (this.selectedElement.fillOpacity !== undefined ? this.selectedElement.fillOpacity : 100) + '%';
+                this.fillOpacityValue.textContent = displayProperties.fillOpacity + '%';
             }
             console.log('Set fillOpacity to:', this.fillOpacity.value);
         }
         if (this.borderOpacity) {
-            this.borderOpacity.value = this.selectedElement.borderOpacity !== undefined ? this.selectedElement.borderOpacity : 100;
+            this.borderOpacity.value = displayProperties.borderOpacity;
             if (this.borderOpacityValue) {
-                this.borderOpacityValue.textContent = (this.selectedElement.borderOpacity !== undefined ? this.selectedElement.borderOpacity : 100) + '%';
+                this.borderOpacityValue.textContent = displayProperties.borderOpacity + '%';
             }
             console.log('Set borderOpacity to:', this.borderOpacity.value);
         }
         if (this.shapeSize) {
-            this.shapeSize.value = this.selectedElement.size;
+            this.shapeSize.value = displayProperties.size;
             console.log('Set shapeSize to:', this.shapeSize.value);
         }
-        if (this.textInput && this.selectedElement.type === 'text') {
-            this.textInput.value = this.selectedElement.text || '';
+        if (this.textInput) {
+            this.textInput.value = displayProperties.text === 'mixed' ? '' : displayProperties.text;
             console.log('Set textInput to:', this.textInput.value);
         }
-        if (this.fontSize && this.selectedElement.type === 'text') {
-            this.fontSize.value = this.selectedElement.fontSize || 24;
+        if (this.fontSize) {
+            this.fontSize.value = displayProperties.fontSize;
             if (this.fontSizeInput) {
-                this.fontSizeInput.value = this.selectedElement.fontSize || 24;
+                this.fontSizeInput.value = displayProperties.fontSize;
             }
             console.log('Set fontSize to:', this.fontSize.value);
         }
@@ -604,98 +734,112 @@ export class ImageEditMode {
         console.log('Properties panel displayed');
         
         if (this.onLogMessage) {
-            this.onLogMessage(`Properties panel updated for ${this.selectedElement.type} element`);
+            this.onLogMessage(`Properties panel updated for ${this.selectedElements.length} element(s)`);
         }
     }
     
     deleteSelectedElement() {
-        if (!this.selectedElement) return;
+        if (this.selectedElements.length === 0) return;
         
-        const elementEl = document.querySelector(`[data-element-id="${this.selectedElement.id}"]`);
-        if (elementEl) {
-            this.editCanvas.removeChild(elementEl);
-        }
+        // 선택된 모든 요소들을 삭제
+        this.selectedElements.forEach(element => {
+            const elementEl = document.querySelector(`[data-element-id="${element.id}"]`);
+            if (elementEl) {
+                this.editCanvas.removeChild(elementEl);
+            }
+            
+            // elements 배열에서 제거
+            this.elements = this.elements.filter(el => el.id !== element.id);
+        });
         
-        this.elements = this.elements.filter(el => el.id !== this.selectedElement.id);
+        const deletedCount = this.selectedElements.length;
+        this.selectedElements = [];
         this.selectedElement = null;
         this.editProperties.style.display = 'none';
+        this.updateSelectionInfo();
         
         if (this.onLogMessage) {
-            this.onLogMessage('Element deleted');
+            this.onLogMessage(`${deletedCount} element(s) deleted`);
         }
     }
     
     updateSelectedElement() {
         console.log('updateSelectedElement called');
-        console.log('selectedElement:', this.selectedElement);
+        console.log('selectedElements:', this.selectedElements);
         
-        if (!this.selectedElement) {
-            console.log('No selected element');
+        if (this.selectedElements.length === 0) {
+            console.log('No selected elements');
             return;
         }
         
-        console.log('Before update - color:', this.selectedElement.color);
+        // 다중 선택 시 모든 선택된 요소들에 속성 적용
+        const selectedElement = this.selectedElements[0];
+        
+        console.log('Before update - color:', selectedElement.color);
         console.log('shapeColor value:', this.shapeColor ? this.shapeColor.value : 'shapeColor not found');
         
-        // Check if size is being changed
-        let sizeChanged = false;
-        if (this.shapeSize && parseInt(this.shapeSize.value) !== this.selectedElement.size) {
-            sizeChanged = true;
-        }
-        
-        if (this.shapeColor) {
-            this.selectedElement.color = this.handleTransparentColor(this.shapeColor.value);
-            console.log('Updated color to:', this.selectedElement.color);
-        }
-        if (this.borderColor) {
-            this.selectedElement.borderColor = this.handleTransparentColor(this.borderColor.value);
-            console.log('Updated border color to:', this.selectedElement.borderColor);
-        }
-        if (this.fillOpacity) {
-            this.selectedElement.fillOpacity = parseInt(this.fillOpacity.value);
-            console.log('Updated fill opacity to:', this.selectedElement.fillOpacity);
-        }
-        if (this.borderOpacity) {
-            this.selectedElement.borderOpacity = parseInt(this.borderOpacity.value);
-            console.log('Updated border opacity to:', this.selectedElement.borderOpacity);
-        }
-        if (this.shapeSize) {
-            this.selectedElement.size = parseInt(this.shapeSize.value);
-        }
-        
-        // Only update text-related properties for text elements
-        if (this.selectedElement.type === 'text') {
-            if (this.textInput) this.selectedElement.text = this.textInput.value;
-            if (this.fontSize) this.selectedElement.fontSize = parseInt(this.fontSize.value);
-            if (this.fontSizeInput) this.selectedElement.fontSize = parseInt(this.fontSizeInput.value);
-        }
-        
-        console.log('After update - element:', this.selectedElement);
-        
-        // Get the existing element
-        const elementEl = document.querySelector(`[data-element-id="${this.selectedElement.id}"]`);
-        if (elementEl) {
-            if (sizeChanged) {
-                // If size changed, update size-related styles
-                this.updateElementStylesWithSize(elementEl, this.selectedElement);
-            } else {
-                // If only colors/opacity changed, update only those styles
-                this.updateElementStyles(elementEl, this.selectedElement);
+        // 모든 선택된 요소들에 속성 적용
+        this.selectedElements.forEach(element => {
+            // Check if size is being changed
+            let sizeChanged = false;
+            if (this.shapeSize && parseInt(this.shapeSize.value) !== element.size) {
+                sizeChanged = true;
             }
-        } else {
-            // If element doesn't exist, re-render it
-            console.log('Element not found, re-rendering');
-            this.renderElement(this.selectedElement);
             
-            // Re-select the element
-            const newElementEl = document.querySelector(`[data-element-id="${this.selectedElement.id}"]`);
-            if (newElementEl) {
-                newElementEl.classList.add('selected');
+            if (this.shapeColor) {
+                element.color = this.handleTransparentColor(this.shapeColor.value);
+                console.log('Updated color to:', element.color);
             }
-        }
+            if (this.borderColor) {
+                element.borderColor = this.handleTransparentColor(this.borderColor.value);
+                console.log('Updated border color to:', element.borderColor);
+            }
+            if (this.fillOpacity) {
+                element.fillOpacity = parseInt(this.fillOpacity.value);
+                console.log('Updated fill opacity to:', element.fillOpacity);
+            }
+            if (this.borderOpacity) {
+                element.borderOpacity = parseInt(this.borderOpacity.value);
+                console.log('Updated border opacity to:', element.borderOpacity);
+            }
+            if (this.shapeSize) {
+                element.size = parseInt(this.shapeSize.value);
+            }
+            
+            // Only update text-related properties for text elements
+            if (element.type === 'text') {
+                if (this.textInput) element.text = this.textInput.value;
+                if (this.fontSize) element.fontSize = parseInt(this.fontSize.value);
+                if (this.fontSizeInput) element.fontSize = parseInt(this.fontSizeInput.value);
+            }
+            
+            console.log('After update - element:', element);
+            
+            // Get the existing element
+            const elementEl = document.querySelector(`[data-element-id="${element.id}"]`);
+            if (elementEl) {
+                if (sizeChanged) {
+                    // If size changed, update size-related styles
+                    this.updateElementStylesWithSize(elementEl, element);
+                } else {
+                    // If only colors/opacity changed, update only those styles
+                    this.updateElementStyles(elementEl, element);
+                }
+            } else {
+                // If element doesn't exist, re-render it
+                console.log('Element not found, re-rendering');
+                this.renderElement(element);
+                
+                // Re-select the element
+                const newElementEl = document.querySelector(`[data-element-id="${element.id}"]`);
+                if (newElementEl) {
+                    newElementEl.classList.add('selected');
+                }
+            }
+        });
         
         if (this.onLogMessage) {
-            this.onLogMessage(`Updated element color to ${this.selectedElement.color}`);
+            this.onLogMessage(`Updated ${this.selectedElements.length} element(s) color to ${this.shapeColor ? this.shapeColor.value : 'N/A'}`);
         }
     }
     
@@ -915,6 +1059,7 @@ export class ImageEditMode {
         this.isEditMode = false;
         this.editCanvas.classList.remove('active');
         this.selectedElement = null;
+        this.selectedElements = [];
         if (this.editProperties) {
             this.editProperties.style.display = 'none';
         }
@@ -927,6 +1072,25 @@ export class ImageEditMode {
             return 'transparent';
         }
         return colorValue;
+    }
+    
+    // 키보드 이벤트 핸들러
+    handleKeyDown(e) {
+        if (!this.isEditMode) return;
+        
+        // Delete 키 처리
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+            e.preventDefault();
+            this.deleteSelectedElement();
+        }
+        
+        // Escape 키로 선택 해제
+        if (e.key === 'Escape') {
+            this.clearAllSelections();
+            if (this.editProperties) {
+                this.editProperties.style.display = 'none';
+            }
+        }
     }
     
     // Helper function to convert hex color to rgba
