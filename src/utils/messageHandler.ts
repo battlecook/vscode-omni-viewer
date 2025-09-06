@@ -9,11 +9,17 @@ export interface WebviewMessage {
     fileName?: string;
     blob?: any;
     imageData?: string;
+    type?: string;
+    lineNumber?: number;
+    content?: string;
 }
 
 export class MessageHandler {
     public static async handleWebviewMessage(message: WebviewMessage, documentUri?: vscode.Uri): Promise<void> {
-        switch (message.command) {
+        // Handle both command-based and type-based messages
+        const messageType = message.type || message.command;
+        
+        switch (messageType) {
             case 'log':
                 console.log('Webview:', message.text);
                 break;
@@ -33,11 +39,12 @@ export class MessageHandler {
                 console.log('Received saveChanges message:', message);
                 await this.handleSaveChanges(message, documentUri);
                 break;
-
-
+            case 'updateLine':
+                await this.handleUpdateLine(message, documentUri);
+                break;
 
             default:
-                console.log('Unknown message command:', message.command);
+                console.log('Unknown message type:', messageType);
         }
     }
 
@@ -90,6 +97,41 @@ export class MessageHandler {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
             vscode.window.showErrorMessage(`Failed to save file: ${errorMessage}`);
             console.error('Error saving file:', error);
+        }
+    }
+
+    private static async handleUpdateLine(message: WebviewMessage, documentUri?: vscode.Uri): Promise<void> {
+        try {
+            if (!message.lineNumber || message.content === undefined) {
+                throw new Error('Line number and content are required');
+            }
+
+            if (!documentUri) {
+                throw new Error('No document URI provided');
+            }
+
+            // Read current file content
+            const fileContent = await vscode.workspace.fs.readFile(documentUri);
+            const lines = Buffer.from(fileContent).toString('utf8').split('\n');
+            
+            // Update the specific line (lineNumber is 1-based)
+            const lineIndex = message.lineNumber - 1;
+            if (lineIndex >= 0 && lineIndex < lines.length) {
+                lines[lineIndex] = message.content;
+            } else {
+                throw new Error(`Line ${message.lineNumber} is out of range`);
+            }
+
+            // Write back to file
+            const newContent = lines.join('\n');
+            await vscode.workspace.fs.writeFile(documentUri, Buffer.from(newContent, 'utf8'));
+            
+            console.log(`Updated line ${message.lineNumber} in ${documentUri.fsPath}`);
+            
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+            vscode.window.showErrorMessage(`Failed to update line: ${errorMessage}`);
+            console.error('Error updating line:', error);
         }
     }
 

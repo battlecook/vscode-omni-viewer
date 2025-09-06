@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSONL Viewer - {{fileName}}</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: var(--vscode-editor-font-family, 'Consolas', 'Monaco', 'Courier New', monospace);
+            font-size: var(--vscode-editor-font-size, 14px);
+            line-height: var(--vscode-editor-line-height, 1.5);
+            background: var(--vscode-editor-background);
+            color: var(--vscode-editor-foreground);
+            overflow: hidden;
+        }
+        
+        .editor-container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .editor-content {
+            flex: 1;
+            overflow: auto;
+            padding: 0;
+        }
+        
+        .line {
+            display: flex;
+            min-height: 1.5em;
+            position: relative;
+            cursor: pointer;
+        }
+        
+        .line:hover {
+            background: var(--vscode-list-hoverBackground);
+        }
+        
+        .line-number {
+            background: var(--vscode-editorLineNumber-background);
+            color: var(--vscode-editorLineNumber-foreground);
+            padding: 0 8px;
+            text-align: right;
+            min-width: 60px;
+            border-right: 1px solid var(--vscode-panel-border);
+            user-select: none;
+            flex-shrink: 0;
+        }
+        
+        .line-content {
+            flex: 1;
+            padding: 0 8px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            font-family: inherit;
+            border: none;
+            background: transparent;
+            outline: none;
+            resize: none;
+            min-height: 1.5em;
+            color: var(--vscode-editor-foreground);
+        }
+        
+        .line-content:focus {
+            background: var(--vscode-input-background);
+            border: 1px solid var(--vscode-focusBorder);
+            border-radius: 3px;
+        }
+        
+        .line-content.editing {
+            background: var(--vscode-input-background);
+            border: 1px solid var(--vscode-focusBorder);
+            border-radius: 3px;
+        }
+        
+        /* JSON Syntax Highlighting for JSONL lines */
+        .line-content .json-key {
+            color: var(--vscode-symbolIcon-keywordForeground, #9cdcfe);
+            font-weight: 600;
+        }
+        
+        .line-content .json-string {
+            color: var(--vscode-symbolIcon-stringForeground, #ce9178);
+        }
+        
+        .line-content .json-number {
+            color: var(--vscode-symbolIcon-numberForeground, #b5cea8);
+        }
+        
+        .line-content .json-boolean {
+            color: var(--vscode-symbolIcon-booleanForeground, #569cd6);
+            font-weight: 600;
+        }
+        
+        .line-content .json-null {
+            color: var(--vscode-symbolIcon-nullForeground, #569cd6);
+            font-style: italic;
+        }
+        
+        .line-content .json-punctuation {
+            color: var(--vscode-editor-foreground);
+        }
+        
+        .line-content .json-bracket {
+            color: var(--vscode-editor-foreground);
+            font-weight: bold;
+        }
+        
+        .line.invalid {
+            background: var(--vscode-inputValidation-errorBackground);
+            border-left: 3px solid var(--vscode-inputValidation-errorBorder);
+        }
+        
+        .line.invalid:hover {
+            background: var(--vscode-inputValidation-errorBackground);
+            opacity: 0.8;
+        }
+        
+        /* JSON Popup */
+        .json-popup {
+            position: fixed;
+            width: 500px;
+            height: 400px;
+            max-width: 90vw;
+            max-height: 85vh;
+            min-width: 400px;
+            min-height: 300px;
+            background: var(--vscode-editor-background);
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            display: flex;
+            flex-direction: column;
+            z-index: 1000;
+            opacity: 0;
+            transform: scale(0.8) translateY(-10px);
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            pointer-events: none;
+            resize: none;
+            overflow: hidden;
+        }
+        
+        .json-popup.show {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+            pointer-events: auto;
+        }
+        
+        .popup-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            height: 100%;
+            min-height: 0;
+        }
+        
+        .popup-header {
+            background: var(--vscode-titleBar-activeBackground);
+            padding: 6px 12px;
+            border-bottom: 1px solid var(--vscode-panel-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        
+        .popup-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .popup-btn {
+            background: var(--vscode-button-background);
+            border: 1px solid var(--vscode-button-border);
+            color: var(--vscode-button-foreground);
+            cursor: pointer;
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 3px;
+            transition: background-color 0.2s;
+        }
+        
+        .popup-btn:hover {
+            background: var(--vscode-button-hoverBackground);
+        }
+        
+        .popup-btn.primary {
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+        }
+        
+        .popup-btn.primary:hover {
+            background: var(--vscode-button-hoverBackground);
+        }
+        
+        .popup-btn.secondary {
+            background: transparent;
+            color: var(--vscode-foreground);
+            border-color: var(--vscode-panel-border);
+        }
+        
+        .popup-btn.secondary:hover {
+            background: var(--vscode-toolbar-hoverBackground);
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            color: var(--vscode-foreground);
+            cursor: pointer;
+            font-size: 16px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            transition: background-color 0.2s;
+        }
+        
+        .close-btn:hover {
+            background: var(--vscode-toolbar-hoverBackground);
+        }
+        
+        .json-content {
+            flex: 1;
+            padding: 12px;
+            margin: 0;
+            overflow: auto;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.4;
+            background: var(--vscode-editor-background);
+            color: var(--vscode-editor-foreground);
+            white-space: pre-wrap;
+            word-break: break-word;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .json-content:hover {
+            background: var(--vscode-list-hoverBackground);
+        }
+        
+        .json-edit-area {
+            flex: 1;
+            padding: 12px;
+            margin: 0;
+            overflow: auto;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.4;
+            background: var(--vscode-input-background);
+            color: var(--vscode-input-foreground);
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 3px;
+            resize: none;
+            outline: none;
+            display: none;
+            min-height: 0;
+            height: 100%;
+            box-sizing: border-box;
+        }
+        
+        .json-edit-area:focus {
+            border-color: var(--vscode-focusBorder);
+        }
+        
+        .json-edit-area.show {
+            display: block;
+        }
+        
+        .json-content.hide {
+            display: none;
+        }
+        
+        /* Enhanced JSON Syntax Highlighting */
+        .json-content .json-key {
+            color: #9cdcfe;
+            font-weight: 600;
+        }
+        
+        .json-content .json-string {
+            color: #ce9178;
+        }
+        
+        .json-content .json-number {
+            color: #b5cea8;
+        }
+        
+        .json-content .json-boolean {
+            color: #569cd6;
+            font-weight: 600;
+        }
+        
+        .json-content .json-null {
+            color: #569cd6;
+            font-style: italic;
+        }
+        
+        .json-content .json-punctuation {
+            color: #d4d4d4;
+        }
+        
+        .json-content .json-bracket {
+            color: #ffd700;
+            font-weight: bold;
+        }
+        
+        .json-content .json-comma {
+            color: #d4d4d4;
+        }
+        
+        /* Scrollbar */
+        .editor-content::-webkit-scrollbar,
+        .json-content::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        .editor-content::-webkit-scrollbar-track,
+        .json-content::-webkit-scrollbar-track {
+            background: var(--vscode-scrollbarSlider-background);
+        }
+        
+        .editor-content::-webkit-scrollbar-thumb,
+        .json-content::-webkit-scrollbar-thumb {
+            background: var(--vscode-scrollbarSlider-hoverBackground);
+            border-radius: 4px;
+        }
+        
+        .editor-content::-webkit-scrollbar-thumb:hover,
+        .json-content::-webkit-scrollbar-thumb:hover {
+            background: var(--vscode-scrollbarSlider-activeBackground);
+        }
+    </style>
+</head>
+<body>
+    <div class="editor-container">
+        <div class="editor-content" id="editorContent">
+            <!-- JSONL lines will be rendered here -->
+        </div>
+    </div>
+
+    <!-- JSON Popup -->
+    <div id="jsonPopup" class="json-popup">
+        <div class="popup-content">
+            <div class="popup-header">
+                <div class="popup-controls">
+                    <button id="saveBtn" class="popup-btn primary" style="display: none;">저장</button>
+                    <button id="cancelBtn" class="popup-btn secondary" style="display: none;">취소</button>
+                </div>
+                <button id="closePopup" class="close-btn">&times;</button>
+            </div>
+            <pre id="jsonContent" class="json-content"></pre>
+            <textarea id="jsonEditArea" class="json-edit-area" placeholder="JSON을 편집하세요..."></textarea>
+        </div>
+    </div>
+
+    <script>
+        // JSONL data from server
+        const jsonlData = {{jsonlData}};
+        
+        class JsonlViewer {
+            constructor() {
+                this.currentHoverTimeout = null;
+                this.currentLineData = null;
+                this.mousePosition = { x: 0, y: 0 };
+                this.editingLine = null;
+                this.vscode = null;
+                this.isPopupEditing = false;
+                this.originalJsonContent = '';
+                this.init();
+            }
+
+            init() {
+                this.setupEventListeners();
+                this.renderJsonlLines();
+                this.setupVSCodeAPI();
+            }
+
+            setupVSCodeAPI() {
+                // Get VSCode API
+                this.vscode = acquireVsCodeApi();
+            }
+
+            setupEventListeners() {
+                // Track mouse position
+                document.addEventListener('mousemove', (e) => {
+                    this.mousePosition.x = e.clientX;
+                    this.mousePosition.y = e.clientY;
+                });
+
+                // Close popup button
+                document.getElementById('closePopup').addEventListener('click', () => {
+                    this.hideJsonPopup();
+                });
+
+                // JSON content click to edit
+                document.getElementById('jsonContent').addEventListener('click', () => {
+                    this.startPopupEditing();
+                });
+
+                // Save button
+                document.getElementById('saveBtn').addEventListener('click', () => {
+                    this.savePopupEdit();
+                });
+
+                // Cancel button
+                document.getElementById('cancelBtn').addEventListener('click', () => {
+                    this.cancelPopupEdit();
+                });
+
+                // Close popup with Escape key
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') {
+                        if (this.isPopupEditing) {
+                            this.cancelPopupEdit();
+                        } else {
+                            this.hideJsonPopup();
+                        }
+                    } else if (e.key === 'Enter' && e.ctrlKey && this.isPopupEditing) {
+                        this.savePopupEdit();
+                    }
+                });
+
+                // Close popup when clicking outside
+                document.addEventListener('click', (e) => {
+                    const popup = document.getElementById('jsonPopup');
+                    const editorContent = document.getElementById('editorContent');
+                    
+                    // Check if popup is visible and click is outside popup
+                    if (popup.classList.contains('show') && !popup.contains(e.target)) {
+                        // If clicking on editor content (not on a line), close popup
+                        if (editorContent.contains(e.target)) {
+                            const clickedLine = e.target.closest('.line');
+                            if (!clickedLine) {
+                                this.hideJsonPopup();
+                            }
+                        } else {
+                            // If clicking anywhere else outside popup, close popup
+                            this.hideJsonPopup();
+                        }
+                    }
+                });
+
+                // Listen for messages from VSCode
+                window.addEventListener('message', (event) => {
+                    const message = event.data;
+                    switch (message.type) {
+                        case 'updateData':
+                            this.updateData(message.data);
+                            break;
+                    }
+                });
+            }
+
+            renderJsonlLines() {
+                const container = document.getElementById('editorContent');
+                container.innerHTML = '';
+
+                if (!jsonlData || !jsonlData.lines) {
+                    container.innerHTML = '<div class="line"><div class="line-number">1</div><div class="line-content">JSONL 데이터를 불러올 수 없습니다.</div></div>';
+                    return;
+                }
+
+                jsonlData.lines.forEach(line => {
+                    const lineElement = this.createLineElement(line);
+                    container.appendChild(lineElement);
+                });
+            }
+
+            createLineElement(line) {
+                const lineDiv = document.createElement('div');
+                lineDiv.className = `line ${line.isValid ? 'valid' : 'invalid'}`;
+                lineDiv.dataset.lineNumber = line.lineNumber;
+
+                // Line number
+                const lineNumber = document.createElement('div');
+                lineNumber.className = 'line-number';
+                lineNumber.textContent = line.lineNumber;
+
+                // Line content (editable)
+                const lineContent = document.createElement('textarea');
+                lineContent.className = 'line-content';
+                lineContent.value = line.content;
+                lineContent.dataset.lineNumber = line.lineNumber;
+                lineContent.style.cursor = 'text';
+
+                // Add edit event listeners
+                lineContent.addEventListener('click', () => {
+                    this.startEditing(lineContent, line.lineNumber);
+                });
+
+                lineContent.addEventListener('blur', () => {
+                    this.finishEditing(lineContent, line.lineNumber);
+                });
+
+                lineContent.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        this.finishEditing(lineContent, line.lineNumber);
+                    } else if (e.key === 'Escape') {
+                        this.cancelEditing(lineContent, line.lineNumber);
+                    }
+                });
+
+                lineContent.addEventListener('input', () => {
+                    this.updateLineHighlighting(lineContent, line.lineNumber);
+                });
+
+                lineDiv.appendChild(lineNumber);
+                lineDiv.appendChild(lineContent);
+
+                // Add hover event for JSON popup
+                if (line.isValid && line.parsedJson) {
+                    lineDiv.addEventListener('mouseenter', () => {
+                        // Clear any existing timeout
+                        if (this.currentHoverTimeout) {
+                            clearTimeout(this.currentHoverTimeout);
+                        }
+                        
+                        this.currentHoverTimeout = setTimeout(() => {
+                            this.updateJsonPopup(line.parsedJson, line.lineNumber);
+                        }, 200); // 200ms delay
+                    });
+
+                    lineDiv.addEventListener('mouseleave', () => {
+                        if (this.currentHoverTimeout) {
+                            clearTimeout(this.currentHoverTimeout);
+                            this.currentHoverTimeout = null;
+                        }
+                    });
+                }
+
+                return lineDiv;
+            }
+
+            updateJsonPopup(jsonData, lineNumber) {
+                const popup = document.getElementById('jsonPopup');
+                const content = document.getElementById('jsonContent');
+                
+                // Format and highlight JSON
+                const formattedJson = JSON.stringify(jsonData, null, 2);
+                const highlightedJson = this.highlightJson(formattedJson);
+                
+                content.innerHTML = highlightedJson;
+                
+                // Store current line data
+                this.currentLineData = { jsonData, lineNumber };
+                
+                // Position popup near mouse cursor
+                this.positionPopup(popup);
+                
+                // Show popup if not already visible
+                if (!popup.classList.contains('show')) {
+                    popup.classList.add('show');
+                }
+            }
+
+            positionPopup(popup) {
+                const popupWidth = 500;
+                const popupHeight = 400;
+                const margin = 20;
+                
+                let left = this.mousePosition.x + 15;
+                let top = this.mousePosition.y - 10;
+                
+                // Adjust if popup would go off screen
+                if (left + popupWidth > window.innerWidth - margin) {
+                    left = this.mousePosition.x - popupWidth - 15;
+                }
+                
+                if (top + popupHeight > window.innerHeight - margin) {
+                    top = window.innerHeight - popupHeight - margin;
+                }
+                
+                if (top < margin) {
+                    top = margin;
+                }
+                
+                if (left < margin) {
+                    left = margin;
+                }
+                
+                popup.style.left = left + 'px';
+                popup.style.top = top + 'px';
+                popup.style.width = popupWidth + 'px';
+                popup.style.height = popupHeight + 'px';
+            }
+
+            hideJsonPopup() {
+                const popup = document.getElementById('jsonPopup');
+                popup.classList.remove('show');
+                this.currentLineData = null;
+                this.exitPopupEditing();
+            }
+
+            startPopupEditing() {
+                if (!this.currentLineData) return;
+                
+                this.isPopupEditing = true;
+                this.originalJsonContent = JSON.stringify(this.currentLineData.jsonData, null, 2);
+                
+                // Show edit area and hide content
+                const jsonContent = document.getElementById('jsonContent');
+                const jsonEditArea = document.getElementById('jsonEditArea');
+                const saveBtn = document.getElementById('saveBtn');
+                const cancelBtn = document.getElementById('cancelBtn');
+                
+                jsonContent.classList.add('hide');
+                jsonEditArea.classList.add('show');
+                jsonEditArea.value = this.originalJsonContent;
+                
+                saveBtn.style.display = 'inline-block';
+                cancelBtn.style.display = 'inline-block';
+                
+                // Focus and select all text
+                jsonEditArea.focus();
+                jsonEditArea.select();
+            }
+
+            savePopupEdit() {
+                if (!this.isPopupEditing || !this.currentLineData) return;
+                
+                const jsonEditArea = document.getElementById('jsonEditArea');
+                const editedContent = jsonEditArea.value.trim();
+                
+                try {
+                    // Validate JSON
+                    const parsedJson = JSON.parse(editedContent);
+                    const newContent = JSON.stringify(parsedJson);
+                    
+                    // Update the original line content
+                    const lineNumber = this.currentLineData.lineNumber;
+                    const lineElement = document.querySelector(`[data-line-number="${lineNumber}"] .line-content`);
+                    
+                    if (lineElement) {
+                        lineElement.value = newContent;
+                        this.updateLineHighlighting(lineElement, lineNumber);
+                        
+                        // Update jsonlData with new content
+                        const lineIndex = jsonlData.lines.findIndex(line => line.lineNumber === lineNumber);
+                        if (lineIndex !== -1) {
+                            jsonlData.lines[lineIndex].content = newContent;
+                            jsonlData.lines[lineIndex].isValid = true;
+                            jsonlData.lines[lineIndex].parsedJson = parsedJson;
+                        }
+                        
+                        // Update the document
+                        this.updateDocument(lineNumber, newContent);
+                        
+                        // Update current line data
+                        this.currentLineData.jsonData = parsedJson;
+                        
+                        // Update popup content
+                        const formattedJson = JSON.stringify(parsedJson, null, 2);
+                        const highlightedJson = this.highlightJson(formattedJson);
+                        document.getElementById('jsonContent').innerHTML = highlightedJson;
+                    }
+                    
+                    this.exitPopupEditing();
+                    
+                } catch (error) {
+                    // Show error message (you could add a toast notification here)
+                    alert('유효하지 않은 JSON 형식입니다: ' + error.message);
+                }
+            }
+
+            cancelPopupEdit() {
+                this.exitPopupEditing();
+            }
+
+            exitPopupEditing() {
+                this.isPopupEditing = false;
+                this.originalJsonContent = '';
+                
+                // Show content and hide edit area
+                const jsonContent = document.getElementById('jsonContent');
+                const jsonEditArea = document.getElementById('jsonEditArea');
+                const saveBtn = document.getElementById('saveBtn');
+                const cancelBtn = document.getElementById('cancelBtn');
+                
+                jsonContent.classList.remove('hide');
+                jsonEditArea.classList.remove('show');
+                
+                saveBtn.style.display = 'none';
+                cancelBtn.style.display = 'none';
+            }
+
+            updateData(newData) {
+                const parsedData = JSON.parse(newData);
+                jsonlData.lines = parsedData.lines;
+                this.renderJsonlLines();
+            }
+
+            startEditing(textarea, lineNumber) {
+                if (this.editingLine && this.editingLine !== lineNumber) {
+                    this.finishEditing(document.querySelector(`[data-line-number="${this.editingLine}"]`), this.editingLine);
+                }
+                
+                this.editingLine = lineNumber;
+                textarea.classList.add('editing');
+                textarea.focus();
+                textarea.select();
+            }
+
+            finishEditing(textarea, lineNumber) {
+                const newContent = textarea.value;
+                textarea.classList.remove('editing');
+                
+                // Validate JSON if it's not empty
+                let isValid = false;
+                let parsedJson = null;
+                if (newContent.trim()) {
+                    try {
+                        parsedJson = JSON.parse(newContent);
+                        textarea.parentElement.classList.remove('invalid');
+                        textarea.parentElement.classList.add('valid');
+                        isValid = true;
+                    } catch (error) {
+                        textarea.parentElement.classList.remove('valid');
+                        textarea.parentElement.classList.add('invalid');
+                        isValid = false;
+                    }
+                }
+
+                // Update jsonlData with new content
+                const lineIndex = jsonlData.lines.findIndex(line => line.lineNumber === lineNumber);
+                if (lineIndex !== -1) {
+                    jsonlData.lines[lineIndex].content = newContent;
+                    jsonlData.lines[lineIndex].isValid = isValid;
+                    jsonlData.lines[lineIndex].parsedJson = parsedJson;
+                }
+
+                // Update the document
+                this.updateDocument(lineNumber, newContent);
+                this.editingLine = null;
+            }
+
+            cancelEditing(textarea, lineNumber) {
+                // Restore original content
+                const originalLine = jsonlData.lines.find(line => line.lineNumber === lineNumber);
+                if (originalLine) {
+                    textarea.value = originalLine.content;
+                }
+                textarea.classList.remove('editing');
+                this.editingLine = null;
+            }
+
+            updateLineHighlighting(textarea, lineNumber) {
+                const content = textarea.value;
+                let isValid = false;
+                let parsedJson = null;
+                
+                if (content.trim()) {
+                    try {
+                        parsedJson = JSON.parse(content);
+                        textarea.parentElement.classList.remove('invalid');
+                        textarea.parentElement.classList.add('valid');
+                        isValid = true;
+                    } catch (error) {
+                        textarea.parentElement.classList.remove('valid');
+                        textarea.parentElement.classList.add('invalid');
+                        isValid = false;
+                    }
+                } else {
+                    textarea.parentElement.classList.remove('valid', 'invalid');
+                }
+                
+                // Update jsonlData in real-time
+                const lineIndex = jsonlData.lines.findIndex(line => line.lineNumber === lineNumber);
+                if (lineIndex !== -1) {
+                    jsonlData.lines[lineIndex].content = content;
+                    jsonlData.lines[lineIndex].isValid = isValid;
+                    jsonlData.lines[lineIndex].parsedJson = parsedJson;
+                }
+            }
+
+            updateDocument(lineNumber, newContent) {
+                // Send message to VSCode to update the document
+                this.vscode.postMessage({
+                    type: 'updateLine',
+                    lineNumber: lineNumber,
+                    content: newContent
+                });
+            }
+
+            highlightJson(jsonString) {
+                // Enhanced JSON syntax highlighting
+                return jsonString
+                    .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (match) => {
+                        let cls = 'json-number';
+                        if (/^"/.test(match)) {
+                            if (/:$/.test(match)) {
+                                cls = 'json-key';
+                            } else {
+                                cls = 'json-string';
+                            }
+                        } else if (/true|false/.test(match)) {
+                            cls = 'json-boolean';
+                        } else if (/null/.test(match)) {
+                            cls = 'json-null';
+                        }
+                        return '<span class="' + cls + '">' + match + '</span>';
+                    })
+                    .replace(/([{}[\]])/g, '<span class="json-bracket">$1</span>')
+                    .replace(/([,:])/g, '<span class="json-comma">$1</span>');
+            }
+        }
+
+        // Initialize the viewer when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new JsonlViewer();
+        });
+    </script>
+</body>
+</html>

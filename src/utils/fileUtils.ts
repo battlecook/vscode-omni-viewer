@@ -181,4 +181,57 @@ export class FileUtils {
         
         return result;
     }
+
+    public static async readJsonlFile(filePath: string): Promise<{
+        lines: Array<{ lineNumber: number; content: string; parsedJson?: any; isValid: boolean }>;
+        totalLines: number;
+        validLines: number;
+        invalidLines: number;
+        fileSize: string;
+    }> {
+        try {
+            const content = await fs.promises.readFile(filePath, 'utf-8');
+            const lines = content.split('\n').filter(line => line.trim() !== '');
+            
+            const parsedLines: Array<{ lineNumber: number; content: string; parsedJson?: any; isValid: boolean }> = [];
+            let validLines = 0;
+            let invalidLines = 0;
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (line === '') continue;
+
+                try {
+                    const parsedJson = JSON.parse(line);
+                    parsedLines.push({
+                        lineNumber: i + 1,
+                        content: line,
+                        parsedJson,
+                        isValid: true
+                    });
+                    validLines++;
+                } catch (error) {
+                    parsedLines.push({
+                        lineNumber: i + 1,
+                        content: line,
+                        isValid: false
+                    });
+                    invalidLines++;
+                }
+            }
+
+            const fileSize = await this.getFileSize(filePath);
+
+            return {
+                lines: parsedLines,
+                totalLines: parsedLines.length,
+                validLines,
+                invalidLines,
+                fileSize
+            };
+        } catch (error) {
+            console.error('Error reading JSONL file:', error);
+            throw error;
+        }
+    }
 }

@@ -3,15 +3,18 @@ import { AudioViewerProvider } from './audioViewerProvider';
 import { ImageViewerProvider } from './imageViewerProvider';
 import { VideoViewerProvider } from './videoViewerProvider';
 import { CsvViewerProvider } from './csvViewerProvider';
+import { JsonlViewerProvider } from './jsonlViewerProvider';
 
 export function activate(context: vscode.ExtensionContext) {
-    console.log('Omni Viewer extension is now active!');
+    console.log('🚀 Omni Viewer extension is now active!');
+    console.log('📁 Extension path:', context.extensionPath);
 
     // Register custom editors
     const audioViewerProvider = new AudioViewerProvider(context);
     const imageViewerProvider = new ImageViewerProvider(context);
     const videoViewerProvider = new VideoViewerProvider(context);
     const csvViewerProvider = new CsvViewerProvider(context);
+    const jsonlViewerProvider = new JsonlViewerProvider(context);
 
     // Register commands
     const openAudioViewer = vscode.commands.registerCommand('omni-viewer.openAudioViewer', (uri: vscode.Uri) => {
@@ -43,6 +46,14 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.csvViewer');
         } else {
             vscode.window.showErrorMessage('No CSV file selected');
+        }
+    });
+
+    const openJsonlViewer = vscode.commands.registerCommand('omni-viewer.openJsonlViewer', (uri: vscode.Uri) => {
+        if (uri) {
+            vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.jsonlViewer');
+        } else {
+            vscode.window.showErrorMessage('No JSONL file selected');
         }
     });
 
@@ -85,6 +96,17 @@ export function activate(context: vscode.ExtensionContext) {
         }
     );
 
+    console.log('🔄 Registering JSONL custom editor provider...');
+    const jsonlEditorRegistration = vscode.window.registerCustomEditorProvider(
+        'omni-viewer.jsonlViewer',
+        jsonlViewerProvider,
+        {
+            webviewOptions: { retainContextWhenHidden: true },
+            supportsMultipleEditorsPerDocument: false
+        }
+    );
+    console.log('✅ JSONL custom editor provider registered');
+
 
 
 
@@ -94,10 +116,12 @@ export function activate(context: vscode.ExtensionContext) {
         openImageViewer,
         openVideoViewer,
         openCsvViewer,
+        openJsonlViewer,
         audioEditorRegistration,
         imageEditorRegistration,
         videoEditorRegistration,
-        csvEditorRegistration
+        csvEditorRegistration,
+        jsonlEditorRegistration
     );
 }
 

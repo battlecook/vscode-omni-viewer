@@ -2,8 +2,8 @@
   "name": "omni-viewer",
   "displayName": "omni-viewer",
   "publisher": "battlecook",
-  "description": "A VSCode extension for viewing audio, image, video, and csv files",
-  "version": "0.2.2",
+  "description": "A VSCode extension for viewing audio, image, video, csv, and jsonl files",
+  "version": "0.3.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
@@ -21,6 +21,8 @@
     "video",
     "image",
     "CSV",
+    "JSONL",
+    "JSON",
     "viewers",
     "viewer"
   ],
@@ -119,6 +121,22 @@
           },
           {
             "filenamePattern": "*.tsv"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "omni-viewer.jsonlViewer",
+        "displayName": "JSONL Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.jsonl"
+          },
+          {
+            "filenamePattern": "*.ndjson"
+          },
+          {
+            "filenamePattern": "*.jsonlines"
           }
         ],
         "priority": "default"

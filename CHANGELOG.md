@@ -3,6 +3,14 @@
 ## [Unreleased]
 
 ### Added
+- **JSONL Viewer: Interactive popup editing with hover functionality**
+  - Add JSON popup display on line hover with formatted JSON syntax highlighting
+  - Implement click-to-edit functionality in popup for direct JSON modification
+  - Add save/cancel buttons with keyboard shortcuts (Ctrl+Enter to save, Escape to cancel)
+  - Support real-time data synchronization between popup edits and original lines
+  - Add click-outside-to-close functionality for better UX
+  - Implement fixed popup sizing to prevent size changes on touch/interaction
+
 - **Image Editor: Multi-select functionality for editing elements**
   - Implement Cmd/Ctrl+click multi-selection for shapes and text elements
   - Enable simultaneous property editing for multiple selected elements (color, opacity, size, text)
