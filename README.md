@@ -1,6 +1,6 @@
 # VSCode Omni Viewer
 
-A comprehensive audio, image, video, and CSV viewer extension for VSCode and Cursor.
+A comprehensive audio, image, video, CSV, and JSONL viewer extension for VSCode and Cursor.
 
 <a href="https://ko-fi.com/eyedealisty"><img src="https://eyedealisty-website.web.app/img/omniviewer/support_me_on_kofi_blue.png" alt="ko-fi" width="150"></a>
 
@@ -72,6 +72,23 @@ A comprehensive audio, image, video, and CSV viewer extension for VSCode and Cur
 ### Supported CSV Formats
 - CSV (Comma-Separated Values)
 - TSV (Tab-Separated Values)
+
+## 📄 JSONL Viewer Features
+
+### Interactive JSONL Editor
+- **Line-by-Line Editing**: Direct inline editing of JSON lines with syntax validation
+- **Hover Popup**: JSON popup display on line hover with formatted syntax highlighting
+- **Click-to-Edit Popup**: Click popup content to edit JSON directly in formatted view
+- **Real-time Validation**: Instant JSON validation with visual feedback (valid/invalid indicators)
+- **Data Synchronization**: Seamless sync between popup edits and original lines
+- **Keyboard Shortcuts**: Ctrl+Enter to save, Escape to cancel in popup editing
+- **Click-Outside-to-Close**: Click empty areas to close popup for better UX
+- **Fixed Popup Sizing**: Consistent popup size that doesn't change on interaction
+- **Syntax Highlighting**: Color-coded JSON syntax for better readability
+- **Error Handling**: Clear error messages for invalid JSON format
+
+### Supported JSONL Formats
+- JSONL (JSON Lines) - Each line contains a valid JSON object
 
 ## 🚀 Installation and Usage
 

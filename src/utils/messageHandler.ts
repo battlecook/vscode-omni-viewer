@@ -42,6 +42,15 @@ export class MessageHandler {
             case 'updateLine':
                 await this.handleUpdateLine(message, documentUri);
                 break;
+            case 'deleteLine':
+                await this.handleDeleteLine(message, documentUri);
+                break;
+            case 'insertLine':
+                await this.handleInsertLine(message, documentUri);
+                break;
+            case 'deleteMultipleLines':
+                await this.handleDeleteMultipleLines(message, documentUri);
+                break;
 
             default:
                 console.log('Unknown message type:', messageType);
@@ -132,6 +141,114 @@ export class MessageHandler {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
             vscode.window.showErrorMessage(`Failed to update line: ${errorMessage}`);
             console.error('Error updating line:', error);
+        }
+    }
+
+    private static async handleDeleteLine(message: WebviewMessage, documentUri?: vscode.Uri): Promise<void> {
+        try {
+            if (!message.lineNumber) {
+                throw new Error('Line number is required');
+            }
+
+            if (!documentUri) {
+                throw new Error('No document URI provided');
+            }
+
+            // Read current file content
+            const fileContent = await vscode.workspace.fs.readFile(documentUri);
+            const lines = Buffer.from(fileContent).toString('utf8').split('\n');
+            
+            // Delete the specific line (lineNumber is 1-based)
+            const lineIndex = message.lineNumber - 1;
+            if (lineIndex >= 0 && lineIndex < lines.length) {
+                lines.splice(lineIndex, 1);
+            } else {
+                throw new Error(`Line ${message.lineNumber} is out of range`);
+            }
+
+            // Write back to file
+            const newContent = lines.join('\n');
+            await vscode.workspace.fs.writeFile(documentUri, Buffer.from(newContent, 'utf8'));
+            
+            console.log(`Deleted line ${message.lineNumber} in ${documentUri.fsPath}`);
+            
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+            vscode.window.showErrorMessage(`Failed to delete line: ${errorMessage}`);
+            console.error('Error deleting line:', error);
+        }
+    }
+
+    private static async handleInsertLine(message: WebviewMessage, documentUri?: vscode.Uri): Promise<void> {
+        try {
+            if (!message.lineNumber || !message.content) {
+                throw new Error('Line number and content are required');
+            }
+
+            if (!documentUri) {
+                throw new Error('No document URI provided');
+            }
+
+            // Read current file content
+            const fileContent = await vscode.workspace.fs.readFile(documentUri);
+            const lines = Buffer.from(fileContent).toString('utf8').split('\n');
+            
+            // Insert the new line (lineNumber is 1-based)
+            const lineIndex = message.lineNumber - 1;
+            if (lineIndex >= 0 && lineIndex <= lines.length) {
+                lines.splice(lineIndex, 0, message.content);
+            } else {
+                throw new Error(`Line ${message.lineNumber} is out of range`);
+            }
+
+            // Write back to file
+            const newContent = lines.join('\n');
+            await vscode.workspace.fs.writeFile(documentUri, Buffer.from(newContent, 'utf8'));
+            
+            console.log(`Inserted line ${message.lineNumber} in ${documentUri.fsPath}`);
+            
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+            vscode.window.showErrorMessage(`Failed to insert line: ${errorMessage}`);
+            console.error('Error inserting line:', error);
+        }
+    }
+
+    private static async handleDeleteMultipleLines(message: WebviewMessage, documentUri?: vscode.Uri): Promise<void> {
+        try {
+            if (!message.data || !Array.isArray(message.data.lineNumbers)) {
+                throw new Error('Line numbers array is required');
+            }
+
+            if (!documentUri) {
+                throw new Error('No document URI provided');
+            }
+
+            // Read current file content
+            const fileContent = await vscode.workspace.fs.readFile(documentUri);
+            const lines = Buffer.from(fileContent).toString('utf8').split('\n');
+            
+            // Sort line numbers in descending order to avoid index shifting issues
+            const sortedLineNumbers = message.data.lineNumbers.sort((a: number, b: number) => b - a);
+            
+            // Delete lines from highest to lowest index
+            sortedLineNumbers.forEach((lineNumber: number) => {
+                const lineIndex = lineNumber - 1; // Convert to 0-based index
+                if (lineIndex >= 0 && lineIndex < lines.length) {
+                    lines.splice(lineIndex, 1);
+                }
+            });
+
+            // Write back to file
+            const newContent = lines.join('\n');
+            await vscode.workspace.fs.writeFile(documentUri, Buffer.from(newContent, 'utf8'));
+            
+            console.log(`Deleted lines ${sortedLineNumbers.join(', ')} in ${documentUri.fsPath}`);
+            
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+            vscode.window.showErrorMessage(`Failed to delete lines: ${errorMessage}`);
+            console.error('Error deleting lines:', error);
         }
     }
 

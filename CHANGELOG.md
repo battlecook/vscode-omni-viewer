@@ -10,6 +10,8 @@
   - Support real-time data synchronization between popup edits and original lines
   - Add click-outside-to-close functionality for better UX
   - Implement fixed popup sizing to prevent size changes on touch/interaction
+  - Implement bulk delete functionality for selected lines with proper file synchronization
+  - Add new line insertion by clicking empty space below content
 
 - **Image Editor: Multi-select functionality for editing elements**
   - Implement Cmd/Ctrl+click multi-selection for shapes and text elements
@@ -21,12 +23,6 @@
   - Maintain relative positions when dragging multiple elements together
   - Improve drag functionality to move all selected elements simultaneously
 
-- **Image Viewer: Modular architecture with webpack bundling**
-  - Split monolithic imageViewer.js into separate modules for better maintainability
-  - Create dedicated modules: imageViewerMain.js, imageFilters.js, imageEditMode.js, imageSave.js, imageUtils.js
-  - Add webpack configuration for JavaScript module bundling with Babel transpilation
-  - Implement ES6 module system with import/export for better code organization
-
 ### Changed
 - **Image Viewer: Code architecture refactoring**
   - Refactor 1390-line monolithic imageViewer.js into 5 focused modules
@@ -34,6 +30,7 @@
   - Add webpack multi-configuration for TypeScript and JavaScript bundling
   - Install babel-loader, @babel/core, @babel/preset-env for ES6+ compatibility
   - Maintain backward compatibility with existing HTML template references
+
 
 ### Removed
 

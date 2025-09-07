@@ -26,6 +26,26 @@
             flex: 1;
             overflow: auto;
             padding: 0;
+            min-height: 100%;
+            position: relative;
+        }
+        
+        .editor-content::after {
+            content: 'Click to add new line';
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+            background: transparent;
+            cursor: text;
+            color: var(--vscode-descriptionForeground);
+            font-size: 14px;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+        }
+        
+        .editor-content:hover::after {
+            opacity: 1;
         }
         
         .line {
@@ -39,6 +59,25 @@
             background: var(--vscode-list-hoverBackground);
         }
         
+        .line.selected {
+            background: var(--vscode-list-activeSelectionBackground);
+            color: var(--vscode-list-activeSelectionForeground);
+            border-left: 3px solid var(--vscode-focusBorder);
+        }
+        
+        .line.selected:hover {
+            background: var(--vscode-list-activeSelectionBackground);
+        }
+        
+        .line.in-range {
+            background: var(--vscode-list-inactiveSelectionBackground);
+            border-left: 2px solid var(--vscode-panel-border);
+        }
+        
+        .line.in-range:hover {
+            background: var(--vscode-list-inactiveSelectionBackground);
+        }
+        
         .line-number {
             background: var(--vscode-editorLineNumber-background);
             color: var(--vscode-editorLineNumber-foreground);
@@ -48,6 +87,12 @@
             border-right: 1px solid var(--vscode-panel-border);
             user-select: none;
             flex-shrink: 0;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .line-number:hover {
+            background: var(--vscode-list-hoverBackground);
         }
         
         .line-content {
@@ -371,6 +416,9 @@
                 this.vscode = null;
                 this.isPopupEditing = false;
                 this.originalJsonContent = '';
+                this.selectedLines = new Set();
+                this.lastSelectedLine = null;
+                this.isMultiSelecting = false;
                 this.init();
             }
 
@@ -422,6 +470,16 @@
                         }
                     } else if (e.key === 'Enter' && e.ctrlKey && this.isPopupEditing) {
                         this.savePopupEdit();
+                    } else if (e.key === 'Delete' && !this.editingLine) {
+                        // Delete selected lines when not editing
+                        if (this.selectedLines.size > 0) {
+                            e.preventDefault();
+                            this.deleteSelectedLines();
+                        }
+                    } else if (e.key === 'Enter' && !this.editingLine && e.ctrlKey) {
+                        // Add new line at the end with Ctrl+Enter
+                        e.preventDefault();
+                        this.addNewLineAtEnd();
                     }
                 });
 
@@ -441,6 +499,14 @@
                         } else {
                             // If clicking anywhere else outside popup, close popup
                             this.hideJsonPopup();
+                        }
+                    } else if (!popup.classList.contains('show')) {
+                        // If popup is not visible and clicking on empty space, add new line
+                        if (editorContent.contains(e.target)) {
+                            const clickedLine = e.target.closest('.line');
+                            if (!clickedLine) {
+                                this.addNewLineAtEnd();
+                            }
                         }
                     }
                 });
@@ -465,7 +531,14 @@
                     return;
                 }
 
-                jsonlData.lines.forEach(line => {
+                // Clear selection when re-rendering
+                this.selectedLines.clear();
+                this.lastSelectedLine = null;
+                this.isMultiSelecting = false;
+
+                // Re-number lines sequentially
+                jsonlData.lines.forEach((line, index) => {
+                    line.lineNumber = index + 1;
                     const lineElement = this.createLineElement(line);
                     container.appendChild(lineElement);
                 });
@@ -476,10 +549,28 @@
                 lineDiv.className = `line ${line.isValid ? 'valid' : 'invalid'}`;
                 lineDiv.dataset.lineNumber = line.lineNumber;
 
+                // Add click event for line selection (only when clicking on line background, not textarea)
+                lineDiv.addEventListener('click', (e) => {
+                    // Only handle line selection if not clicking on textarea
+                    if (e.target !== lineContent) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.handleLineClick(line.lineNumber, e.shiftKey, e.ctrlKey || e.metaKey);
+                    }
+                });
+
                 // Line number
                 const lineNumber = document.createElement('div');
                 lineNumber.className = 'line-number';
                 lineNumber.textContent = line.lineNumber;
+                lineNumber.title = '라인 선택 (Shift: 범위 선택, Ctrl: 개별 선택)';
+                
+                // Add click event to line number for selection
+                lineNumber.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.handleLineClick(line.lineNumber, e.shiftKey, e.ctrlKey || e.metaKey);
+                });
 
                 // Line content (editable)
                 const lineContent = document.createElement('textarea');
@@ -489,7 +580,9 @@
                 lineContent.style.cursor = 'text';
 
                 // Add edit event listeners
-                lineContent.addEventListener('click', () => {
+                lineContent.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     this.startEditing(lineContent, line.lineNumber);
                 });
 
@@ -503,11 +596,18 @@
                         this.finishEditing(lineContent, line.lineNumber);
                     } else if (e.key === 'Escape') {
                         this.cancelEditing(lineContent, line.lineNumber);
+                    } else if (e.key === 'Delete' && e.ctrlKey) {
+                        e.preventDefault();
+                        this.deleteLine(line.lineNumber);
                     }
                 });
 
                 lineContent.addEventListener('input', () => {
                     this.updateLineHighlighting(lineContent, line.lineNumber);
+                });
+
+                lineContent.addEventListener('paste', (e) => {
+                    this.handlePaste(e, lineContent, line.lineNumber);
                 });
 
                 lineDiv.appendChild(lineNumber);
@@ -516,6 +616,9 @@
                 // Add hover event for JSON popup
                 if (line.isValid && line.parsedJson) {
                     lineDiv.addEventListener('mouseenter', () => {
+                        // Don't show popup if multiple lines are selected
+                        if (this.isMultiSelecting) return;
+                        
                         // Clear any existing timeout
                         if (this.currentHoverTimeout) {
                             clearTimeout(this.currentHoverTimeout);
@@ -700,6 +803,12 @@
                     this.finishEditing(document.querySelector(`[data-line-number="${this.editingLine}"]`), this.editingLine);
                 }
                 
+                // Clear selection when starting to edit
+                this.selectedLines.clear();
+                this.lastSelectedLine = null;
+                this.isMultiSelecting = false;
+                this.updateLineSelectionStyles();
+                
                 this.editingLine = lineNumber;
                 textarea.classList.add('editing');
                 textarea.focus();
@@ -709,6 +818,12 @@
             finishEditing(textarea, lineNumber) {
                 const newContent = textarea.value;
                 textarea.classList.remove('editing');
+                
+                // If content is empty, delete the line
+                if (!newContent.trim()) {
+                    this.deleteLine(lineNumber);
+                    return;
+                }
                 
                 // Validate JSON if it's not empty
                 let isValid = false;
@@ -776,6 +891,278 @@
                     jsonlData.lines[lineIndex].isValid = isValid;
                     jsonlData.lines[lineIndex].parsedJson = parsedJson;
                 }
+            }
+
+            deleteLine(lineNumber) {
+                // Remove line from jsonlData
+                const lineIndex = jsonlData.lines.findIndex(line => line.lineNumber === lineNumber);
+                if (lineIndex !== -1) {
+                    jsonlData.lines.splice(lineIndex, 1);
+                }
+                
+                // Re-render all lines to update line numbers
+                this.renderJsonlLines();
+                
+                // Send message to VSCode to delete the line
+                this.vscode.postMessage({
+                    type: 'deleteMultipleLines',
+                    data: {
+                        lineNumbers: [lineNumber]
+                    }
+                });
+            }
+
+            handlePaste(event, textarea, lineNumber) {
+                event.preventDefault();
+                
+                const clipboardData = event.clipboardData || window.clipboardData;
+                const pastedText = clipboardData.getData('text');
+                
+                // Check if pasted text contains multiple JSON objects (JSONL format)
+                const lines = pastedText.split('\n').filter(line => line.trim());
+                
+                if (lines.length > 1) {
+                    // Multiple lines detected - treat as JSONL format
+                    this.handleJsonlPaste(lines, textarea, lineNumber);
+                } else {
+                    // Single line - normal paste behavior
+                    this.insertTextAtCursor(textarea, pastedText);
+                }
+            }
+
+            handleJsonlPaste(jsonLines, textarea, currentLineNumber) {
+                const validJsonLines = [];
+                const invalidLines = [];
+                
+                // Validate each line as JSON
+                jsonLines.forEach((line, index) => {
+                    const trimmedLine = line.trim();
+                    if (trimmedLine) {
+                        try {
+                            JSON.parse(trimmedLine);
+                            validJsonLines.push(trimmedLine);
+                        } catch (error) {
+                            invalidLines.push({ line: trimmedLine, index: index + 1 });
+                        }
+                    }
+                });
+                
+                if (invalidLines.length > 0) {
+                    // Show warning about invalid JSON lines
+                    const invalidLineNumbers = invalidLines.map(item => item.index).join(', ');
+                    alert(`경고: ${invalidLines.length}개의 유효하지 않은 JSON 라인이 있습니다 (라인: ${invalidLineNumbers}). 유효한 JSON 라인만 추가됩니다.`);
+                }
+                
+                if (validJsonLines.length > 0) {
+                    // Get current cursor position
+                    const cursorPosition = textarea.selectionStart;
+                    const currentContent = textarea.value;
+                    const beforeCursor = currentContent.substring(0, cursorPosition);
+                    const afterCursor = currentContent.substring(cursorPosition);
+                    
+                    // If current line is empty, replace it with first JSON line
+                    if (!currentContent.trim()) {
+                        textarea.value = validJsonLines[0];
+                        this.updateLineHighlighting(textarea, currentLineNumber);
+                        
+                        // Add remaining lines as new lines
+                        if (validJsonLines.length > 1) {
+                            this.addNewLines(validJsonLines.slice(1), currentLineNumber);
+                        }
+                    } else {
+                        // Insert first JSON line at cursor position
+                        const newContent = beforeCursor + validJsonLines[0] + afterCursor;
+                        textarea.value = newContent;
+                        this.updateLineHighlighting(textarea, currentLineNumber);
+                        
+                        // Add remaining lines as new lines
+                        if (validJsonLines.length > 1) {
+                            this.addNewLines(validJsonLines.slice(1), currentLineNumber);
+                        }
+                    }
+                    
+                    // Update the document
+                    this.updateDocument(currentLineNumber, textarea.value);
+                }
+            }
+
+            addNewLines(jsonLines, afterLineNumber) {
+                // Find the current line index
+                const currentLineIndex = jsonlData.lines.findIndex(line => line.lineNumber === afterLineNumber);
+                
+                if (currentLineIndex !== -1) {
+                    // Create new line objects
+                    const newLines = jsonLines.map((content, index) => {
+                        try {
+                            const parsedJson = JSON.parse(content);
+                            return {
+                                lineNumber: afterLineNumber + index + 1, // Will be renumbered later
+                                content: content,
+                                isValid: true,
+                                parsedJson: parsedJson
+                            };
+                        } catch (error) {
+                            return {
+                                lineNumber: afterLineNumber + index + 1, // Will be renumbered later
+                                content: content,
+                                isValid: false,
+                                parsedJson: null
+                            };
+                        }
+                    });
+                    
+                    // Insert new lines after current line
+                    jsonlData.lines.splice(currentLineIndex + 1, 0, ...newLines);
+                    
+                    // Re-render to update line numbers
+                    this.renderJsonlLines();
+                    
+                    // Send messages to VSCode to add new lines
+                    newLines.forEach((line, index) => {
+                        this.vscode.postMessage({
+                            type: 'insertLine',
+                            lineNumber: afterLineNumber + index + 1,
+                            content: line.content
+                        });
+                    });
+                }
+            }
+
+            insertTextAtCursor(textarea, text) {
+                const cursorPosition = textarea.selectionStart;
+                const currentContent = textarea.value;
+                const beforeCursor = currentContent.substring(0, cursorPosition);
+                const afterCursor = currentContent.substring(cursorPosition);
+                
+                textarea.value = beforeCursor + text + afterCursor;
+                
+                // Set cursor position after inserted text
+                const newCursorPosition = cursorPosition + text.length;
+                textarea.setSelectionRange(newCursorPosition, newCursorPosition);
+            }
+
+            handleLineClick(lineNumber, isShiftKey, isCtrlKey) {
+                if (isShiftKey && this.lastSelectedLine !== null) {
+                    // Range selection with Shift key
+                    this.selectLineRange(this.lastSelectedLine, lineNumber);
+                } else if (isCtrlKey) {
+                    // Toggle selection with Ctrl key
+                    this.toggleLineSelection(lineNumber);
+                } else {
+                    // Single selection
+                    this.selectSingleLine(lineNumber);
+                }
+                
+                this.lastSelectedLine = lineNumber;
+                this.updateLineSelectionStyles();
+            }
+
+            selectSingleLine(lineNumber) {
+                this.selectedLines.clear();
+                this.selectedLines.add(lineNumber);
+                this.isMultiSelecting = false;
+            }
+
+            selectLineRange(startLine, endLine) {
+                const start = Math.min(startLine, endLine);
+                const end = Math.max(startLine, endLine);
+                
+                this.selectedLines.clear();
+                for (let i = start; i <= end; i++) {
+                    this.selectedLines.add(i);
+                }
+                this.isMultiSelecting = this.selectedLines.size > 1;
+            }
+
+            toggleLineSelection(lineNumber) {
+                if (this.selectedLines.has(lineNumber)) {
+                    this.selectedLines.delete(lineNumber);
+                } else {
+                    this.selectedLines.add(lineNumber);
+                }
+                this.isMultiSelecting = this.selectedLines.size > 1;
+            }
+
+            updateLineSelectionStyles() {
+                // Remove all selection styles
+                document.querySelectorAll('.line').forEach(line => {
+                    line.classList.remove('selected', 'in-range');
+                });
+
+                // Add selection styles
+                this.selectedLines.forEach(lineNumber => {
+                    const lineElement = document.querySelector(`[data-line-number="${lineNumber}"]`);
+                    if (lineElement) {
+                        if (lineNumber === this.lastSelectedLine) {
+                            lineElement.classList.add('selected');
+                        } else {
+                            lineElement.classList.add('in-range');
+                        }
+                    }
+                });
+            }
+
+            deleteSelectedLines() {
+                if (this.selectedLines.size === 0) return;
+
+                // Get line numbers as array
+                const lineNumbers = Array.from(this.selectedLines);
+                
+                // Remove lines from jsonlData
+                lineNumbers.forEach(lineNumber => {
+                    const lineIndex = jsonlData.lines.findIndex(line => line.lineNumber === lineNumber);
+                    if (lineIndex !== -1) {
+                        jsonlData.lines.splice(lineIndex, 1);
+                    }
+                });
+
+                // Clear selection
+                this.selectedLines.clear();
+                this.lastSelectedLine = null;
+                this.isMultiSelecting = false;
+
+                // Re-render all lines to update line numbers
+                this.renderJsonlLines();
+
+                // Send single message to VSCode to delete multiple lines
+                this.vscode.postMessage({
+                    type: 'deleteMultipleLines',
+                    data: {
+                        lineNumbers: lineNumbers
+                    }
+                });
+            }
+
+            addNewLineAtEnd() {
+                // Create new empty line
+                const newLineNumber = jsonlData.lines.length + 1;
+                const newLine = {
+                    lineNumber: newLineNumber,
+                    content: '',
+                    isValid: false,
+                    parsedJson: null
+                };
+                
+                // Add to jsonlData
+                jsonlData.lines.push(newLine);
+                
+                // Re-render all lines to update line numbers
+                this.renderJsonlLines();
+                
+                // Send message to VSCode to add new line
+                this.vscode.postMessage({
+                    type: 'insertLine',
+                    lineNumber: newLineNumber,
+                    content: ''
+                });
+                
+                // Focus on the new line and start editing
+                setTimeout(() => {
+                    const newLineElement = document.querySelector(`[data-line-number="${newLineNumber}"] .line-content`);
+                    if (newLineElement) {
+                        this.startEditing(newLineElement, newLineNumber);
+                    }
+                }, 100);
             }
 
             updateDocument(lineNumber, newContent) {
