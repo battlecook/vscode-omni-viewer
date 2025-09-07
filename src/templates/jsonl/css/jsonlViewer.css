@@ -130,12 +130,17 @@ body {
     border-right: 1px solid var(--vscode-panel-border);
     user-select: none;
     flex-shrink: 0;
-    cursor: pointer;
-    transition: background-color 0.2s;
+    cursor: grab;
+    transition: background-color 0.2s, transform 0.2s;
+}
+
+.line-number:active {
+    cursor: grabbing;
 }
 
 .line-number:hover {
     background: var(--vscode-list-hoverBackground);
+    transform: scale(1.02);
 }
 
 .line-content {
@@ -469,4 +474,36 @@ body {
     height: 1px;
     background: var(--vscode-menu-separatorBackground);
     margin: 4px 0;
+}
+
+/* Drag and Drop Styles */
+
+.line.dragging {
+    opacity: 0.5;
+    transform: rotate(2deg);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    position: relative;
+}
+
+.line.drag-over {
+    border-top: 3px solid #007bff;
+    background: rgba(0, 123, 255, 0.1);
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+}
+
+.line.drag-over .line-number {
+    background: rgba(0, 123, 255, 0.2);
+    color: #007bff;
+    font-weight: bold;
+}
+
+/* Drag preview styles */
+.drag-preview {
+    opacity: 0.8;
+    transform: rotate(2deg);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    border: 2px solid #007bff;
+    border-radius: 4px;
 }

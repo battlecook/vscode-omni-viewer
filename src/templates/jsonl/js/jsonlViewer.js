@@ -11,6 +11,12 @@ class JsonlViewer {
         this.lastSelectedLine = null;
         this.isMultiSelecting = false;
         this.contextMenu = null;
+        // Drag and drop properties
+        this.draggedLine = null;
+        this.dragStartY = 0;
+        this.dragOffset = 0;
+        this.isDragging = false;
+        this.dragPreview = null;
         this.init();
     }
 
@@ -210,13 +216,23 @@ class JsonlViewer {
         const lineNumber = document.createElement('div');
         lineNumber.className = 'line-number';
         lineNumber.textContent = line.lineNumber;
-        lineNumber.title = '라인 선택 (Shift: 범위 선택, Ctrl: 개별 선택)';
+        lineNumber.title = 'Line selection (Shift: range, Ctrl: individual) | Drag to reorder';
+        lineNumber.draggable = true;
         
         // Add click event to line number for selection
         lineNumber.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
             this.handleLineClick(line.lineNumber, e.shiftKey, e.ctrlKey || e.metaKey);
+        });
+
+        // Add drag events to line number
+        lineNumber.addEventListener('dragstart', (e) => {
+            this.handleDragStart(e, line.lineNumber, lineDiv);
+        });
+
+        lineNumber.addEventListener('dragend', (e) => {
+            this.handleDragEnd(e);
         });
 
         // Line content (editable)
@@ -255,6 +271,24 @@ class JsonlViewer {
 
         lineContent.addEventListener('paste', (e) => {
             this.handlePaste(e, lineContent, line.lineNumber);
+        });
+
+        // Add drop events to line
+        lineDiv.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.handleDragOver(e);
+        });
+
+        lineDiv.addEventListener('dragenter', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        lineDiv.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.handleDrop(e, line.lineNumber);
         });
 
         lineDiv.appendChild(lineNumber);
@@ -447,7 +481,10 @@ class JsonlViewer {
 
     startEditing(textarea, lineNumber) {
         if (this.editingLine && this.editingLine !== lineNumber) {
-            this.finishEditing(document.querySelector(`[data-line-number="${this.editingLine}"]`), this.editingLine);
+            const previousTextarea = document.querySelector(`[data-line-number="${this.editingLine}"] .line-content`);
+            if (previousTextarea) {
+                this.finishEditing(previousTextarea, this.editingLine);
+            }
         }
         
         // Clear selection when starting to edit
@@ -463,6 +500,11 @@ class JsonlViewer {
     }
 
     finishEditing(textarea, lineNumber) {
+        if (!textarea) {
+            console.error('❌ Textarea is null in finishEditing');
+            return;
+        }
+        
         const newContent = textarea.value;
         textarea.classList.remove('editing');
         
@@ -885,6 +927,114 @@ class JsonlViewer {
             })
             .replace(/([{}[\]])/g, '<span class="json-bracket">$1</span>')
             .replace(/([,:])/g, '<span class="json-comma">$1</span>');
+    }
+
+    // Drag and Drop Methods
+    handleDragStart(e, lineNumber, lineElement) {
+        this.draggedLine = lineNumber;
+        this.dragStartY = e.clientY;
+        this.isDragging = true;
+        
+        // Create drag preview
+        this.dragPreview = lineElement.cloneNode(true);
+        this.dragPreview.style.position = 'absolute';
+        this.dragPreview.style.top = '-1000px';
+        this.dragPreview.style.opacity = '0.5';
+        this.dragPreview.style.pointerEvents = 'none';
+        this.dragPreview.style.zIndex = '1000';
+        document.body.appendChild(this.dragPreview);
+        
+        // Set drag data
+        e.dataTransfer.setData('text/plain', lineNumber.toString());
+        e.dataTransfer.effectAllowed = 'move';
+        
+        // Add dragging class to original line
+        lineElement.classList.add('dragging');
+        
+        console.log('🚀 Drag started for line:', lineNumber);
+    }
+
+    handleDragEnd(e) {
+        // Clean up
+        if (this.dragPreview) {
+            document.body.removeChild(this.dragPreview);
+            this.dragPreview = null;
+        }
+        
+        // Remove dragging class from all lines
+        document.querySelectorAll('.line').forEach(line => {
+            line.classList.remove('dragging', 'drag-over');
+        });
+        
+        this.isDragging = false;
+        this.draggedLine = null;
+        
+        console.log('🏁 Drag ended');
+    }
+
+    handleDragOver(e) {
+        e.dataTransfer.dropEffect = 'move';
+        
+        // Add visual feedback
+        const lineElement = e.currentTarget;
+        if (lineElement.dataset.lineNumber !== this.draggedLine?.toString()) {
+            lineElement.classList.add('drag-over');
+        }
+        
+        console.log('🔄 Drag over line:', lineElement.dataset.lineNumber);
+    }
+
+    handleDrop(e, targetLineNumber) {
+        e.preventDefault();
+        
+        console.log('📦 Drop event triggered on line:', targetLineNumber);
+        
+        const draggedLineNumber = parseInt(e.dataTransfer.getData('text/plain'));
+        const targetLine = parseInt(targetLineNumber);
+        
+        console.log('📦 Drop data:', { draggedLineNumber, targetLine });
+        
+        if (draggedLineNumber === targetLine) {
+            console.log('⚠️ Same line, no action needed');
+            return;
+        }
+        
+        console.log('📦 Drop:', draggedLineNumber, '->', targetLine);
+        
+        // Move the line in the data
+        this.moveLine(draggedLineNumber, targetLine);
+        
+        // Remove drag-over class
+        e.currentTarget.classList.remove('drag-over');
+    }
+
+    moveLine(fromLineNumber, toLineNumber) {
+        // Find indices in the data array
+        const fromIndex = window.jsonlData.lines.findIndex(line => line.lineNumber === fromLineNumber);
+        const toIndex = window.jsonlData.lines.findIndex(line => line.lineNumber === toLineNumber);
+        
+        if (fromIndex === -1 || toIndex === -1) {
+            console.error('❌ Line not found:', { fromLineNumber, toLineNumber, fromIndex, toIndex });
+            return;
+        }
+        
+        // Remove the line from its current position
+        const [movedLine] = window.jsonlData.lines.splice(fromIndex, 1);
+        
+        // Insert it at the new position
+        window.jsonlData.lines.splice(toIndex, 0, movedLine);
+        
+        console.log('✅ Line moved:', {
+            from: fromLineNumber,
+            to: toLineNumber,
+            fromIndex,
+            toIndex,
+            totalLines: window.jsonlData.lines.length
+        });
+        
+        // Re-render to update line numbers and save
+        this.renderJsonlLines();
+        this.saveEntireDocument();
     }
 }
 

@@ -11,8 +11,16 @@
   - Follows same directory structure as image/ template
 
 ### Added
+- **Drag and drop functionality for JSONL line reordering**
+  - Drag line numbers to reorder JSONL lines
+  - Visual feedback during drag operations (dragging, drag-over states)
+  - Drag preview with rotation and shadow effects
+  - Automatic line number updates after reordering
+  - Auto-save document after line reordering
 
 ### Fixed
+- Fixed textarea null reference error in finishEditing method
+- Fixed duplicate jsonlData declaration causing SyntaxError in JSONL viewer
 
 ### Removed
 
