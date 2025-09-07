@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.3.0] - 2025-09-07
 
 ### Changed
 - **File Association Behavior: CSV and JSONL files now open with default text editor**
