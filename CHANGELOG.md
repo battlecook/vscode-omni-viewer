@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Changed
+- **File Association Behavior: CSV and JSONL files now open with default text editor**
+  - Changed CSV and JSONL viewer priority from "default" to "option" in package.json
+  - Files now open in standard text editor by default instead of custom viewers
+  - Added context menu options for opening files with custom viewers
+  - Users can right-click CSV/JSONL files and select "Open with CSV Viewer" or "Open with JSONL Viewer"
+
 ### Added
 - **JSONL Viewer: Interactive popup editing with hover functionality**
   - Add JSON popup display on line hover with formatted JSON syntax highlighting

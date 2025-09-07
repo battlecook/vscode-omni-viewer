@@ -60,22 +60,72 @@
         }
         
         .line.selected {
-            background: var(--vscode-list-activeSelectionBackground);
-            color: var(--vscode-list-activeSelectionForeground);
-            border-left: 3px solid var(--vscode-focusBorder);
+            background: rgba(0, 123, 255, 0.15) !important;
+            color: var(--vscode-editor-foreground) !important;
+            border-left: 6px solid #007bff !important;
+            border-right: 2px solid #007bff !important;
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.3), 0 2px 8px rgba(0, 123, 255, 0.2);
+            transform: translateX(2px);
+            z-index: 10;
+            position: relative;
         }
         
         .line.selected:hover {
-            background: var(--vscode-list-activeSelectionBackground);
+            background: rgba(0, 123, 255, 0.2) !important;
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.4), 0 4px 12px rgba(0, 123, 255, 0.3);
         }
         
         .line.in-range {
-            background: var(--vscode-list-inactiveSelectionBackground);
-            border-left: 2px solid var(--vscode-panel-border);
+            background: rgba(0, 123, 255, 0.1) !important;
+            color: var(--vscode-editor-foreground) !important;
+            border-left: 4px solid #007bff !important;
+            border-right: 1px solid #007bff !important;
+            box-shadow: 0 0 0 1px rgba(0, 123, 255, 0.2), 0 1px 4px rgba(0, 123, 255, 0.1);
+            transform: translateX(1px);
+            z-index: 5;
+            position: relative;
         }
         
         .line.in-range:hover {
-            background: var(--vscode-list-inactiveSelectionBackground);
+            background: rgba(0, 123, 255, 0.15) !important;
+            box-shadow: 0 0 0 1px rgba(0, 123, 255, 0.3), 0 2px 6px rgba(0, 123, 255, 0.2);
+        }
+        
+        /* Enhanced text visibility for selected lines */
+        .line.selected .line-content {
+            color: var(--vscode-editor-foreground) !important;
+            font-weight: 600;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+            background: rgba(0, 123, 255, 0.1) !important;
+            border-radius: 3px;
+            padding: 2px 4px;
+        }
+        
+        .line.in-range .line-content {
+            color: var(--vscode-editor-foreground) !important;
+            font-weight: 600;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+            background: rgba(0, 123, 255, 0.05) !important;
+            border-radius: 3px;
+            padding: 2px 4px;
+        }
+        
+        .line.selected .line-number {
+            background: rgba(0, 123, 255, 0.2) !important;
+            color: #007bff !important;
+            font-weight: 700;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+            border-radius: 3px;
+            box-shadow: inset 0 1px 3px rgba(0, 123, 255, 0.2);
+        }
+        
+        .line.in-range .line-number {
+            background: rgba(0, 123, 255, 0.15) !important;
+            color: #007bff !important;
+            font-weight: 700;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+            border-radius: 3px;
+            box-shadow: inset 0 1px 3px rgba(0, 123, 255, 0.1);
         }
         
         .line-number {
@@ -379,6 +429,54 @@
         .json-content::-webkit-scrollbar-thumb:hover {
             background: var(--vscode-scrollbarSlider-activeBackground);
         }
+        
+        /* Custom Context Menu */
+        .context-menu {
+            position: fixed;
+            background: var(--vscode-menu-background);
+            border: 1px solid var(--vscode-menu-border);
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            min-width: 120px;
+            padding: 4px 0;
+            display: none;
+        }
+        
+        .context-menu.show {
+            display: block;
+        }
+        
+        .context-menu-item {
+            padding: 6px 12px;
+            cursor: pointer;
+            color: var(--vscode-menu-foreground);
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background-color 0.1s;
+        }
+        
+        .context-menu-item:hover {
+            background: var(--vscode-menu-selectionBackground);
+            color: var(--vscode-menu-selectionForeground);
+        }
+        
+        .context-menu-item.disabled {
+            color: var(--vscode-disabledForeground);
+            cursor: not-allowed;
+        }
+        
+        .context-menu-item.disabled:hover {
+            background: transparent;
+        }
+        
+        .context-menu-separator {
+            height: 1px;
+            background: var(--vscode-menu-separatorBackground);
+            margin: 4px 0;
+        }
     </style>
 </head>
 <body>
@@ -403,6 +501,14 @@
         </div>
     </div>
 
+    <!-- Custom Context Menu -->
+    <div id="contextMenu" class="context-menu">
+        <div class="context-menu-item" id="deleteMenuItem">
+            <span>🗑️</span>
+            <span>Delete</span>
+        </div>
+    </div>
+
     <script>
         // JSONL data from server
         const jsonlData = {{jsonlData}};
@@ -419,6 +525,7 @@
                 this.selectedLines = new Set();
                 this.lastSelectedLine = null;
                 this.isMultiSelecting = false;
+                this.contextMenu = null;
                 this.init();
             }
 
@@ -426,11 +533,55 @@
                 this.setupEventListeners();
                 this.renderJsonlLines();
                 this.setupVSCodeAPI();
+                this.setupContextMenu();
             }
 
             setupVSCodeAPI() {
                 // Get VSCode API
                 this.vscode = acquireVsCodeApi();
+            }
+
+            setupContextMenu() {
+                this.contextMenu = document.getElementById('contextMenu');
+                const deleteMenuItem = document.getElementById('deleteMenuItem');
+                
+                // Delete menu item click handler
+                deleteMenuItem.addEventListener('click', () => {
+                    this.hideContextMenu();
+                    this.deleteSelectedLines();
+                });
+                
+                // Hide context menu when clicking outside
+                document.addEventListener('click', (e) => {
+                    if (!this.contextMenu.contains(e.target)) {
+                        this.hideContextMenu();
+                    }
+                });
+                
+                // Hide context menu on escape key
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') {
+                        this.hideContextMenu();
+                    }
+                });
+            }
+
+            showContextMenu(x, y) {
+                // Only show context menu if there are selected lines
+                if (this.selectedLines.size === 0) {
+                    return;
+                }
+                
+                // Position the context menu
+                this.contextMenu.style.left = x + 'px';
+                this.contextMenu.style.top = y + 'px';
+                this.contextMenu.classList.add('show');
+                
+                console.log('📋 Context menu shown for', this.selectedLines.size, 'selected lines');
+            }
+
+            hideContextMenu() {
+                this.contextMenu.classList.remove('show');
             }
 
             setupEventListeners() {
@@ -556,6 +707,17 @@
                         e.preventDefault();
                         e.stopPropagation();
                         this.handleLineClick(line.lineNumber, e.shiftKey, e.ctrlKey || e.metaKey);
+                    }
+                });
+
+                // Add context menu event for right-click
+                lineDiv.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // Only show context menu if not editing and there are selected lines
+                    if (!this.editingLine && this.selectedLines.size > 0) {
+                        this.showContextMenu(e.clientX, e.clientY);
                     }
                 });
 
@@ -894,22 +1056,21 @@
             }
 
             deleteLine(lineNumber) {
+                console.log('🗑️ Deleting single line:', lineNumber);
+                
                 // Remove line from jsonlData
                 const lineIndex = jsonlData.lines.findIndex(line => line.lineNumber === lineNumber);
                 if (lineIndex !== -1) {
                     jsonlData.lines.splice(lineIndex, 1);
+                    console.log('✅ Removed line', lineNumber, 'at index', lineIndex);
                 }
                 
                 // Re-render all lines to update line numbers
                 this.renderJsonlLines();
                 
-                // Send message to VSCode to delete the line
-                this.vscode.postMessage({
-                    type: 'deleteMultipleLines',
-                    data: {
-                        lineNumbers: [lineNumber]
-                    }
-                });
+                // Save the entire document instead of sending individual delete messages
+                // This avoids line number synchronization issues
+                this.saveEntireDocument();
             }
 
             handlePaste(event, textarea, lineNumber) {
@@ -982,13 +1143,20 @@
                     }
                     
                     // Update the document
-                    this.updateDocument(currentLineNumber, textarea.value);
+                    this.saveEntireDocument();
                 }
             }
 
             addNewLines(jsonLines, afterLineNumber) {
                 // Find the current line index
                 const currentLineIndex = jsonlData.lines.findIndex(line => line.lineNumber === afterLineNumber);
+                
+                console.log('🔍 addNewLines called:', {
+                    jsonLines: jsonLines,
+                    afterLineNumber: afterLineNumber,
+                    currentLineIndex: currentLineIndex,
+                    totalLines: jsonlData.lines.length
+                });
                 
                 if (currentLineIndex !== -1) {
                     // Create new line objects
@@ -1017,14 +1185,9 @@
                     // Re-render to update line numbers
                     this.renderJsonlLines();
                     
-                    // Send messages to VSCode to add new lines
-                    newLines.forEach((line, index) => {
-                        this.vscode.postMessage({
-                            type: 'insertLine',
-                            lineNumber: afterLineNumber + index + 1,
-                            content: line.content
-                        });
-                    });
+                    // Save the entire document instead of inserting individual lines
+                    // This avoids line number synchronization issues
+                    this.saveEntireDocument();
                 }
             }
 
@@ -1061,6 +1224,9 @@
                 this.selectedLines.clear();
                 this.selectedLines.add(lineNumber);
                 this.isMultiSelecting = false;
+                
+                // Hide popup when selecting single line (will be shown on hover if valid JSON)
+                this.hideJsonPopup();
             }
 
             selectLineRange(startLine, endLine) {
@@ -1072,6 +1238,11 @@
                     this.selectedLines.add(i);
                 }
                 this.isMultiSelecting = this.selectedLines.size > 1;
+                
+                // Hide popup when multiple lines are selected
+                if (this.isMultiSelecting) {
+                    this.hideJsonPopup();
+                }
             }
 
             toggleLineSelection(lineNumber) {
@@ -1081,6 +1252,11 @@
                     this.selectedLines.add(lineNumber);
                 }
                 this.isMultiSelecting = this.selectedLines.size > 1;
+                
+                // Hide popup when multiple lines are selected
+                if (this.isMultiSelecting) {
+                    this.hideJsonPopup();
+                }
             }
 
             updateLineSelectionStyles() {
@@ -1100,19 +1276,27 @@
                         }
                     }
                 });
+                
+                // Hide popup if no lines are selected or multiple lines are selected
+                if (this.selectedLines.size === 0 || this.isMultiSelecting) {
+                    this.hideJsonPopup();
+                }
             }
 
             deleteSelectedLines() {
                 if (this.selectedLines.size === 0) return;
 
-                // Get line numbers as array
-                const lineNumbers = Array.from(this.selectedLines);
+                console.log('🗑️ Deleting selected lines:', Array.from(this.selectedLines));
+
+                // Get line numbers as array and sort in descending order to avoid index shifting issues
+                const lineNumbers = Array.from(this.selectedLines).sort((a, b) => b - a);
                 
-                // Remove lines from jsonlData
+                // Remove lines from jsonlData (from highest to lowest index)
                 lineNumbers.forEach(lineNumber => {
                     const lineIndex = jsonlData.lines.findIndex(line => line.lineNumber === lineNumber);
                     if (lineIndex !== -1) {
                         jsonlData.lines.splice(lineIndex, 1);
+                        console.log('✅ Removed line', lineNumber, 'at index', lineIndex);
                     }
                 });
 
@@ -1124,13 +1308,9 @@
                 // Re-render all lines to update line numbers
                 this.renderJsonlLines();
 
-                // Send single message to VSCode to delete multiple lines
-                this.vscode.postMessage({
-                    type: 'deleteMultipleLines',
-                    data: {
-                        lineNumbers: lineNumbers
-                    }
-                });
+                // Save the entire document instead of sending individual delete messages
+                // This avoids line number synchronization issues
+                this.saveEntireDocument();
             }
 
             addNewLineAtEnd() {
@@ -1149,12 +1329,9 @@
                 // Re-render all lines to update line numbers
                 this.renderJsonlLines();
                 
-                // Send message to VSCode to add new line
-                this.vscode.postMessage({
-                    type: 'insertLine',
-                    lineNumber: newLineNumber,
-                    content: ''
-                });
+                // Save the entire document instead of inserting individual lines
+                // This avoids line number synchronization issues
+                this.saveEntireDocument();
                 
                 // Focus on the new line and start editing
                 setTimeout(() => {
@@ -1166,11 +1343,40 @@
             }
 
             updateDocument(lineNumber, newContent) {
-                // Send message to VSCode to update the document
+                // Find the actual line index in the data array
+                const lineIndex = jsonlData.lines.findIndex(line => line.lineNumber === lineNumber);
+                if (lineIndex === -1) {
+                    console.error('❌ Line not found in data:', lineNumber);
+                    return;
+                }
+                
+                console.log('📝 Updating document:', {
+                    displayLineNumber: lineNumber,
+                    actualLineIndex: lineIndex,
+                    content: newContent,
+                    totalLines: jsonlData.lines.length
+                });
+                
+                // Instead of updating individual lines, let's save the entire document
+                // This avoids line number synchronization issues
+                this.saveEntireDocument();
+            }
+            
+            saveEntireDocument() {
+                // Convert all lines to a single string
+                const allContent = jsonlData.lines.map(line => line.content).join('\n');
+                
+                console.log('💾 Saving entire document:', {
+                    totalLines: jsonlData.lines.length,
+                    contentLength: allContent.length
+                });
+                
+                // Send message to VSCode to save the entire document
                 this.vscode.postMessage({
-                    type: 'updateLine',
-                    lineNumber: lineNumber,
-                    content: newContent
+                    type: 'saveChanges',
+                    data: {
+                        content: allContent
+                    }
                 });
             }
 

@@ -48,6 +48,9 @@ export class MessageHandler {
             case 'insertLine':
                 await this.handleInsertLine(message, documentUri);
                 break;
+            case 'insertMultipleLines':
+                await this.handleInsertMultipleLines(message, documentUri);
+                break;
             case 'deleteMultipleLines':
                 await this.handleDeleteMultipleLines(message, documentUri);
                 break;
@@ -111,6 +114,12 @@ export class MessageHandler {
 
     private static async handleUpdateLine(message: WebviewMessage, documentUri?: vscode.Uri): Promise<void> {
         try {
+            console.log('🔍 handleUpdateLine called with:', {
+                lineNumber: message.lineNumber,
+                content: message.content,
+                documentUri: documentUri?.fsPath
+            });
+
             if (!message.lineNumber || message.content === undefined) {
                 throw new Error('Line number and content are required');
             }
@@ -123,24 +132,33 @@ export class MessageHandler {
             const fileContent = await vscode.workspace.fs.readFile(documentUri);
             const lines = Buffer.from(fileContent).toString('utf8').split('\n');
             
+            console.log('📄 Current file has', lines.length, 'lines');
+            console.log('📍 Trying to update line', message.lineNumber, '(0-based index:', message.lineNumber - 1, ')');
+            
             // Update the specific line (lineNumber is 1-based)
             const lineIndex = message.lineNumber - 1;
             if (lineIndex >= 0 && lineIndex < lines.length) {
                 lines[lineIndex] = message.content;
+                console.log('✅ Line updated successfully');
             } else {
-                throw new Error(`Line ${message.lineNumber} is out of range`);
+                console.error('❌ Line index out of range:', {
+                    lineIndex: lineIndex,
+                    fileLines: lines.length,
+                    requestedLine: message.lineNumber
+                });
+                throw new Error(`Line ${message.lineNumber} is out of range (file has ${lines.length} lines)`);
             }
 
             // Write back to file
             const newContent = lines.join('\n');
             await vscode.workspace.fs.writeFile(documentUri, Buffer.from(newContent, 'utf8'));
             
-            console.log(`Updated line ${message.lineNumber} in ${documentUri.fsPath}`);
+            console.log(`✅ Updated line ${message.lineNumber} in ${documentUri.fsPath}`);
             
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
             vscode.window.showErrorMessage(`Failed to update line: ${errorMessage}`);
-            console.error('Error updating line:', error);
+            console.error('❌ Error updating line:', error);
         }
     }
 
@@ -211,6 +229,53 @@ export class MessageHandler {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
             vscode.window.showErrorMessage(`Failed to insert line: ${errorMessage}`);
             console.error('Error inserting line:', error);
+        }
+    }
+
+    private static async handleInsertMultipleLines(message: WebviewMessage, documentUri?: vscode.Uri): Promise<void> {
+        try {
+            console.log('🔍 handleInsertMultipleLines called with:', {
+                message: message,
+                documentUri: documentUri?.fsPath
+            });
+
+            if (!message.data || message.data.afterLineNumber === undefined || !Array.isArray(message.data.lines)) {
+                throw new Error('After line number and lines array are required');
+            }
+
+            if (!documentUri) {
+                throw new Error('No document URI provided');
+            }
+
+            // Read current file content
+            const fileContent = await vscode.workspace.fs.readFile(documentUri);
+            const lines = Buffer.from(fileContent).toString('utf8').split('\n');
+            
+            console.log('📄 Current file has', lines.length, 'lines');
+            console.log('📍 afterLineNumber:', message.data.afterLineNumber);
+            console.log('📝 Lines to insert:', message.data.lines);
+            
+            // Insert lines after the specified line number (afterLineNumber is 1-based line number)
+            const insertIndex = message.data.afterLineNumber; // Insert after this line (1-based line number)
+            console.log('🎯 Insert index:', insertIndex);
+            
+            if (insertIndex >= 0 && insertIndex <= lines.length) {
+                lines.splice(insertIndex, 0, ...message.data.lines);
+                console.log('✅ Lines inserted, new total:', lines.length);
+            } else {
+                throw new Error(`Line ${message.data.afterLineNumber} is out of range`);
+            }
+
+            // Write back to file
+            const newContent = lines.join('\n');
+            await vscode.workspace.fs.writeFile(documentUri, Buffer.from(newContent, 'utf8'));
+            
+            console.log(`✅ Inserted ${message.data.lines.length} lines after line ${message.data.afterLineNumber} in ${documentUri.fsPath}`);
+            
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+            vscode.window.showErrorMessage(`Failed to insert lines: ${errorMessage}`);
+            console.error('❌ Error inserting lines:', error);
         }
     }
 

@@ -123,7 +123,7 @@
             "filenamePattern": "*.tsv"
           }
         ],
-        "priority": "default"
+        "priority": "option"
       },
       {
         "viewType": "omni-viewer.jsonlViewer",
@@ -139,7 +139,33 @@
             "filenamePattern": "*.jsonlines"
           }
         ],
-        "priority": "default"
+        "priority": "option"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "omni-viewer.openCsvViewer",
+          "when": "resourceExtname == '.csv' || resourceExtname == '.tsv'",
+          "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openJsonlViewer",
+          "when": "resourceExtname == '.jsonl' || resourceExtname == '.ndjson' || resourceExtname == '.jsonlines'",
+          "group": "navigation"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "omni-viewer.openCsvViewer",
+        "title": "Open with CSV Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openJsonlViewer",
+        "title": "Open with JSONL Viewer",
+        "category": "Omni Viewer"
       }
     ]
   },
