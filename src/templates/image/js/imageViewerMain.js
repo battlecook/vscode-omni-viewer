@@ -6,7 +6,7 @@ console.log('VSCode API acquired');
 
 // Import modules
 import { ImageFilters } from './imageFilters.js';
-import { ImageEditMode } from './imageEditMode.js';
+import { ImageEditMode } from './ImageEditMode/index.js';
 import { ImageUtils } from './imageUtils.js';
 import { ImageSave } from './imageSave.js';
 
@@ -43,6 +43,9 @@ const imageFilters = new ImageFilters(image);
 const imageEditMode = new ImageEditMode(image, imageWrapper);
 const imageUtils = new ImageUtils();
 const imageSave = new ImageSave(image, vscode, imageFilters);
+
+// Set up cross-references
+imageFilters.imageEditMode = imageEditMode;
 
 // Set up callback for log messages
 imageEditMode.onLogMessage = (message) => {
@@ -144,34 +147,17 @@ function setupEventListeners() {
 
     // Save image (with or without edit elements)
     saveFilteredBtn.addEventListener('click', () => {
-        if (imageEditMode.elements.length > 0) {
+        const elements = imageEditMode.getAllElements();
+        if (elements.length > 0) {
             // If there are edit elements, save with them
-            imageSave.saveEditedImage(imageEditMode.elements, originalWidth, originalHeight, currentRotation, isFlippedHorizontal, isFlippedVertical, imageFilters.getFilterString());
+            imageSave.saveEditedImage(elements, originalWidth, originalHeight, currentRotation, isFlippedHorizontal, isFlippedVertical, imageFilters.getFilterString());
         } else {
             // If no edit elements, save filtered image only
             imageSave.saveFilteredImage(originalWidth, originalHeight, currentRotation, isFlippedHorizontal, isFlippedVertical, imageFilters.getFilterString());
         }
     });
 
-    // Toggle edit mode (includes filters)
-    const toggleEditModeBtn = document.getElementById('toggleEditMode');
-    const editControls = document.getElementById('editControls');
-    
-    toggleEditModeBtn.addEventListener('click', () => {
-        const isVisible = editControls.style.display !== 'none';
-        editControls.style.display = isVisible ? 'none' : 'flex';
-        toggleEditModeBtn.classList.toggle('active', !isVisible);
-        
-        if (!isVisible) {
-            // Enable edit mode
-            imageEditMode.enableEditMode();
-            vscode.postMessage({ command: 'log', text: 'Edit mode enabled' });
-        } else {
-            // Disable edit mode
-            imageEditMode.disableEditMode();
-            vscode.postMessage({ command: 'log', text: 'Edit mode disabled' });
-        }
-    });
+    // Edit mode toggle is now handled by ImageEditMode class
 
     // Filter controls
     imageFilters.setupEventListeners();

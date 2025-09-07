@@ -8,6 +8,9 @@ export class ImageFilters {
         this.saturation = 100;
         this.grayscale = 0;
         
+        // Reference to imageEditMode for canvas updates
+        this.imageEditMode = null;
+        
         // Filter elements
         this.brightnessSlider = document.getElementById('brightnessSlider');
         this.contrastSlider = document.getElementById('contrastSlider');
@@ -55,6 +58,12 @@ export class ImageFilters {
     updateFilters() {
         const filterString = `brightness(${this.brightness}%) contrast(${this.contrast}%) saturate(${this.saturation}%) grayscale(${this.grayscale}%)`;
         this.image.style.filter = filterString;
+        
+        // Update edit canvas if in edit mode
+        if (this.imageEditMode && this.imageEditMode.isEditMode) {
+            console.log('Updating edit canvas after filter change');
+            this.imageEditMode.setupEditCanvas();
+        }
     }
     
     getFilterString() {

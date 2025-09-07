@@ -189,6 +189,7 @@ export class ImageSave {
         const scaleY2 = canvas.height / canvasRect.height;
         
         elements.forEach(element => {
+            console.log('Saving element:', element);
             ctx.save();
             ctx.translate(element.x * scaleX2, element.y * scaleY2);
             
@@ -205,7 +206,10 @@ export class ImageSave {
                 ctx.fill();
             } else if (element.type === 'rectangle') {
                 ctx.fillStyle = element.color;
-                ctx.fillRect(-element.size * scaleX2 / 2, -element.size * scaleY2 / 2, element.size * scaleX2, element.size * scaleY2);
+                // 사각형의 경우 width와 height 속성 사용
+                const width = element.width !== undefined ? element.width : element.size;
+                const height = element.height !== undefined ? element.height : element.size;
+                ctx.fillRect(-width * scaleX2 / 2, -height * scaleY2 / 2, width * scaleX2, height * scaleY2);
             }
             
             ctx.restore();
