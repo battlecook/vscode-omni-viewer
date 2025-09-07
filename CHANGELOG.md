@@ -1,5 +1,24 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- **Refactored JSONL viewer template structure**
+  - Split large jsonlViewer.html (1413 lines) into separate CSS and JS files
+  - Created css/jsonlViewer.css for all styling
+  - Created js/jsonlViewer.js for all JavaScript logic
+  - Reduced HTML file to 46 lines with clean structure
+  - Follows same directory structure as image/ template
+
+### Added
+
+### Fixed
+
+### Removed
+
+### Deprecated
+
+
 ## [0.3.0] - 2025-09-07
 
 ### Changed
