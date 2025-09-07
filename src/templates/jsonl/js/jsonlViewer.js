@@ -80,6 +80,16 @@ class JsonlViewer {
         document.addEventListener('mousemove', (e) => {
             this.mousePosition.x = e.clientX;
             this.mousePosition.y = e.clientY;
+            
+            // Hide popup when mouse moves to empty space
+            const editorContent = document.getElementById('editorContent');
+            if (editorContent.contains(e.target)) {
+                const hoveredLine = e.target.closest('.line');
+                if (!hoveredLine) {
+                    // Mouse is over empty space, hide popup
+                    this.hideJsonPopup();
+                }
+            }
         });
 
         // Close popup button
@@ -975,7 +985,12 @@ class JsonlViewer {
     handleDragOver(e) {
         e.dataTransfer.dropEffect = 'move';
         
-        // Add visual feedback
+        // Remove drag-over class from all lines first
+        document.querySelectorAll('.line').forEach(line => {
+            line.classList.remove('drag-over');
+        });
+        
+        // Add visual feedback only to the current target line
         const lineElement = e.currentTarget;
         if (lineElement.dataset.lineNumber !== this.draggedLine?.toString()) {
             lineElement.classList.add('drag-over');
