@@ -9,6 +9,7 @@
   - Created js/jsonlViewer.js for all JavaScript logic
   - Reduced HTML file to 46 lines with clean structure
   - Follows same directory structure as image/ template
+- **Refactored ImageEditMode into modular structure**
 
 ### Added
 - **Drag and drop functionality for JSONL line reordering**
