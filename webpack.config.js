@@ -77,5 +77,40 @@ module.exports = [
         }
       ]
     }
+  },
+  // JavaScript files configuration for audio viewer
+  {
+    mode: 'production',
+    entry: {
+      'templates/audio/js/audioViewer': './src/templates/audio/js/audioViewerMain.js'
+    },
+    output: {
+      path: path.resolve(__dirname, 'src/templates/audio/js'),
+      filename: 'audioViewer.js',
+      libraryTarget: 'var',
+      library: 'AudioViewer'
+    },
+    resolve: {
+      extensions: ['.js']
+    },
+    module: {
+      rules: [
+        {
+          test: /\.js$/,
+          exclude: /node_modules/,
+          use: {
+            loader: 'babel-loader',
+            options: {
+              presets: ['@babel/preset-env']
+            }
+          }
+        }
+      ]
+    },
+    optimization: {
+      minimize: true,
+      usedExports: true,
+      sideEffects: false
+    }
   }
 ];
