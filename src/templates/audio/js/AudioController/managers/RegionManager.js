@@ -30,14 +30,14 @@ export class RegionManager {
         this.state.regionStartOverlay = document.createElement('div');
         this.state.regionStartOverlay.className = 'region-input-overlay';
         this.state.regionStartOverlay.innerHTML = `
-            <input type="number" value="${region.start.toFixed(1)}" class="region-start-input" title="Start time">
+            <input type="number" value="${region.start.toFixed(3)}" class="region-start-input" title="Start time">
         `;
         
         // End input overlay
         this.state.regionEndOverlay = document.createElement('div');
         this.state.regionEndOverlay.className = 'region-input-overlay';
         this.state.regionEndOverlay.innerHTML = `
-            <input type="number" value="${region.end.toFixed(1)}" class="region-end-input" title="End time">
+            <input type="number" value="${region.end.toFixed(3)}" class="region-end-input" title="End time">
         `;
         
         // Position calculation
@@ -162,8 +162,8 @@ export class RegionManager {
         if (this.state.regionStartOverlay && this.state.regionEndOverlay) {
             const startInput = this.state.regionStartOverlay.querySelector('.region-start-input');
             const endInput = this.state.regionEndOverlay.querySelector('.region-end-input');
-            startInput.value = region.start.toFixed(1);
-            endInput.value = region.end.toFixed(1);
+            startInput.value = region.start.toFixed(3);
+            endInput.value = region.end.toFixed(3);
         }
     }
 

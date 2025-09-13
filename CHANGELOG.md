@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.3.1] - 2025-09-13
 
 ### Changed
 - **Refactored JSONL viewer template structure**
@@ -10,6 +10,8 @@
   - Reduced HTML file to 46 lines with clean structure
   - Follows same directory structure as image/ template
 - **Refactored ImageEditMode into modular structure**
+- **Audio Viewer: Enhanced time precision in region selection**
+  - Increased time display precision from 1 to 3 decimal places in region start/end inputs
 
 ### Added
 - **Drag and drop functionality for JSONL line reordering**
@@ -22,10 +24,6 @@
 ### Fixed
 - Fixed textarea null reference error in finishEditing method
 - Fixed duplicate jsonlData declaration causing SyntaxError in JSONL viewer
-
-### Removed
-
-### Deprecated
 
 
 ## [0.3.0] - 2025-09-07
@@ -65,9 +63,6 @@
   - Add webpack multi-configuration for TypeScript and JavaScript bundling
   - Install babel-loader, @babel/core, @babel/preset-env for ES6+ compatibility
   - Maintain backward compatibility with existing HTML template references
-
-
-### Removed
 
 ## [0.2.2] - 2025-01-27
 

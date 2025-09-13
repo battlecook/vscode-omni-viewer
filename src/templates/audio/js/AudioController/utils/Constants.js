@@ -16,7 +16,8 @@ export const CONSTANTS = {
     },
     SPECTROGRAM: {
         FFT_SIZE: 4096,
-        NOVERLAP: 2048
+        NOVERLAP: 2048,
+        HEIGHT: 250
     },
     REGION: {
         MIN_DURATION: 0.1

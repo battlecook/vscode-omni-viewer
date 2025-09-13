@@ -29,7 +29,8 @@ export class PluginManager {
                 scale: 'linear',
                 splitChannels: false,
                 fftSize: CONSTANTS.SPECTROGRAM.FFT_SIZE,
-                noverlap: CONSTANTS.SPECTROGRAM.NOVERLAP
+                noverlap: CONSTANTS.SPECTROGRAM.NOVERLAP,
+                height: CONSTANTS.SPECTROGRAM.HEIGHT,
             }));
             AudioUtils.log('Spectrogram plugin registered successfully');
         } catch (error) {
