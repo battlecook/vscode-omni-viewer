@@ -26,7 +26,7 @@ export class PluginManager {
             this.state.spectrogramPlugin = this.state.wavesurfer.registerPlugin(WaveSurfer.Spectrogram.create({
                 container: '#spectrogram',
                 labels: true,
-                scale: 'linear',
+                scale: CONSTANTS.SPECTROGRAM.DEFAULT_SCALE,
                 splitChannels: false,
                 fftSize: CONSTANTS.SPECTROGRAM.FFT_SIZE,
                 noverlap: CONSTANTS.SPECTROGRAM.NOVERLAP,
@@ -36,6 +36,47 @@ export class PluginManager {
         } catch (error) {
             console.warn('Failed to register spectrogram plugin:', error);
             this.state.spectrogramPlugin = null;
+        }
+    }
+
+    async changeSpectrogramScale(newScale) {
+        if (!this.state.spectrogramPlugin) {
+            console.warn('Spectrogram plugin not available');
+            return;
+        }
+
+        try {
+            // Unregister the current spectrogram plugin
+            this.state.wavesurfer.unregisterPlugin(this.state.spectrogramPlugin);
+            this.state.spectrogramPlugin = null;
+            
+            // Clear the spectrogram container
+            const spectrogramContainer = document.getElementById('spectrogram');
+            if (spectrogramContainer) {
+                spectrogramContainer.innerHTML = '';
+            }
+            
+            // Create new spectrogram plugin with new scale
+            this.state.spectrogramPlugin = this.state.wavesurfer.registerPlugin(WaveSurfer.Spectrogram.create({
+                container: '#spectrogram',
+                labels: true,
+                scale: newScale,
+                splitChannels: false,
+                fftSize: CONSTANTS.SPECTROGRAM.FFT_SIZE,
+                noverlap: CONSTANTS.SPECTROGRAM.NOVERLAP,
+                height: CONSTANTS.SPECTROGRAM.HEIGHT,
+            }));
+            
+            // Force render
+            setTimeout(() => {
+                if (this.state.spectrogramPlugin) {
+                    this.state.spectrogramPlugin.render();
+                }
+            }, 100);
+            
+            AudioUtils.log(`Spectrogram scale changed to: ${newScale}`);
+        } catch (error) {
+            console.warn('Failed to change spectrogram scale:', error);
         }
     }
 

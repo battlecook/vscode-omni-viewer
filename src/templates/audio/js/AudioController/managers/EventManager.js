@@ -65,6 +65,19 @@ export class EventManager {
         });
     }
 
+    setupSpectrogramScale() {
+        if (this.state.elements.spectrogramScale) {
+            this.state.elements.spectrogramScale.addEventListener('change', async (e) => {
+                const newScale = e.target.value;
+                console.log('Spectrogram scale changed to:', newScale);
+                
+                if (this.state.pluginManager) {
+                    await this.state.pluginManager.changeSpectrogramScale(newScale);
+                }
+            });
+        }
+    }
+
     setupKeyboardEvents() {
         document.addEventListener('keydown', async (e) => {
             if (e.code === 'Space' && !e.target.matches('input, textarea')) {

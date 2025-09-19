@@ -8,6 +8,7 @@ export const DOMUtils = {
             volume: document.getElementById('volume'),
             loopEnabled: document.getElementById('loopEnabled'),
             loopControls: document.getElementById('loopControls'),
+            spectrogramScale: document.getElementById('spectrogramScale'),
             loading: document.getElementById('loading'),
             error: document.getElementById('error'),
             waveform: document.getElementById('waveform'),

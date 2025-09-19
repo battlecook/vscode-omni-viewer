@@ -17,7 +17,14 @@ export const CONSTANTS = {
     SPECTROGRAM: {
         FFT_SIZE: 4096,
         NOVERLAP: 2048,
-        HEIGHT: 250
+        HEIGHT: 250,
+        SCALE_OPTIONS: [
+            { value: 'linear', label: 'Linear' },
+            { value: 'mel', label: 'Mel' },
+            { value: 'bark', label: 'Bark' },
+            { value: 'erb', label: 'ERB' }
+        ],
+        DEFAULT_SCALE: 'mel'
     },
     REGION: {
         MIN_DURATION: 0.1

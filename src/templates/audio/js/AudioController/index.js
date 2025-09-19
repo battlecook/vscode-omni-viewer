@@ -41,6 +41,7 @@ export class AudioController {
         this.state.audioContextManager = this.audioContextManager;
         this.state.regionManager = this.regionManager;
         this.state.fileInfoManager = this.fileInfoManager;
+        this.state.pluginManager = this.pluginManager;
     }
 
     async initAudioViewer() {
@@ -138,6 +139,7 @@ export class AudioController {
                 this.eventManager.setupStop();
                 this.eventManager.setupVolume();
                 this.eventManager.setupLoop();
+                this.eventManager.setupSpectrogramScale();
                 this.eventManager.setupWaveSurferEvents();
                 console.log('Event listeners setup complete');
                 
