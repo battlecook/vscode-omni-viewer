@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.2] - 2025-09-19
+
+### Added
+- **Audio Viewer: Spectrogram Scale Selection**
+  - Added spectrogram scale selector dropdown with options: Linear, Mel, Bark, ERB
+  - Implemented real-time scale switching functionality
+  - Set Mel scale as default for proper frequency visualization
+  - Added scale change event handling and UI integration
+
 ## [0.3.1] - 2025-09-13
 
 ### Changed
