@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.4] - 2025-10-16
+
+### Changed
+- **Image Viewer: Default behavior changed to use standard editor**
+  - Changed image viewer priority from "default" to "option" in package.json
+  - Image files now open with VSCode's default editor by default instead of custom viewer
+  - Added context menu option "Open with Image Editor" for accessing custom image viewer
+  - Users can right-click image files and select "Open with Image Editor" to use the custom viewer
+
 ## [0.3.3] - 2025-10-16
 
 ### Removed

@@ -3,7 +3,7 @@
   "displayName": "omni-viewer",
   "publisher": "battlecook",
   "description": "A VSCode extension for viewing audio, image, video, csv, and jsonl files",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
@@ -110,7 +110,7 @@
             "filenamePattern": "*.svg"
           }
         ],
-        "priority": "default"
+        "priority": "option"
       },
       {
         "viewType": "omni-viewer.csvViewer",
@@ -145,6 +145,11 @@
     "menus": {
       "explorer/context": [
         {
+          "command": "omni-viewer.openImageViewer",
+          "when": "resourceExtname == '.jpg' || resourceExtname == '.jpeg' || resourceExtname == '.png' || resourceExtname == '.gif' || resourceExtname == '.bmp' || resourceExtname == '.webp' || resourceExtname == '.svg'",
+          "group": "navigation"
+        },
+        {
           "command": "omni-viewer.openCsvViewer",
           "when": "resourceExtname == '.csv' || resourceExtname == '.tsv'",
           "group": "navigation"
@@ -157,6 +162,11 @@
       ]
     },
     "commands": [
+      {
+        "command": "omni-viewer.openImageViewer",
+        "title": "Open with Image Editor",
+        "category": "Omni Viewer"
+      },
       {
         "command": "omni-viewer.openCsvViewer",
         "title": "Open with CSV Viewer",
