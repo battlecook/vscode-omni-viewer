@@ -110,15 +110,6 @@ function setupEventListeners() {
         updateZoom();
     });
 
-    // Mouse wheel zoom
-    imageWrapper.addEventListener('wheel', (e) => {
-        e.preventDefault();
-        const delta = e.deltaY > 0 ? -1 : 1;
-        const zoomChange = e.ctrlKey ? 10 : 25; // Ctrl+wheel for fine control
-        currentZoom = Math.max(10, Math.min(500, currentZoom + (delta * zoomChange)));
-        updateZoom();
-    });
-
     // Rotation controls
     rotateBtn.addEventListener('click', () => {
         currentRotation = (currentRotation + 90) % 360;

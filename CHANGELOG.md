@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Removed
+- **Image Viewer: Mouse wheel zoom functionality**
+  - Disabled mouse wheel zoom in/out when hovering over images
+  - Zoom buttons and keyboard shortcuts (+/-) remain functional
+  - Prevents accidental zooming during image interaction
+
 ## [0.3.2] - 2025-09-19
 
 ### Added
