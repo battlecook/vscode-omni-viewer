@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.3.3] - 2025-10-16
 
 ### Removed
 - **Image Viewer: Mouse wheel zoom functionality**
