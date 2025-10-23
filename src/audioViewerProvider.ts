@@ -41,7 +41,7 @@ export class AudioViewerProvider implements vscode.CustomReadonlyEditorProvider 
 
             webviewPanel.webview.html = html;
 
-            MessageHandler.setupMessageListener(webviewPanel.webview);
+            MessageHandler.setupMessageListener(webviewPanel.webview, document.uri);
 
         } catch (error) {
             console.error('Error setting up audio viewer:', error);

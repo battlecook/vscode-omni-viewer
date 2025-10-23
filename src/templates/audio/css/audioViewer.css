@@ -94,6 +94,17 @@ body {
     background: #c82333 !important;
 }
 
+.download-btn {
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border: 1px solid var(--vscode-button-border);
+}
+
+.download-btn:hover {
+    background: var(--vscode-button-hoverBackground);
+    color: var(--vscode-button-hoverForeground);
+}
+
 .main-content {
     flex: 1;
     display: flex;
@@ -260,6 +271,7 @@ body {
 
 .region-input-overlay input[type="number"] {
     -moz-appearance: textfield; /* Firefox */
+    appearance: textfield; /* Standard */
 }
 
 .status {

@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.0] - 2025-01-27
+
+### Added
+- **Audio Viewer: Download functionality**
+  - Added download button in audio viewer header
+  - VSCode extension-based download with save dialog
+  - Browser-based fallback download methods
+  - Automatic filename extraction and sanitization
+
+### Fixed
+- **Audio Viewer: TypeScript error handling**
+  - Fixed 'copyError' type assertion issue in download error handling
+  - Improved error logging with proper type casting
+
 ## [0.3.4] - 2025-10-16
 
 ### Changed

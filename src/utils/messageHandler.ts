@@ -54,6 +54,9 @@ export class MessageHandler {
             case 'deleteMultipleLines':
                 await this.handleDeleteMultipleLines(message, documentUri);
                 break;
+            case 'downloadFile':
+                await this.handleDownloadFile(message, documentUri);
+                break;
 
             default:
                 console.log('Unknown message type:', messageType);
@@ -413,5 +416,92 @@ export class MessageHandler {
             // Pass document URI to handleWebviewMessage for save operations
             await this.handleWebviewMessage(message, documentUri);
         });
+    }
+
+    private static async handleDownloadFile(message: WebviewMessage, documentUri?: vscode.Uri): Promise<void> {
+        try {
+            console.log('Download file request:', message);
+            
+            if (!documentUri) {
+                vscode.window.showErrorMessage('No document URI available for download');
+                return;
+            }
+
+            const originalFileName = path.basename(documentUri.fsPath);
+            const fileName = message.fileName || originalFileName || 'audio_file';
+            
+            console.log('Downloading file:', documentUri.fsPath, 'as', fileName);
+            
+            // Show save dialog with proper default filename
+            const defaultFileName = this.sanitizeFileName(fileName);
+            const saveUri = await vscode.window.showSaveDialog({
+                defaultUri: vscode.Uri.file(defaultFileName),
+                filters: {
+                    'Audio files': ['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a'],
+                    'All files': ['*']
+                }
+            });
+
+            if (saveUri) {
+                try {
+                    console.log('Attempting to read file:', documentUri.fsPath);
+                    
+                    // Read the file content first
+                    const fileData = await vscode.workspace.fs.readFile(documentUri);
+                    console.log('File read successfully, size:', fileData.length, 'bytes');
+                    
+                    // Write to the new location
+                    console.log('Writing to:', saveUri.fsPath);
+                    await vscode.workspace.fs.writeFile(saveUri, fileData);
+                    
+                    vscode.window.showInformationMessage(`File downloaded successfully: ${saveUri.fsPath}`);
+                    console.log('File downloaded to:', saveUri.fsPath);
+                } catch (copyError) {
+                    console.error('Error downloading file:', copyError);
+                    console.error('Error details:', {
+                        name: (copyError as any)?.name,
+                        message: (copyError as any)?.message,
+                        code: (copyError as any)?.code
+                    });
+                    
+                    // Try alternative method: use Node.js fs module
+                    try {
+                        console.log('Trying alternative download method...');
+                        const fs = require('fs');
+                        const fileData = fs.readFileSync(documentUri.fsPath);
+                        fs.writeFileSync(saveUri.fsPath, fileData);
+                        
+                        vscode.window.showInformationMessage(`File downloaded successfully: ${saveUri.fsPath}`);
+                        console.log('File downloaded using Node.js fs to:', saveUri.fsPath);
+                    } catch (fsError) {
+                        console.error('Node.js fs method also failed:', fsError);
+                        
+                        // Final fallback: try to open the file location
+                        try {
+                            await vscode.commands.executeCommand('revealFileInOS', documentUri);
+                            vscode.window.showInformationMessage('Please manually copy the file from the revealed location');
+                        } catch (revealError) {
+                            vscode.window.showErrorMessage(`Failed to download file: ${copyError}. Please try copying the file manually.`);
+                        }
+                    }
+                }
+            } else {
+                console.log('Download cancelled by user');
+            }
+            
+        } catch (error) {
+            console.error('Error handling download request:', error);
+            vscode.window.showErrorMessage(`Download failed: ${error}`);
+        }
+    }
+
+    private static sanitizeFileName(fileName: string): string {
+        // Remove or replace invalid characters for file names
+        return fileName
+            .replace(/[<>:"/\\|?*]/g, '_')  // Replace invalid characters with underscore
+            .replace(/\s+/g, '_')           // Replace spaces with underscore
+            .replace(/_{2,}/g, '_')          // Replace multiple underscores with single
+            .replace(/^_|_$/g, '')          // Remove leading/trailing underscores
+            .substring(0, 255);              // Limit length
     }
 }

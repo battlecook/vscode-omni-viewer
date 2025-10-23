@@ -20,7 +20,8 @@ export const DOMUtils = {
             channelsInfo: document.getElementById('channelsInfo'),
             bitDepthInfo: document.getElementById('bitDepthInfo'),
             fileSizeInfo: document.getElementById('fileSizeInfo'),
-            formatInfo: document.getElementById('formatInfo')
+            formatInfo: document.getElementById('formatInfo'),
+            downloadBtn: document.getElementById('downloadBtn')
         };
     },
 
