@@ -2,7 +2,7 @@
 
 A comprehensive audio, image, video, CSV, and JSONL viewer extension for VSCode and Cursor.
 
-<a href="https://ko-fi.com/eyedealisty"><img src="https://eyedealisty-website.web.app/img/omniviewer/support_me_on_kofi_blue.png" alt="ko-fi" width="150"></a>
+[![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-red)](https://github.com/sponsors/battlecook)
 
 ## 🎵 Audio Viewer Features
 
