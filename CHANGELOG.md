@@ -1,5 +1,15 @@
 # Changelog
 
+## [unreleased]
+
+### Added
+- **Audio Viewer: Region extraction and save functionality**
+  - Added context menu option to save selected audio region as new file
+  - VSCode save dialog integration for choosing save location
+  - Save completion notification with file path, size, and duration information
+  - "Open file location" button in save completion notification
+
+
 ## [0.4.0] - 2025-01-27
 
 ### Added

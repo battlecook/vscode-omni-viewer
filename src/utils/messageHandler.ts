@@ -11,6 +11,10 @@ export interface WebviewMessage {
     imageData?: string;
     type?: string;
     lineNumber?: number;
+    mimeType?: string;
+    duration?: string;
+    startTime?: string;
+    endTime?: string;
     content?: string;
 }
 
@@ -34,6 +38,9 @@ export class MessageHandler {
                 break;
             case 'saveFilteredImage':
                 await this.handleSaveFilteredImage(message);
+                break;
+            case 'saveRegionFile':
+                await this.handleSaveRegionFile(message);
                 break;
             case 'saveChanges':
                 console.log('Received saveChanges message:', message);
@@ -416,6 +423,55 @@ export class MessageHandler {
             // Pass document URI to handleWebviewMessage for save operations
             await this.handleWebviewMessage(message, documentUri);
         });
+    }
+
+    private static async handleSaveRegionFile(message: WebviewMessage): Promise<void> {
+        try {
+            if (!message.fileName || !message.blob) {
+                throw new Error('No filename or blob data provided');
+            }
+
+            // Show save dialog
+            const defaultFileName = this.sanitizeFileName(message.fileName);
+            const saveUri = await vscode.window.showSaveDialog({
+                defaultUri: vscode.Uri.file(defaultFileName),
+                filters: {
+                    'Audio files': ['wav', 'mp3', 'flac', 'aac', 'ogg', 'm4a'],
+                    'All files': ['*']
+                }
+            });
+
+            if (!saveUri) {
+                // User cancelled
+                return;
+            }
+
+            // Convert base64 to buffer and save file
+            const audioBuffer = Buffer.from(message.blob, 'base64');
+            await vscode.workspace.fs.writeFile(saveUri, audioBuffer);
+
+            // Show success message with file path and info
+            const fileSize = (audioBuffer.length / 1024).toFixed(2);
+            const duration = message.duration ? `${message.duration}초` : '';
+            const timeRange = message.startTime && message.endTime 
+                ? `(${message.startTime}s - ${message.endTime}s)` 
+                : '';
+            
+            const infoMessage = `오디오 저장 완료!\n파일: ${path.basename(saveUri.fsPath)}\n위치: ${saveUri.fsPath}\n크기: ${fileSize} KB${duration ? `\n길이: ${duration}` : ''}${timeRange ? `\n${timeRange}` : ''}`;
+            
+            vscode.window.showInformationMessage(`오디오 저장 완료: ${path.basename(saveUri.fsPath)} (${fileSize} KB)`, '파일 위치 열기')
+                .then(selection => {
+                    if (selection === '파일 위치 열기') {
+                        vscode.commands.executeCommand('revealFileInOS', saveUri);
+                    }
+                });
+
+            console.log('Region file saved successfully:', saveUri.fsPath);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+            vscode.window.showErrorMessage(`오디오 저장 실패: ${errorMessage}`);
+            console.error('Error saving region file:', error);
+        }
     }
 
     private static async handleDownloadFile(message: WebviewMessage, documentUri?: vscode.Uri): Promise<void> {

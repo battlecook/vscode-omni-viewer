@@ -184,6 +184,33 @@ export class PluginManager {
         };
 
         const waveformContainer = document.getElementById('waveform');
+        const contextMenu = document.getElementById('contextMenu');
+        
+        // Show custom context menu
+        waveformContainer.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            
+            // Check if clicking on region input overlay (don't show menu there)
+            const clickedElement = e.target;
+            const isInputOverlay = clickedElement.closest('.region-input-overlay') ||
+                                   clickedElement.classList.contains('region-input-overlay') ||
+                                   clickedElement.classList.contains('region-start-input') ||
+                                   clickedElement.classList.contains('region-end-input');
+            
+            if (isInputOverlay) {
+                // Don't show menu on input overlays
+                return;
+            }
+            
+            // Show menu if a region is selected (anywhere on waveform)
+            const selectedRegion = this.state.regionManager.getSelectedRegion();
+            if (selectedRegion) {
+                this.showContextMenu(e, selectedRegion);
+            } else {
+                this.hideContextMenu();
+            }
+        });
+        
         waveformContainer.addEventListener('click', (e) => {
             const clickedElement = e.target;
             const isRegionElement = clickedElement.closest('.wavesurfer-region') || 
@@ -195,11 +222,81 @@ export class PluginManager {
             if (!isRegionElement) {
                 removeAllRegions();
             }
+            
+            // Hide context menu on click
+            this.hideContextMenu();
         });
 
         const spectrogramContainer = document.getElementById('spectrogram');
         if (spectrogramContainer) {
-            spectrogramContainer.addEventListener('click', removeAllRegions);
+            spectrogramContainer.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                const selectedRegion = this.state.regionManager.getSelectedRegion();
+                if (selectedRegion) {
+                    this.showContextMenu(e, selectedRegion);
+                } else {
+                    this.hideContextMenu();
+                }
+            });
+            
+            spectrogramContainer.addEventListener('click', (e) => {
+                removeAllRegions();
+                this.hideContextMenu();
+            });
+        }
+
+        // Hide context menu when clicking outside (but not on the menu itself)
+        document.addEventListener('click', (e) => {
+            const contextMenu = document.getElementById('contextMenu');
+            if (contextMenu && !contextMenu.contains(e.target)) {
+                this.hideContextMenu();
+            }
+        });
+    }
+
+    showContextMenu(event, region) {
+        const contextMenu = document.getElementById('contextMenu');
+        if (!contextMenu) {
+            console.warn('Context menu element not found');
+            return;
+        }
+
+        if (!region) {
+            console.warn('No region provided to showContextMenu');
+            return;
+        }
+
+        // Clear existing menu items
+        contextMenu.innerHTML = '';
+
+        // Create menu item
+        const menuItem = document.createElement('div');
+        menuItem.className = 'context-menu-item';
+        menuItem.textContent = '💾 Save Selected Region as New File';
+        menuItem.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (this.state.audioController && region) {
+                this.state.audioController.extractAndDownloadRegion(region);
+            }
+            this.hideContextMenu();
+        });
+
+        contextMenu.appendChild(menuItem);
+
+        // Position menu
+        const x = event.clientX || event.pageX;
+        const y = event.clientY || event.pageY;
+        contextMenu.style.left = x + 'px';
+        contextMenu.style.top = y + 'px';
+        contextMenu.style.display = 'block';
+
+        console.log('Context menu shown at:', x, y, 'for region:', region);
+    }
+
+    hideContextMenu() {
+        const contextMenu = document.getElementById('contextMenu');
+        if (contextMenu) {
+            contextMenu.style.display = 'none';
         }
     }
 }

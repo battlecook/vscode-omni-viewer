@@ -42,6 +42,7 @@ export class AudioController {
         this.state.regionManager = this.regionManager;
         this.state.fileInfoManager = this.fileInfoManager;
         this.state.pluginManager = this.pluginManager;
+        this.state.audioController = this;
         
         // Initialize download functionality
         this.setupDownloadButton();
@@ -465,5 +466,166 @@ export class AudioController {
             console.warn('Error getting filename from metadata:', error);
             return null;
         }
+    }
+
+    async extractAndDownloadRegion(region) {
+        try {
+            if (!region || !this.state.wavesurfer) {
+                AudioUtils.showStatus('No region selected', this.state.elements.status);
+                return;
+            }
+
+            AudioUtils.showStatus('Extracting audio region...', this.state.elements.status);
+
+            const startTime = region.start;
+            const endTime = region.end;
+            const duration = endTime - startTime;
+
+            // Get decoded audio data
+            const decodedData = this.state.wavesurfer.getDecodedData();
+            if (!decodedData) {
+                throw new Error('Audio data not available');
+            }
+
+            const sampleRate = decodedData.sampleRate;
+            const numberOfChannels = decodedData.numberOfChannels;
+            const startSample = Math.floor(startTime * sampleRate);
+            const endSample = Math.floor(endTime * sampleRate);
+            const length = endSample - startSample;
+
+            // Extract audio samples for each channel
+            const channels = [];
+            for (let channel = 0; channel < numberOfChannels; channel++) {
+                const channelData = decodedData.getChannelData(channel);
+                const extractedData = new Float32Array(length);
+                for (let i = 0; i < length; i++) {
+                    extractedData[i] = channelData[startSample + i];
+                }
+                channels.push(extractedData);
+            }
+
+            // Create AudioBuffer from extracted data
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const audioBuffer = audioContext.createBuffer(numberOfChannels, length, sampleRate);
+            
+            for (let channel = 0; channel < numberOfChannels; channel++) {
+                const channelData = audioBuffer.getChannelData(channel);
+                channelData.set(channels[channel]);
+            }
+
+            // Convert AudioBuffer to WAV
+            const wav = this.audioBufferToWav(audioBuffer);
+            const blob = new Blob([wav], { type: 'audio/wav' });
+
+            // Generate filename
+            const baseFileName = this.extractFileNameFromUrl(this.audioSrc) || 'audio_file';
+            const nameWithoutExt = baseFileName.replace(/\.[^/.]+$/, '');
+            const fileName = `${nameWithoutExt}_${startTime.toFixed(2)}s-${endTime.toFixed(2)}s.wav`;
+
+            // Try VSCode extension method first (shows save dialog)
+            try {
+                // Convert blob to base64 for VSCode extension
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64data = reader.result.split(',')[1]; // Remove data:audio/wav;base64, prefix
+                    
+                    this.vscode.postMessage({
+                        command: 'saveRegionFile',
+                        fileName: fileName,
+                        blob: base64data,
+                        mimeType: 'audio/wav',
+                        duration: duration.toFixed(2),
+                        startTime: startTime.toFixed(2),
+                        endTime: endTime.toFixed(2)
+                    });
+                    
+                    AudioUtils.showStatus(`저장 중... (${duration.toFixed(2)}초)`, this.state.elements.status);
+                };
+                reader.onerror = () => {
+                    throw new Error('Failed to read blob data');
+                };
+                reader.readAsDataURL(blob);
+                return;
+            } catch (error) {
+                console.warn('VSCode extension method failed, using browser download:', error);
+            }
+
+            // Fallback: Browser download
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = fileName;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            // Clean up
+            setTimeout(() => {
+                URL.revokeObjectURL(url);
+            }, 100);
+
+            const fileSize = (blob.size / 1024).toFixed(2);
+            AudioUtils.showStatus(`다운로드 완료: ${fileName} (${fileSize} KB)`, this.state.elements.status);
+            AudioUtils.log(`Region extracted and saved: ${fileName} (${fileSize} KB)`);
+            
+            // Show browser notification if available
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('오디오 저장 완료', {
+                    body: `${fileName}\n${fileSize} KB`,
+                    icon: '🎵'
+                });
+            }
+
+        } catch (error) {
+            console.error('Error extracting region:', error);
+            AudioUtils.showStatus('Error extracting region: ' + error.message, this.state.elements.status);
+        }
+    }
+
+    audioBufferToWav(buffer) {
+        const length = buffer.length;
+        const numberOfChannels = buffer.numberOfChannels;
+        const sampleRate = buffer.sampleRate;
+        const bytesPerSample = 2;
+        const blockAlign = numberOfChannels * bytesPerSample;
+        const byteRate = sampleRate * blockAlign;
+        const dataSize = length * blockAlign;
+        const bufferSize = 44 + dataSize;
+        const arrayBuffer = new ArrayBuffer(bufferSize);
+        const view = new DataView(arrayBuffer);
+
+        // WAV header
+        const writeString = (offset, string) => {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        };
+
+        writeString(0, 'RIFF');
+        view.setUint32(4, bufferSize - 8, true);
+        writeString(8, 'WAVE');
+        writeString(12, 'fmt ');
+        view.setUint32(16, 16, true); // fmt chunk size
+        view.setUint16(20, 1, true); // audio format (PCM)
+        view.setUint16(22, numberOfChannels, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, byteRate, true);
+        view.setUint16(32, blockAlign, true);
+        view.setUint16(34, 16, true); // bits per sample
+        writeString(36, 'data');
+        view.setUint32(40, dataSize, true);
+
+        // Convert float samples to 16-bit PCM
+        let offset = 44;
+        for (let i = 0; i < length; i++) {
+            for (let channel = 0; channel < numberOfChannels; channel++) {
+                const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
+                view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+                offset += 2;
+            }
+        }
+
+        return arrayBuffer;
     }
 }

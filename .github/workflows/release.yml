@@ -40,12 +40,12 @@ jobs:
         # Extract changelog content for this specific version
         # Look for the section starting with ## [version] and extract until the next ## or end of file
         awk -v version="$VERSION" '
-        /^## \\[' version '\\]/ {
+        $0 ~ "^## \\[" version "\\]" {
           in_section = 1
           print
           next
         }
-        /^## \\[/ && in_section {
+        /^## \[/ && in_section {
           exit
         }
         in_section {
