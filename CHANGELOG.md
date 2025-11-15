@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.5.0] - 2025-11-13
+
 ### Added
 - **Audio Viewer: Region extraction and save functionality**
   - Added context menu option to save selected audio region as new file
@@ -10,7 +12,7 @@
   - "Open file location" button in save completion notification
 
 
-## [0.4.0] - 2025-01-27
+## [0.4.0] - 2025-10-25
 
 ### Added
 - **Audio Viewer: Download functionality**
