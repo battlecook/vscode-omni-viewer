@@ -28,7 +28,11 @@ module.exports = [
     resolve: {
       extensions: ['.ts', '.js'],
       alias: {
-        'music-metadata': path.resolve(__dirname, 'node_modules/music-metadata/lib/index.js')
+        'music-metadata': path.resolve(__dirname, 'node_modules/music-metadata/lib/index.js'),
+        'hyparquet': path.resolve(__dirname, 'node_modules/hyparquet/src/node.js')
+      },
+      extensionAlias: {
+        '.js': ['.js', '.ts']
       }
     },
     module: {

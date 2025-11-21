@@ -4,6 +4,7 @@ import { ImageViewerProvider } from './imageViewerProvider';
 import { VideoViewerProvider } from './videoViewerProvider';
 import { CsvViewerProvider } from './csvViewerProvider';
 import { JsonlViewerProvider } from './jsonlViewerProvider';
+import { ParquetViewerProvider } from './parquetViewerProvider';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('🚀 Omni Viewer extension is now active!');
@@ -15,6 +16,7 @@ export function activate(context: vscode.ExtensionContext) {
     const videoViewerProvider = new VideoViewerProvider(context);
     const csvViewerProvider = new CsvViewerProvider(context);
     const jsonlViewerProvider = new JsonlViewerProvider(context);
+    const parquetViewerProvider = new ParquetViewerProvider(context);
 
     // Register commands
     const openAudioViewer = vscode.commands.registerCommand('omni-viewer.openAudioViewer', (uri: vscode.Uri) => {
@@ -54,6 +56,14 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.jsonlViewer');
         } else {
             vscode.window.showErrorMessage('No JSONL file selected');
+        }
+    });
+
+    const openParquetViewer = vscode.commands.registerCommand('omni-viewer.openParquetViewer', (uri: vscode.Uri) => {
+        if (uri) {
+            vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.parquetViewer');
+        } else {
+            vscode.window.showErrorMessage('No Parquet file selected');
         }
     });
 
@@ -107,6 +117,15 @@ export function activate(context: vscode.ExtensionContext) {
     );
     console.log('✅ JSONL custom editor provider registered');
 
+    const parquetEditorRegistration = vscode.window.registerCustomEditorProvider(
+        'omni-viewer.parquetViewer',
+        parquetViewerProvider,
+        {
+            webviewOptions: { retainContextWhenHidden: true },
+            supportsMultipleEditorsPerDocument: false
+        }
+    );
+
 
 
 
@@ -117,11 +136,13 @@ export function activate(context: vscode.ExtensionContext) {
         openVideoViewer,
         openCsvViewer,
         openJsonlViewer,
+        openParquetViewer,
         audioEditorRegistration,
         imageEditorRegistration,
         videoEditorRegistration,
         csvEditorRegistration,
-        jsonlEditorRegistration
+        jsonlEditorRegistration,
+        parquetEditorRegistration
     );
 }
 

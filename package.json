@@ -2,8 +2,8 @@
   "name": "omni-viewer",
   "displayName": "omni-viewer",
   "publisher": "battlecook",
-  "description": "A VSCode extension for viewing audio, image, video, csv, and jsonl files",
-  "version": "0.5.0",
+  "description": "A VSCode extension for viewing audio, image, video, csv, parquet and jsonl files",
+  "version": "0.6.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
@@ -23,6 +23,7 @@
     "CSV",
     "JSONL",
     "JSON",
+    "Parquet",
     "viewers",
     "viewer"
   ],
@@ -140,6 +141,16 @@
           }
         ],
         "priority": "option"
+      },
+      {
+        "viewType": "omni-viewer.parquetViewer",
+        "displayName": "Parquet Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.parquet"
+          }
+        ],
+        "priority": "default"
       }
     ],
     "menus": {
@@ -158,6 +169,11 @@
           "command": "omni-viewer.openJsonlViewer",
           "when": "resourceExtname == '.jsonl' || resourceExtname == '.ndjson' || resourceExtname == '.jsonlines'",
           "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openParquetViewer",
+          "when": "resourceExtname == '.parquet'",
+          "group": "navigation"
         }
       ]
     },
@@ -175,6 +191,11 @@
       {
         "command": "omni-viewer.openJsonlViewer",
         "title": "Open with JSONL Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openParquetViewer",
+        "title": "Open with Parquet Viewer",
         "category": "Omni Viewer"
       }
     ]
@@ -211,6 +232,7 @@
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {
+    "hyparquet": "^1.21.0",
     "music-metadata": "^11.8.3"
   }
 }

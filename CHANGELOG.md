@@ -2,6 +2,22 @@
 
 ## [unreleased]
 
+## [0.6.0] - 2025-11-22
+
+### Added
+- **Parquet Viewer: Complete Parquet file support**
+  - Added Parquet file viewer using hyparquet library
+  - Implemented table view with search and pagination functionality
+  - Support for reading and displaying Parquet file data as interactive table
+  - JSON export functionality for Parquet data
+  - Raw data view toggle for JSON representation
+  - Automatic BigInt to string conversion for proper JSON serialization
+  - Schema information extraction and display
+  - Support for all Parquet data types including INT64 (BigInt)
+  - File size and row/column count display
+  - Parquet files now open automatically with Parquet viewer (default priority)
+
+
 ## [0.5.0] - 2025-11-13
 
 ### Added

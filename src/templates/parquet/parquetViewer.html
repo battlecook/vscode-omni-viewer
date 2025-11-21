@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parquet Viewer - {{fileName}}</title>
+    <link rel="stylesheet" href="css/parquetViewer.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="title">📊 {{fileName}}</div>
+            <div class="file-info" id="fileInfo">
+                <span id="rowCount">0 rows</span> • 
+                <span id="columnCount">0 columns</span> • 
+                <span id="fileSize">0 KB</span>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="search-container" id="searchContainer">
+                <input type="text" id="searchInput" placeholder="Search in table..." class="search-input">
+                <button id="clearSearch" class="btn btn-secondary">Clear</button>
+            </div>
+            
+            <div class="view-controls">
+                <button id="copyToClipboard" class="btn">📋 Copy to Clipboard</button>
+                <button id="exportJson" class="btn">📄 Copy JSON</button>
+                <button id="toggleView" class="btn">📊 Toggle View</button>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <div id="loading" class="loading">
+                <div>Loading Parquet file...</div>
+                <div style="font-size: 12px; margin-top: 10px; color: var(--vscode-descriptionForeground);">
+                    Parsing Parquet data...
+                </div>
+            </div>
+            
+            <div id="error" class="error" style="display: none;"></div>
+            
+            <div id="tableWrapper" class="table-wrapper" style="display: none;">
+                <table id="parquetTable" class="parquet-table">
+                    <thead id="tableHeader">
+                        <!-- Headers will be inserted here -->
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- Data rows will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div id="rawDataWrapper" class="raw-data-wrapper" style="display: none;">
+                <pre id="rawData" class="raw-data"></pre>
+            </div>
+            
+            <div id="pagination" class="pagination" style="display: none;">
+                <button id="prevPage" class="btn btn-secondary">← Previous</button>
+                <span id="pageInfo">Page 1 of 1</span>
+                <button id="nextPage" class="btn btn-secondary">Next →</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Context Menu -->
+    <div id="contextMenu" class="context-menu" style="display: none;"></div>
+
+    <script id="parquet-data" type="application/json">{{parquetData}}</script>
+    <script src="js/parquetViewer.js"></script>
+</body>
+</html>
+

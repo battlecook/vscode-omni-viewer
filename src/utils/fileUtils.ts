@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import * as mm from 'music-metadata';
+import { parquetReadObjects, parquetSchema } from 'hyparquet';
 
 export class FileUtils {
     private static readonly MAX_FILE_SIZE = 50 * 1024 * 1024;
@@ -231,6 +232,175 @@ export class FileUtils {
             };
         } catch (error) {
             console.error('Error reading JSONL file:', error);
+            throw error;
+        }
+    }
+
+    public static async readParquetFile(filePath: string): Promise<{
+        headers: string[];
+        rows: any[][];
+        totalRows: number;
+        totalColumns: number;
+        fileSize: string;
+        schema: any;
+    }> {
+        try {
+            const buffer = await fs.promises.readFile(filePath);
+            const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+
+            // Create an async buffer wrapper
+            const asyncBuffer = {
+                async slice(start: number, end: number): Promise<ArrayBuffer> {
+                    const sliced = arrayBuffer.slice(start, end);
+                    return sliced instanceof ArrayBuffer ? sliced : new ArrayBuffer(0);
+                },
+                byteLength: arrayBuffer.byteLength
+            };
+
+            // Read schema first
+            let schema: any = null;
+            try {
+                schema = await parquetSchema(asyncBuffer as any);
+                console.log('Parquet schema loaded:', schema ? 'success' : 'null');
+            } catch (schemaError) {
+                console.warn('Failed to read schema, will try to extract from data:', schemaError);
+                // Schema is optional, we can continue without it
+            }
+
+            // Read data as objects
+            let dataObjects: any[] = [];
+            try {
+                const result: any = await parquetReadObjects({
+                    file: asyncBuffer as any
+                });
+                console.log('parquetReadObjects result type:', typeof result);
+                console.log('parquetReadObjects result is array:', Array.isArray(result));
+                console.log('parquetReadObjects result:', result);
+                
+                // parquetReadObjects should return an array directly
+                if (Array.isArray(result)) {
+                    dataObjects = result;
+                } else if (result && typeof result === 'object') {
+                    // If it's an object, try to find array property
+                    console.warn('parquetReadObjects returned non-array, trying to find data...');
+                    if (Array.isArray(result.data)) {
+                        dataObjects = result.data;
+                    } else if (Array.isArray(result.rows)) {
+                        dataObjects = result.rows;
+                    } else {
+                        throw new Error('parquetReadObjects returned unexpected format');
+                    }
+                } else {
+                    throw new Error('parquetReadObjects returned unexpected type');
+                }
+                
+                console.log('Parquet data objects count:', dataObjects.length);
+                if (dataObjects.length > 0) {
+                    console.log('First object:', dataObjects[0]);
+                    console.log('First object keys:', Object.keys(dataObjects[0]));
+                } else {
+                    console.warn('No data objects found in Parquet file');
+                }
+            } catch (readError) {
+                console.error('Failed to read Parquet data:', readError);
+                console.error('Error stack:', readError instanceof Error ? readError.stack : 'No stack');
+                throw new Error(`Failed to read Parquet file: ${readError instanceof Error ? readError.message : String(readError)}`);
+            }
+
+            // Get column names from first row (most reliable)
+            const headers: string[] = [];
+            if (dataObjects && dataObjects.length > 0 && dataObjects[0]) {
+                headers.push(...Object.keys(dataObjects[0]));
+            } else if (schema) {
+                // If no data, try to extract from schema tree recursively
+                const extractColumnNames = (schemaTree: any): string[] => {
+                    if (!schemaTree) return [];
+                    
+                    const names: string[] = [];
+                    const hasChildren = schemaTree.children && Array.isArray(schemaTree.children) && schemaTree.children.length > 0;
+                    
+                    if (schemaTree.element && schemaTree.element.name && !hasChildren) {
+                        // Leaf node - this is a column
+                        if (schemaTree.path && Array.isArray(schemaTree.path) && schemaTree.path.length > 0) {
+                            names.push(schemaTree.path.join('.'));
+                        } else if (schemaTree.element.name) {
+                            names.push(schemaTree.element.name);
+                        }
+                    }
+                    
+                    if (hasChildren) {
+                        schemaTree.children.forEach((child: any) => {
+                            names.push(...extractColumnNames(child));
+                        });
+                    }
+                    return names;
+                };
+                const extractedHeaders = extractColumnNames(schema);
+                if (extractedHeaders.length > 0) {
+                    headers.push(...extractedHeaders);
+                }
+            }
+            
+            if (headers.length === 0) {
+                throw new Error('Could not extract column names from Parquet file. The file may be empty or corrupted.');
+            }
+
+            // Convert BigInt to string/number for JSON serialization
+            const convertBigInt = (value: any): any => {
+                if (typeof value === 'bigint') {
+                    // Convert BigInt to string (can also use Number() if value is small enough)
+                    return value.toString();
+                } else if (Array.isArray(value)) {
+                    return value.map(convertBigInt);
+                } else if (value && typeof value === 'object') {
+                    const converted: any = {};
+                    for (const key in value) {
+                        converted[key] = convertBigInt(value[key]);
+                    }
+                    return converted;
+                }
+                return value;
+            };
+
+            // Convert data objects to rows format
+            const rows: any[][] = [];
+            if (Array.isArray(dataObjects)) {
+                dataObjects.forEach((row: any) => {
+                    if (row && typeof row === 'object') {
+                        const convertedRow = convertBigInt(row);
+                        const rowArray: any[] = [];
+                        headers.forEach(header => {
+                            rowArray.push(convertedRow[header] !== undefined ? convertedRow[header] : null);
+                        });
+                        rows.push(rowArray);
+                    }
+                });
+            } else {
+                console.warn('dataObjects is not an array:', typeof dataObjects);
+            }
+
+            // Get file size
+            const fileSize = await this.getFileSize(filePath);
+
+            // Convert schema to JSON-serializable format (remove BigInt)
+            const serializableSchema = schema ? convertBigInt(schema) : {};
+
+            console.log('Parquet file read successfully:', {
+                headers: headers.length,
+                rows: rows.length,
+                fileSize
+            });
+
+            return {
+                headers,
+                rows,
+                totalRows: rows.length,
+                totalColumns: headers.length,
+                fileSize,
+                schema: serializableSchema
+            };
+        } catch (error) {
+            console.error('Error reading Parquet file:', error);
             throw error;
         }
     }
