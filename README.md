@@ -1,6 +1,6 @@
 # VSCode Omni Viewer
 
-A comprehensive audio, image, video, CSV, and JSONL viewer extension for VSCode and Cursor.
+A comprehensive audio, image, video, CSV, Parquet and JSONL viewer extension for VSCode and Cursor.
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-red)](https://github.com/sponsors/battlecook)
 
@@ -85,6 +85,18 @@ A comprehensive audio, image, video, CSV, and JSONL viewer extension for VSCode 
 - **Data Synchronization**: Seamless sync between popup edits and original lines
 - **Syntax Highlighting**: Color-coded JSON syntax for better readability
 - **Error Handling**: Clear error messages for invalid JSON format
+
+## 📊 Parquet Viewer Features
+
+### Advanced Parquet Viewer
+- **Table Display**: Clean, table view of Parquet data
+- **Search & Filter**: Real-time search across all columns
+- **Column Sorting**: Click headers to sort by any column (numeric/text aware)
+- **Pagination**: Handle large datasets with page navigation
+- **Copy to Clipboard**: Copy filtered data to clipboard (tab-separated format)
+- **Keyboard Shortcuts**: Ctrl+F for search, Ctrl+C for copy
+- **File Information**: Row count, column count, and file size display
+- **Responsive Design**: Works on different screen sizes
 
 ### Supported JSONL Formats
 - JSONL (JSON Lines) - Each line contains a valid JSON object
