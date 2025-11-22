@@ -86,7 +86,12 @@ A comprehensive audio, image, video, CSV, Parquet and JSONL viewer extension for
 - **Syntax Highlighting**: Color-coded JSON syntax for better readability
 - **Error Handling**: Clear error messages for invalid JSON format
 
+### Supported JSONL Formats
+- JSONL (JSON Lines) - Each line contains a valid JSON object
+
 ## 📊 Parquet Viewer Features
+
+![Parquet Viewer Screenshot](https://eyedealisty-website.web.app/img/omniviewer/parquet-screenshot.jpg)
 
 ### Advanced Parquet Viewer
 - **Table Display**: Clean, table view of Parquet data
@@ -98,17 +103,17 @@ A comprehensive audio, image, video, CSV, Parquet and JSONL viewer extension for
 - **File Information**: Row count, column count, and file size display
 - **Responsive Design**: Works on different screen sizes
 
-### Supported JSONL Formats
-- JSONL (JSON Lines) - Each line contains a valid JSON object
 
 ## 🚀 Installation and Usage
 
 ### Install from Marketplace
 
-**VSCode Marketplace:**
+**Marketplaces:**
 
 - **[VSCode Marketplace](https://marketplace.visualstudio.com/items?itemName=battlecook.omni-viewer)** - Official VSCode Marketplace
 - **[Open VSX Registry](https://open-vsx.org/extension/battlecook/omni-viewer)** - Open Source VSX Registry
+
+If you are using jetbrains ide, check out [this repository](https://github.com/battlecook/intellij-omni-viewer)
 
 ### Development Setup
 
