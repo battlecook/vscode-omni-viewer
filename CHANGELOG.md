@@ -2,6 +2,17 @@
 
 ## [unreleased]
 
+## [0.7.0] - 2025-11-28
+
+### Added
+- **Parquet Viewer: File size-based row limiting and restrictions**
+  - Added file size-based row limiting for large Parquet files
+  - Files larger than 150MB cannot be opened with clear error message (prevents memory issues)
+  - Files between 50MB and 150MB show only the first 10,000 rows with a warning message
+  - Files under 50MB display all rows without limitations
+  - Warning message displays file size, row limit, and total row count
+  - Prevents extension host from becoming unresponsive with very large files
+
 ## [0.6.0] - 2025-11-22
 
 ### Added

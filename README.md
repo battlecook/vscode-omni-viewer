@@ -147,8 +147,33 @@ If you encounter any issues or have feature requests, please contact us through 
 
 ## 📊 Performance Notes
 
-- Audio files are loaded as Base64 for WebView compatibility
+### File Size Limitations
+
+- **Audio/Video/Image Files**: 
+  - Maximum file size limit: 50MB per file
+  - Recommended file size: < 50MB for optimal performance
+  - Audio files are loaded as Base64 for WebView compatibility
+
+- **Text-based Files (CSV, JSONL, Parquet)**:
+  - Maximum file size limit: 500MB per file
+  - Recommended file size: < 200MB for optimal performance
+  - Large files may take time to load initially
+  - Memory usage scales with file size
+
+### Parquet File Specific Limitations
+
+- **File Size Restrictions**:
+  - **Files ≥ 150MB**: Cannot be opened. Clear error message will be displayed.
+  - **Files 50MB - 150MB**: Only the first 10,000 rows are displayed with a warning message showing total row count.
+  - **Files < 50MB**: All rows are displayed without any limitations.
+- **Row Limit**: For files between 50MB and 150MB, only the first 10,000 rows are loaded for display to prevent memory issues
+- **Memory Considerations**: 
+  - Parquet files are converted to JSON format for display, which can significantly increase memory usage
+  - Large files may take time to load initially
+  - For best performance, keep files under 50MB for full data access
+
+### General Notes
+
 - Large files may take time to load initially
 - Memory usage scales with file size
-- Recommended file size: < 50MB for optimal performance
-- Maximum file size limit: 50MB per file
+- For best performance, keep files under recommended sizes

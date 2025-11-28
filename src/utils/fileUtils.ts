@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import * as mm from 'music-metadata';
-import { parquetReadObjects, parquetSchema } from 'hyparquet';
+import { parquetReadObjects, parquetSchema, parquetMetadataAsync } from 'hyparquet';
 
 export class FileUtils {
     private static readonly MAX_FILE_SIZE = 50 * 1024 * 1024;
@@ -243,9 +243,27 @@ export class FileUtils {
         totalColumns: number;
         fileSize: string;
         schema: any;
+        isLimited?: boolean;
+        limitMessage?: string;
+        actualTotalRows?: number;
     }> {
         try {
+            // Check file size first before reading
+            const stats = await fs.promises.stat(filePath);
+            const fileSizeBytes = stats.size;
+            const fileSizeMB = fileSizeBytes / (1024 * 1024);
+            
+            const MAX_FILE_SIZE_MB = 50;
+            const MAX_ALLOWED_SIZE_MB = 150;
+            const MAX_ROWS_LIMIT = 10000;
+            
+            // Reject files larger than 150MB
+            if (fileSizeMB >= MAX_ALLOWED_SIZE_MB) {
+                throw new Error(`File size (${fileSizeMB.toFixed(1)}MB) exceeds the maximum allowed size of ${MAX_ALLOWED_SIZE_MB}MB. Cannot open this file.`);
+            }
+            
             const buffer = await fs.promises.readFile(filePath);
+            
             const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
 
             // Create an async buffer wrapper
@@ -259,20 +277,41 @@ export class FileUtils {
 
             // Read schema first
             let schema: any = null;
+            let metadata: any = null;
+            let actualTotalRows: number | undefined = undefined;
             try {
                 schema = await parquetSchema(asyncBuffer as any);
                 console.log('Parquet schema loaded:', schema ? 'success' : 'null');
+                
+                // Get metadata to find total row count
+                metadata = await parquetMetadataAsync(asyncBuffer as any);
+                if (metadata && metadata.num_rows) {
+                    actualTotalRows = Number(metadata.num_rows);
+                }
             } catch (schemaError) {
                 console.warn('Failed to read schema, will try to extract from data:', schemaError);
                 // Schema is optional, we can continue without it
             }
 
+            // Check if file is between 50MB and 150MB, apply row limit
+            // Files < 50MB: show all rows
+            // Files 50MB-150MB: show first 10,000 rows only
+            // Files >= 150MB: already rejected above
+            const isLimited = fileSizeMB >= MAX_FILE_SIZE_MB && fileSizeMB < MAX_ALLOWED_SIZE_MB;
+            const readOptions: any = {
+                file: asyncBuffer as any
+            };
+            
+            if (isLimited) {
+                readOptions.rowStart = 0;
+                readOptions.rowEnd = MAX_ROWS_LIMIT;
+                console.log(`File size (${fileSizeMB.toFixed(2)}MB) is between ${MAX_FILE_SIZE_MB}MB and ${MAX_ALLOWED_SIZE_MB}MB. Reading only first ${MAX_ROWS_LIMIT} rows.`);
+            }
+
             // Read data as objects
             let dataObjects: any[] = [];
             try {
-                const result: any = await parquetReadObjects({
-                    file: asyncBuffer as any
-                });
+                const result: any = await parquetReadObjects(readOptions);
                 console.log('parquetReadObjects result type:', typeof result);
                 console.log('parquetReadObjects result is array:', Array.isArray(result));
                 console.log('parquetReadObjects result:', result);
@@ -385,10 +424,19 @@ export class FileUtils {
             // Convert schema to JSON-serializable format (remove BigInt)
             const serializableSchema = schema ? convertBigInt(schema) : {};
 
+            // Prepare limit message if file was limited
+            let limitMessage: string | undefined = undefined;
+            if (isLimited) {
+                const totalRowsDisplay = actualTotalRows !== undefined ? actualTotalRows.toLocaleString() : 'all';
+                limitMessage = `File size (${fileSizeMB.toFixed(1)}MB) exceeds 50MB limit. Showing only the first 10,000 rows. (Total rows: ${totalRowsDisplay})`;
+            }
+
             console.log('Parquet file read successfully:', {
                 headers: headers.length,
                 rows: rows.length,
-                fileSize
+                fileSize,
+                isLimited,
+                actualTotalRows
             });
 
             return {
@@ -397,7 +445,10 @@ export class FileUtils {
                 totalRows: rows.length,
                 totalColumns: headers.length,
                 fileSize,
-                schema: serializableSchema
+                schema: serializableSchema,
+                isLimited,
+                limitMessage,
+                actualTotalRows
             };
         } catch (error) {
             console.error('Error reading Parquet file:', error);

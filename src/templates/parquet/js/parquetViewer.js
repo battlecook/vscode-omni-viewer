@@ -47,6 +47,7 @@ class ParquetViewer {
                 
                 this.filteredData = [...this.parquetData.rows];
                 this.updateFileInfo();
+                this.showLimitWarning();
                 this.renderTable();
                 this.hideLoading();
             } else {
@@ -64,9 +65,32 @@ class ParquetViewer {
         const columnCountEl = document.getElementById('columnCount');
         const fileSizeEl = document.getElementById('fileSize');
 
-        if (rowCountEl) rowCountEl.textContent = `${this.parquetData.totalRows} rows`;
+        // Show actual total rows if limited, otherwise show displayed rows
+        const displayRows = this.parquetData.isLimited && this.parquetData.actualTotalRows 
+            ? `${this.parquetData.totalRows.toLocaleString()} / ${this.parquetData.actualTotalRows.toLocaleString()}`
+            : this.parquetData.totalRows.toLocaleString();
+        
+        if (rowCountEl) rowCountEl.textContent = `${displayRows} rows`;
         if (columnCountEl) columnCountEl.textContent = `${this.parquetData.totalColumns} columns`;
         if (fileSizeEl) fileSizeEl.textContent = this.parquetData.fileSize;
+    }
+
+    showLimitWarning() {
+        const limitWarningEl = document.getElementById('limitWarning');
+        const limitMessageEl = document.getElementById('limitMessage');
+        
+        if (this.parquetData.isLimited && this.parquetData.limitMessage) {
+            if (limitWarningEl) {
+                limitWarningEl.style.display = 'flex';
+            }
+            if (limitMessageEl) {
+                limitMessageEl.textContent = this.parquetData.limitMessage;
+            }
+        } else {
+            if (limitWarningEl) {
+                limitWarningEl.style.display = 'none';
+            }
+        }
     }
 
     renderTable() {
