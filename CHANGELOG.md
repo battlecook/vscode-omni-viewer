@@ -1,6 +1,13 @@
 # Changelog
 
-## [unreleased]
+## [0.7.1] - 2025-12-24
+
+### Fixed
+- **CSV Viewer: Pagination buttons visibility issue**
+  - Fixed pagination buttons (Previous/Next) not being visible at the bottom of the viewer
+  - Moved pagination element outside of table-container to ensure proper layout
+  - Improved flex layout structure to prevent pagination from being hidden by 100% height container
+  - Pagination buttons now properly display at the bottom for datasets with more than 100 rows
 
 ## [0.7.0] - 2025-11-28
 
