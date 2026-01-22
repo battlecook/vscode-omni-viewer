@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HWP Viewer - {{fileName}}</title>
+    <link rel="stylesheet" href="css/hwpViewer.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="title">📄 {{fileName}}</div>
+            <div class="file-info" id="fileInfo">
+                <span id="fileSize">{{fileSize}}</span>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="view-controls">
+                <button id="zoomOut" class="btn">➖ 축소</button>
+                <span id="zoomLevel" class="zoom-level">100%</span>
+                <button id="zoomIn" class="btn">➕ 확대</button>
+                <button id="zoomReset" class="btn">🔄 초기화</button>
+                <button id="printBtn" class="btn">🖨️ 인쇄</button>
+            </div>
+        </div>
+
+        <div class="document-container" id="documentContainer">
+            <div id="loading" class="loading">
+                <div>HWP 파일을 불러오는 중...</div>
+            </div>
+            
+            <div id="error" class="error" style="display: none;"></div>
+            
+            <div id="hwpContent" class="hwp-content">
+                {{hwpContent}}
+            </div>
+        </div>
+    </div>
+
+    <script src="js/hwpViewer.js"></script>
+</body>
+</html>

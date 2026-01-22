@@ -5,6 +5,7 @@ import { VideoViewerProvider } from './videoViewerProvider';
 import { CsvViewerProvider } from './csvViewerProvider';
 import { JsonlViewerProvider } from './jsonlViewerProvider';
 import { ParquetViewerProvider } from './parquetViewerProvider';
+import { HwpViewerProvider } from './hwpViewerProvider';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('🚀 Omni Viewer extension is now active!');
@@ -17,6 +18,7 @@ export function activate(context: vscode.ExtensionContext) {
     const csvViewerProvider = new CsvViewerProvider(context);
     const jsonlViewerProvider = new JsonlViewerProvider(context);
     const parquetViewerProvider = new ParquetViewerProvider(context);
+    const hwpViewerProvider = new HwpViewerProvider(context);
 
     // Register commands
     const openAudioViewer = vscode.commands.registerCommand('omni-viewer.openAudioViewer', (uri: vscode.Uri) => {
@@ -67,7 +69,13 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
-
+    const openHwpViewer = vscode.commands.registerCommand('omni-viewer.openHwpViewer', (uri: vscode.Uri) => {
+        if (uri) {
+            vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.hwpViewer');
+        } else {
+            vscode.window.showErrorMessage('No HWP file selected');
+        }
+    });
 
     // Register custom editors
     const audioEditorRegistration = vscode.window.registerCustomEditorProvider(
@@ -126,8 +134,14 @@ export function activate(context: vscode.ExtensionContext) {
         }
     );
 
-
-
+    const hwpEditorRegistration = vscode.window.registerCustomEditorProvider(
+        'omni-viewer.hwpViewer',
+        hwpViewerProvider,
+        {
+            webviewOptions: { retainContextWhenHidden: true },
+            supportsMultipleEditorsPerDocument: false
+        }
+    );
 
 
     context.subscriptions.push(
@@ -137,12 +151,14 @@ export function activate(context: vscode.ExtensionContext) {
         openCsvViewer,
         openJsonlViewer,
         openParquetViewer,
+        openHwpViewer,
         audioEditorRegistration,
         imageEditorRegistration,
         videoEditorRegistration,
         csvEditorRegistration,
         jsonlEditorRegistration,
-        parquetEditorRegistration
+        parquetEditorRegistration,
+        hwpEditorRegistration
     );
 }
 

@@ -17,7 +17,9 @@ export class TemplateUtils {
             
             for (const [key, value] of Object.entries(variables)) {
                 const placeholder = `{{${key}}}`;
-                template = template.replace(new RegExp(placeholder, 'g'), value);
+                // Ensure value is a string
+                const safeValue = value === null || value === undefined ? '' : String(value);
+                template = template.replace(new RegExp(placeholder, 'g'), safeValue);
             }
             
             return template;

@@ -2,8 +2,8 @@
   "name": "omni-viewer",
   "displayName": "omni-viewer",
   "publisher": "battlecook",
-  "description": "A VSCode extension for viewing audio, image, video, csv, parquet and jsonl files",
-  "version": "0.7.1",
+  "description": "A VSCode extension for viewing audio, image, video, csv, parquet, jsonl and hwp files",
+  "version": "0.8.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
@@ -24,6 +24,8 @@
     "JSONL",
     "JSON",
     "Parquet",
+    "HWP",
+    "한글",
     "viewers",
     "viewer"
   ],
@@ -151,6 +153,16 @@
           }
         ],
         "priority": "default"
+      },
+      {
+        "viewType": "omni-viewer.hwpViewer",
+        "displayName": "HWP Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.hwp"
+          }
+        ],
+        "priority": "default"
       }
     ],
     "menus": {
@@ -174,6 +186,11 @@
           "command": "omni-viewer.openParquetViewer",
           "when": "resourceExtname == '.parquet'",
           "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openHwpViewer",
+          "when": "resourceExtname == '.hwp'",
+          "group": "navigation"
         }
       ]
     },
@@ -196,6 +213,11 @@
       {
         "command": "omni-viewer.openParquetViewer",
         "title": "Open with Parquet Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openHwpViewer",
+        "title": "Open with HWP Viewer",
         "category": "Omni Viewer"
       }
     ]
@@ -232,6 +254,7 @@
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {
+    "hwp.js": "^0.0.3",
     "hyparquet": "^1.21.0",
     "music-metadata": "^11.8.3"
   }

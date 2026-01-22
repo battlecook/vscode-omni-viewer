@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.0] - 2026-01-22
+
+### Added
+- **HWP Viewer: Korean word processor document (.hwp) support**
+  - HWP file parsing and rendering using hwp.js library
+  - Convert HWP documents to HTML for direct viewing within VS Code
+  - Zoom in/out functionality (Ctrl +/-, mouse wheel)
+  - Print functionality (Ctrl + P)
+  - Automatic dark/light theme support
+  - Added "Open with HWP Viewer" option in explorer context menu
+  - HWP files automatically open with HWP viewer (default priority)
+
 ## [0.7.1] - 2025-12-24
 
 ### Fixed

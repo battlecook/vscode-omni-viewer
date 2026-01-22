@@ -2,6 +2,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as mm from 'music-metadata';
 import { parquetReadObjects, parquetSchema, parquetMetadataAsync } from 'hyparquet';
+import { parse as parseHwp } from 'hwp.js';
 
 export class FileUtils {
     private static readonly MAX_FILE_SIZE = 50 * 1024 * 1024;
@@ -454,5 +455,129 @@ export class FileUtils {
             console.error('Error reading Parquet file:', error);
             throw error;
         }
+    }
+
+    public static async readHwpFile(filePath: string): Promise<{
+        html: string;
+        fileSize: string;
+    }> {
+        try {
+            console.log('[HWP] Reading file:', filePath);
+            const buffer = await fs.promises.readFile(filePath);
+            console.log('[HWP] File buffer size:', buffer.length);
+            
+            const fileSize = await this.getFileSize(filePath);
+            console.log('[HWP] File size:', fileSize);
+            
+            // Convert Buffer to Uint8Array for hwp.js
+            const uint8Array = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+            
+            // Parse HWP document using hwp.js
+            // type: 'buffer' tells cfb to parse the binary data directly
+            console.log('[HWP] Parsing HWP document...');
+            const hwpDocument = parseHwp(uint8Array, { type: 'buffer' });
+            console.log('[HWP] HWP document parsed:', hwpDocument ? 'success' : 'null');
+            console.log('[HWP] Sections count:', hwpDocument?.sections?.length || 0);
+            
+            // Convert to HTML
+            console.log('[HWP] Converting to HTML...');
+            const html = this.hwpToHtml(hwpDocument);
+            console.log('[HWP] HTML generated, length:', html?.length || 0);
+            
+            // Ensure html is a string
+            const safeHtml = typeof html === 'string' ? html : String(html || '');
+            
+            return {
+                html: safeHtml,
+                fileSize
+            };
+        } catch (error) {
+            console.error('[HWP] Error reading HWP file:', error);
+            throw error;
+        }
+    }
+
+    private static hwpToHtml(hwpDocument: any): string {
+        const sections: string[] = [];
+        
+        if (!hwpDocument.sections || hwpDocument.sections.length === 0) {
+            return '<p>문서 내용이 없습니다.</p>';
+        }
+
+        for (const section of hwpDocument.sections) {
+            const sectionHtml = this.sectionToHtml(section);
+            sections.push(sectionHtml);
+        }
+
+        return sections.join('<hr class="section-divider">');
+    }
+
+    private static sectionToHtml(section: any): string {
+        const paragraphs: string[] = [];
+        
+        if (!section.content || section.content.length === 0) {
+            return '';
+        }
+
+        for (const paragraph of section.content) {
+            const paragraphHtml = this.paragraphToHtml(paragraph);
+            if (paragraphHtml.trim()) {
+                paragraphs.push(paragraphHtml);
+            }
+        }
+
+        return paragraphs.join('\n');
+    }
+
+    private static paragraphToHtml(paragraph: any): string {
+        if (!paragraph.content || paragraph.content.length === 0) {
+            return '<p>&nbsp;</p>';
+        }
+
+        let text = '';
+        
+        for (const char of paragraph.content) {
+            try {
+                // CharType.Char = 0
+                if (char.type === 0) {
+                    if (typeof char.value === 'string') {
+                        text += this.escapeHtml(char.value);
+                    } else if (typeof char.value === 'number') {
+                        // Special characters
+                        if (char.value === 10 || char.value === 13) {
+                            // Line break
+                            text += '<br>';
+                        } else if (char.value === 9) {
+                            // Tab
+                            text += '&emsp;';
+                        } else if (char.value >= 32 && char.value < 65536) {
+                            text += this.escapeHtml(String.fromCharCode(char.value));
+                        }
+                    }
+                }
+            } catch (e) {
+                // Skip problematic characters
+                console.warn('Error processing char:', char, e);
+            }
+        }
+
+        if (!text.trim()) {
+            return '<p>&nbsp;</p>';
+        }
+
+        return `<p>${text}</p>`;
+    }
+
+    private static escapeHtml(input: any): string {
+        if (input === null || input === undefined) {
+            return '';
+        }
+        const str = String(input);
+        return str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
     }
 }
