@@ -6,6 +6,7 @@ import { CsvViewerProvider } from './csvViewerProvider';
 import { JsonlViewerProvider } from './jsonlViewerProvider';
 import { ParquetViewerProvider } from './parquetViewerProvider';
 import { HwpViewerProvider } from './hwpViewerProvider';
+import { PsdViewerProvider } from './psdViewerProvider';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('🚀 Omni Viewer extension is now active!');
@@ -19,6 +20,7 @@ export function activate(context: vscode.ExtensionContext) {
     const jsonlViewerProvider = new JsonlViewerProvider(context);
     const parquetViewerProvider = new ParquetViewerProvider(context);
     const hwpViewerProvider = new HwpViewerProvider(context);
+    const psdViewerProvider = new PsdViewerProvider(context);
 
     // Register commands
     const openAudioViewer = vscode.commands.registerCommand('omni-viewer.openAudioViewer', (uri: vscode.Uri) => {
@@ -74,6 +76,14 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.hwpViewer');
         } else {
             vscode.window.showErrorMessage('No HWP file selected');
+        }
+    });
+
+    const openPsdViewer = vscode.commands.registerCommand('omni-viewer.openPsdViewer', (uri: vscode.Uri) => {
+        if (uri) {
+            vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.psdViewer');
+        } else {
+            vscode.window.showErrorMessage('No PSD file selected');
         }
     });
 
@@ -143,6 +153,14 @@ export function activate(context: vscode.ExtensionContext) {
         }
     );
 
+    const psdEditorRegistration = vscode.window.registerCustomEditorProvider(
+        'omni-viewer.psdViewer',
+        psdViewerProvider,
+        {
+            webviewOptions: { retainContextWhenHidden: true },
+            supportsMultipleEditorsPerDocument: false
+        }
+    );
 
     context.subscriptions.push(
         openAudioViewer,
@@ -152,13 +170,15 @@ export function activate(context: vscode.ExtensionContext) {
         openJsonlViewer,
         openParquetViewer,
         openHwpViewer,
+        openPsdViewer,
         audioEditorRegistration,
         imageEditorRegistration,
         videoEditorRegistration,
         csvEditorRegistration,
         jsonlEditorRegistration,
         parquetEditorRegistration,
-        hwpEditorRegistration
+        hwpEditorRegistration,
+        psdEditorRegistration
     );
 }
 

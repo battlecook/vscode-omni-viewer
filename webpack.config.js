@@ -11,6 +11,7 @@ module.exports = [
       videoViewerProvider: './src/videoViewerProvider.ts',
       imageViewerProvider: './src/imageViewerProvider.ts',
       csvViewerProvider: './src/csvViewerProvider.ts',
+      psdViewerProvider: './src/psdViewerProvider.ts',
       'utils/fileUtils': './src/utils/fileUtils.ts',
       'utils/messageHandler': './src/utils/messageHandler.ts',
       'utils/templateUtils': './src/utils/templateUtils.ts'

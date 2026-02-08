@@ -2,7 +2,7 @@
   "name": "omni-viewer",
   "displayName": "omni-viewer",
   "publisher": "battlecook",
-  "description": "A VSCode extension for viewing audio, image, video, csv, parquet, jsonl and hwp files",
+  "description": "A VSCode extension for viewing audio, image, video, csv, parquet, jsonl, hwp and PSD files",
   "version": "0.8.0",
   "repository": {
     "type": "git",
@@ -25,6 +25,7 @@
     "JSON",
     "Parquet",
     "HWP",
+    "PSD",
     "한글",
     "viewers",
     "viewer"
@@ -163,6 +164,16 @@
           }
         ],
         "priority": "default"
+      },
+      {
+        "viewType": "omni-viewer.psdViewer",
+        "displayName": "PSD Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.psd"
+          }
+        ],
+        "priority": "default"
       }
     ],
     "menus": {
@@ -191,6 +202,11 @@
           "command": "omni-viewer.openHwpViewer",
           "when": "resourceExtname == '.hwp'",
           "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openPsdViewer",
+          "when": "resourceExtname == '.psd'",
+          "group": "navigation"
         }
       ]
     },
@@ -218,6 +234,11 @@
       {
         "command": "omni-viewer.openHwpViewer",
         "title": "Open with HWP Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openPsdViewer",
+        "title": "Open with PSD Viewer",
         "category": "Omni Viewer"
       }
     ]
@@ -254,6 +275,7 @@
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {
+    "ag-psd": "^30.1.0",
     "hwp.js": "^0.0.3",
     "hyparquet": "^1.21.0",
     "music-metadata": "^11.8.3"

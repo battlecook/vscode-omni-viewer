@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PSD Viewer - {{fileName}}</title>
+    <link rel="stylesheet" href="css/psdViewer.css">
+</head>
+<body>
+    <script>
+        window.PSD_FILE_NAME = "{{fileName}}";
+        window.PSD_FILE_SIZE = "{{fileSize}}";
+        window.PSD_BASE64 = "{{psdBase64}}";
+    </script>
+    <div class="container">
+        <div class="header">
+            <div class="title">🖼️ {{fileName}}</div>
+            <div class="file-info">
+                <span id="fileSize">{{fileSize}}</span>
+                <span id="dimensions" class="dimensions"></span>
+            </div>
+        </div>
+
+        <div class="main">
+            <aside class="layer-panel">
+                <div class="layer-panel-header">Layers</div>
+                <div id="layerList" class="layer-list"></div>
+            </aside>
+
+            <div class="canvas-area">
+                <div id="loading" class="loading">Loading PSD...</div>
+                <div id="error" class="error" style="display: none;"></div>
+                <div id="canvasWrapper" class="canvas-wrapper" style="display: none;">
+                    <canvas id="mainCanvas"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Layer view modal -->
+    <div id="layerModal" class="modal-overlay" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <span id="layerModalTitle" class="modal-title">Layer</span>
+                <button id="layerModalClose" class="modal-close" title="Close">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-canvas-wrap">
+                    <canvas id="layerModalCanvas"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{agPsdScriptUri}}"></script>
+    <script src="js/psdViewer.js"></script>
+</body>
+</html>
