@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.9.1] - 2026-02-08
+
+### Fixed
+- **PSD Viewer: ag-psd not loading when installed from marketplace**
+  - Added `!node_modules/ag-psd/**` to `.vscodeignore` so the ag-psd package is included in the published extension; PSD viewer now works after installing from VSCode Marketplace or Open VSX
+
 ## [0.9.0] - 2026-02-08
 
 ### Added
