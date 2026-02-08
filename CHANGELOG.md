@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.9.0] - 2026-02-08
+
+### Added
+- **PSD Viewer: Adobe Photoshop (.psd) support**
+  - Layer panel with tree view of layers and groups (folders)
+  - Per-layer visibility toggle (eye button)
+  - View button to open a single layer in a modal
+  - Checkerboard background for transparency
+  - File info: name, size, document dimensions
+  - Powered by ag-psd for PSD parsing
+
+### Fixed
+- **PSD Viewer: Layer visibility**
+  - Fixed eye button toggling the wrong layer (closure fix with IIFE)
+  - When any layer is hidden, only leaf layers are drawn (group merged canvases skipped) so that hiding one layer does not hide the whole folder
+
 ## [0.8.0] - 2026-01-22
 
 ### Added

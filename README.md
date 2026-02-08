@@ -1,6 +1,6 @@
 # VSCode Omni Viewer
 
-A comprehensive audio, image, video, CSV, Parquet and JSONL viewer extension for VSCode and Cursor.
+A comprehensive audio, image, PSD, video, CSV, Parquet and JSONL viewer extension for VSCode and Cursor.
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-red)](https://github.com/sponsors/battlecook)
 
@@ -37,6 +37,20 @@ A comprehensive audio, image, video, CSV, Parquet and JSONL viewer extension for
 
 ### Supported Image Formats
 - JPG, JPEG, PNG, GIF, BMP, WebP, SVG
+
+## 🖼️ PSD Viewer Features
+
+### Adobe Photoshop (PSD) Viewer
+- **Layer Panel**: Tree view of layers and groups (folders) with indent by depth
+- **Per-Layer Visibility**: Eye button to show/hide each layer independently
+- **View Button**: Open a single layer in a modal for closer inspection
+- **Composite vs Layer-by-Layer**: When all layers are visible, the full composite is shown; when any layer is hidden, the canvas is redrawn from visible layers only (leaf layers; group merged canvases are skipped to keep visibility correct)
+- **Transparency**: Checkerboard background for transparent areas
+- **File Information**: File name, file size, and document dimensions (width × height px)
+- **Powered by**: [ag-psd](https://github.com/Agamnentzar/ag-psd) for PSD parsing and canvas output
+
+### Supported PSD Formats
+- PSD (Adobe Photoshop Document)
 
 ## 🎬 Video Viewer Features
 
@@ -103,6 +117,22 @@ A comprehensive audio, image, video, CSV, Parquet and JSONL viewer extension for
 - **File Information**: Row count, column count, and file size display
 - **Responsive Design**: Works on different screen sizes
 
+### Supported Parquet Formats
+- Parquet
+
+## 🖼️ PSD Viewer Features
+
+### Adobe Photoshop (PSD) Viewer
+- **Layer Panel**: Tree view of layers and groups (folders) with indent by depth
+- **Per-Layer Visibility**: Eye button to show/hide each layer independently
+- **View Button**: Open a single layer in a modal for closer inspection
+- **Composite vs Layer-by-Layer**: When all layers are visible, the full composite is shown; when any layer is hidden, the canvas is redrawn from visible leaf layers only
+- **Transparency**: Checkerboard background for transparent areas
+- **File Information**: File name, file size, and document dimensions (width × height px)
+- **Powered by**: [ag-psd](https://github.com/Agamnentzar/ag-psd) for PSD parsing and canvas output
+
+### Supported PSD Formats
+- PSD (Adobe Photoshop Document)
 
 ## 🚀 Installation and Usage
 

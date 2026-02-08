@@ -62,11 +62,15 @@
         if (state.psd.canvas && allLayersVisible()) {
             ctx.drawImage(state.psd.canvas, 0, 0);
         } else {
+            // Draw only leaf layers (skip groups/folders). Group canvases are merged
+            // images of their children; drawing them would show hidden children or
+            // make the whole folder disappear when toggling one child.
             for (var i = state.flatLayers.length - 1; i >= 0; i--) {
                 if (!state.visibility[i]) continue;
                 var item = state.flatLayers[i];
                 var layer = item.layer;
                 if (!layer.canvas) continue;
+                if (layer.children && layer.children.length > 0) continue; /* skip group */
                 ctx.drawImage(layer.canvas, layer.left || 0, layer.top || 0);
             }
         }
@@ -93,15 +97,16 @@
             eyeBtn.className = 'layer-eye' + (state.visibility[idx] ? '' : ' hidden');
             eyeBtn.setAttribute('aria-label', state.visibility[idx] ? 'Hide' : 'Show');
             eyeBtn.textContent = state.visibility[idx] ? '👁' : '👁‍🗨';
-            eyeBtn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                var k = parseInt(this.getAttribute('data-idx'), 10);
-                state.visibility[k] = !state.visibility[k];
-                this.textContent = state.visibility[k] ? '👁' : '👁‍🗨';
-                this.classList.toggle('hidden', !state.visibility[k]);
-                renderMainCanvas();
-            });
             eyeBtn.setAttribute('data-idx', String(idx));
+            (function (layerIndex) {
+                eyeBtn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    state.visibility[layerIndex] = !state.visibility[layerIndex];
+                    this.textContent = state.visibility[layerIndex] ? '👁' : '👁‍🗨';
+                    this.classList.toggle('hidden', !state.visibility[layerIndex]);
+                    renderMainCanvas();
+                });
+            })(idx);
 
             var spacer = document.createElement('span');
             spacer.className = 'layer-spacer';
@@ -118,11 +123,13 @@
             viewBtn.className = 'layer-view-btn';
             viewBtn.textContent = 'View';
             viewBtn.style.display = hasCanvas ? '' : 'none';
-            viewBtn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                openLayerModal(parseInt(this.getAttribute('data-idx'), 10));
-            });
             viewBtn.setAttribute('data-idx', String(idx));
+            (function (layerIndex) {
+                viewBtn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    openLayerModal(layerIndex);
+                });
+            })(idx);
 
             if (hasCanvas) {
                 row.appendChild(eyeBtn);
