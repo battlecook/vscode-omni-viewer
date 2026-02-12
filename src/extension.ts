@@ -8,6 +8,7 @@ import { ParquetViewerProvider } from './parquetViewerProvider';
 import { HwpViewerProvider } from './hwpViewerProvider';
 import { PsdViewerProvider } from './psdViewerProvider';
 import { ExcelViewerProvider } from './excelViewerProvider';
+import { WordViewerProvider } from './wordViewerProvider';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('🚀 Omni Viewer extension is now active!');
@@ -23,6 +24,7 @@ export function activate(context: vscode.ExtensionContext) {
     const hwpViewerProvider = new HwpViewerProvider(context);
     const psdViewerProvider = new PsdViewerProvider(context);
     const excelViewerProvider = new ExcelViewerProvider(context);
+    const wordViewerProvider = new WordViewerProvider(context);
 
     // Register commands
     const openAudioViewer = vscode.commands.registerCommand('omni-viewer.openAudioViewer', (uri: vscode.Uri) => {
@@ -94,6 +96,14 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.excelViewer');
         } else {
             vscode.window.showErrorMessage('No Excel file selected');
+        }
+    });
+
+    const openWordViewer = vscode.commands.registerCommand('omni-viewer.openWordViewer', (uri: vscode.Uri) => {
+        if (uri) {
+            vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.wordViewer');
+        } else {
+            vscode.window.showErrorMessage('No Word file selected');
         }
     });
 
@@ -181,6 +191,15 @@ export function activate(context: vscode.ExtensionContext) {
         }
     );
 
+    const wordEditorRegistration = vscode.window.registerCustomEditorProvider(
+        'omni-viewer.wordViewer',
+        wordViewerProvider,
+        {
+            webviewOptions: { retainContextWhenHidden: true },
+            supportsMultipleEditorsPerDocument: false
+        }
+    );
+
     context.subscriptions.push(
         openAudioViewer,
         openImageViewer,
@@ -191,6 +210,7 @@ export function activate(context: vscode.ExtensionContext) {
         openHwpViewer,
         openPsdViewer,
         openExcelViewer,
+        openWordViewer,
         audioEditorRegistration,
         imageEditorRegistration,
         videoEditorRegistration,
@@ -199,7 +219,8 @@ export function activate(context: vscode.ExtensionContext) {
         parquetEditorRegistration,
         hwpEditorRegistration,
         psdEditorRegistration,
-        excelEditorRegistration
+        excelEditorRegistration,
+        wordEditorRegistration
     );
 }
 

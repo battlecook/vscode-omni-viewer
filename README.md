@@ -1,6 +1,6 @@
 # VSCode Omni Viewer
 
-A comprehensive audio, image, PSD, video, CSV, Excel, Parquet and JSONL viewer extension for VSCode and Cursor.
+A comprehensive audio, image, PSD, video, CSV, Excel, Word, Parquet and JSONL viewer extension for VSCode and Cursor.
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-red)](https://github.com/sponsors/battlecook)
 
@@ -103,6 +103,18 @@ A comprehensive audio, image, PSD, video, CSV, Excel, Parquet and JSONL viewer e
 ### Supported Excel Formats
 - XLSX (Excel Workbook)
 - XLS (Excel 97-2003)
+
+## 📄 Word Viewer Features
+
+### Microsoft Word (DOCX) Viewer
+- **Document View**: Renders .docx content as HTML (headings, paragraphs, lists, tables, images)
+- **Zoom Controls**: Zoom in/out and reset (Ctrl+/-, Ctrl+0)
+- **Print**: Print document (Ctrl+P)
+- **File Information**: File name and file size
+- **Powered by**: [mammoth](https://github.com/mwilliamson/mammoth.js) for DOCX to HTML conversion
+
+### Supported Word Formats
+- DOCX (Microsoft Word Document)
 
 ## 📄 JSONL Viewer Features
 

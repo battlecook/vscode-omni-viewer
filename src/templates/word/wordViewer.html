@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Viewer - {{fileName}}</title>
+    <link rel="stylesheet" href="css/wordViewer.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="title">📄 {{fileName}}</div>
+            <div class="file-info" id="fileInfo">
+                <span id="fileSize">{{fileSize}}</span>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="view-controls">
+                <button id="zoomOut" class="btn">➖ Zoom out</button>
+                <span id="zoomLevel" class="zoom-level">100%</span>
+                <button id="zoomIn" class="btn">➕ Zoom in</button>
+                <button id="zoomReset" class="btn">🔄 Reset</button>
+                <button id="printBtn" class="btn">🖨️ Print</button>
+            </div>
+        </div>
+
+        <div class="document-container" id="documentContainer">
+            <div id="loading" class="loading">
+                <div>Loading Word file...</div>
+            </div>
+            
+            <div id="error" class="error" style="display: none;"></div>
+            
+            <div id="wordContent" class="word-content">
+                {{wordContent}}
+            </div>
+        </div>
+    </div>
+
+    <script src="js/wordViewer.js"></script>
+</body>
+</html>

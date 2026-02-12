@@ -2,7 +2,7 @@
   "name": "omni-viewer",
   "displayName": "omni-viewer",
   "publisher": "battlecook",
-  "description": "A VSCode extension for viewing audio, image, video, csv, excel, parquet, jsonl, hwp and PSD files",
+  "description": "A VSCode extension for viewing audio, image, video, csv, excel, word, parquet, jsonl, hwp and PSD files",
   "version": "0.10.0",
   "repository": {
     "type": "git",
@@ -24,6 +24,8 @@
     "Excel",
     "xlsx",
     "xls",
+    "Word",
+    "docx",
     "JSONL",
     "JSON",
     "Parquet",
@@ -190,6 +192,16 @@
           }
         ],
         "priority": "default"
+      },
+      {
+        "viewType": "omni-viewer.wordViewer",
+        "displayName": "Word Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.docx"
+          }
+        ],
+        "priority": "default"
       }
     ],
     "menus": {
@@ -228,6 +240,11 @@
           "command": "omni-viewer.openExcelViewer",
           "when": "resourceExtname == '.xlsx' || resourceExtname == '.xls'",
           "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openWordViewer",
+          "when": "resourceExtname == '.docx'",
+          "group": "navigation"
         }
       ]
     },
@@ -265,6 +282,11 @@
       {
         "command": "omni-viewer.openExcelViewer",
         "title": "Open with Excel Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openWordViewer",
+        "title": "Open with Word Viewer",
         "category": "Omni Viewer"
       }
     ]
@@ -305,6 +327,7 @@
     "hwp.js": "^0.0.3",
     "hyparquet": "^1.21.0",
     "music-metadata": "^11.8.3",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "mammoth": "^1.6.0"
   }
 }

@@ -550,6 +550,33 @@ export class FileUtils {
         }
     }
 
+    public static async readWordFile(filePath: string): Promise<{
+        html: string;
+        fileSize: string;
+    }> {
+        try {
+            const stats = await fs.promises.stat(filePath);
+            const fileSizeBytes = stats.size;
+            const MAX_WORD_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+            if (fileSizeBytes > MAX_WORD_FILE_SIZE) {
+                throw new Error(
+                    `File too large (${(fileSizeBytes / 1024 / 1024).toFixed(1)}MB). Maximum size is ${MAX_WORD_FILE_SIZE / 1024 / 1024}MB.`
+                );
+            }
+            const buffer = await fs.promises.readFile(filePath);
+            const mammoth = require('mammoth');
+            const result = await mammoth.convertToHtml({ buffer });
+            const fileSize = await this.getFileSize(filePath);
+            return {
+                html: result.value || '',
+                fileSize
+            };
+        } catch (error) {
+            console.error('Error reading Word file:', error);
+            throw error;
+        }
+    }
+
     public static async readHwpFile(filePath: string): Promise<{
         html: string;
         fileSize: string;
