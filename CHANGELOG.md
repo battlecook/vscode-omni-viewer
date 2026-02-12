@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.10.0] - 2026-02-12
+
+### Added
+- **Excel Viewer: Excel (.xlsx, .xls) support**
+  - Multi-sheet support with sheet selector dropdown
+  - Table view with search and filter across all columns
+  - Pagination for large datasets
+  - Copy to clipboard (tab-separated) and Copy as JSON
+  - Toggle between table view and raw JSON view
+  - File info: sheet name, row count, column count, file size
+  - Keyboard shortcuts: Ctrl+F (search), Ctrl+C (copy)
+  - Powered by SheetJS (xlsx) for Excel parsing
+  - XLSX and XLS files open with Excel Viewer by default (default priority)
+
+
 ## [0.9.1] - 2026-02-08
 
 ### Fixed

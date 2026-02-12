@@ -7,6 +7,7 @@ import { JsonlViewerProvider } from './jsonlViewerProvider';
 import { ParquetViewerProvider } from './parquetViewerProvider';
 import { HwpViewerProvider } from './hwpViewerProvider';
 import { PsdViewerProvider } from './psdViewerProvider';
+import { ExcelViewerProvider } from './excelViewerProvider';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('🚀 Omni Viewer extension is now active!');
@@ -21,6 +22,7 @@ export function activate(context: vscode.ExtensionContext) {
     const parquetViewerProvider = new ParquetViewerProvider(context);
     const hwpViewerProvider = new HwpViewerProvider(context);
     const psdViewerProvider = new PsdViewerProvider(context);
+    const excelViewerProvider = new ExcelViewerProvider(context);
 
     // Register commands
     const openAudioViewer = vscode.commands.registerCommand('omni-viewer.openAudioViewer', (uri: vscode.Uri) => {
@@ -84,6 +86,14 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.psdViewer');
         } else {
             vscode.window.showErrorMessage('No PSD file selected');
+        }
+    });
+
+    const openExcelViewer = vscode.commands.registerCommand('omni-viewer.openExcelViewer', (uri: vscode.Uri) => {
+        if (uri) {
+            vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.excelViewer');
+        } else {
+            vscode.window.showErrorMessage('No Excel file selected');
         }
     });
 
@@ -162,6 +172,15 @@ export function activate(context: vscode.ExtensionContext) {
         }
     );
 
+    const excelEditorRegistration = vscode.window.registerCustomEditorProvider(
+        'omni-viewer.excelViewer',
+        excelViewerProvider,
+        {
+            webviewOptions: { retainContextWhenHidden: true },
+            supportsMultipleEditorsPerDocument: false
+        }
+    );
+
     context.subscriptions.push(
         openAudioViewer,
         openImageViewer,
@@ -171,6 +190,7 @@ export function activate(context: vscode.ExtensionContext) {
         openParquetViewer,
         openHwpViewer,
         openPsdViewer,
+        openExcelViewer,
         audioEditorRegistration,
         imageEditorRegistration,
         videoEditorRegistration,
@@ -178,7 +198,8 @@ export function activate(context: vscode.ExtensionContext) {
         jsonlEditorRegistration,
         parquetEditorRegistration,
         hwpEditorRegistration,
-        psdEditorRegistration
+        psdEditorRegistration,
+        excelEditorRegistration
     );
 }
 

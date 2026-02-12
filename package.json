@@ -2,8 +2,8 @@
   "name": "omni-viewer",
   "displayName": "omni-viewer",
   "publisher": "battlecook",
-  "description": "A VSCode extension for viewing audio, image, video, csv, parquet, jsonl, hwp and PSD files",
-  "version": "0.9.1",
+  "description": "A VSCode extension for viewing audio, image, video, csv, excel, parquet, jsonl, hwp and PSD files",
+  "version": "0.10.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
@@ -21,6 +21,9 @@
     "video",
     "image",
     "CSV",
+    "Excel",
+    "xlsx",
+    "xls",
     "JSONL",
     "JSON",
     "Parquet",
@@ -174,6 +177,19 @@
           }
         ],
         "priority": "default"
+      },
+      {
+        "viewType": "omni-viewer.excelViewer",
+        "displayName": "Excel Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.xlsx"
+          },
+          {
+            "filenamePattern": "*.xls"
+          }
+        ],
+        "priority": "default"
       }
     ],
     "menus": {
@@ -207,6 +223,11 @@
           "command": "omni-viewer.openPsdViewer",
           "when": "resourceExtname == '.psd'",
           "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openExcelViewer",
+          "when": "resourceExtname == '.xlsx' || resourceExtname == '.xls'",
+          "group": "navigation"
         }
       ]
     },
@@ -239,6 +260,11 @@
       {
         "command": "omni-viewer.openPsdViewer",
         "title": "Open with PSD Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openExcelViewer",
+        "title": "Open with Excel Viewer",
         "category": "Omni Viewer"
       }
     ]
@@ -278,6 +304,7 @@
     "ag-psd": "^30.1.0",
     "hwp.js": "^0.0.3",
     "hyparquet": "^1.21.0",
-    "music-metadata": "^11.8.3"
+    "music-metadata": "^11.8.3",
+    "xlsx": "^0.18.5"
   }
 }

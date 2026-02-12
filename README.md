@@ -1,6 +1,6 @@
 # VSCode Omni Viewer
 
-A comprehensive audio, image, PSD, video, CSV, Parquet and JSONL viewer extension for VSCode and Cursor.
+A comprehensive audio, image, PSD, video, CSV, Excel, Parquet and JSONL viewer extension for VSCode and Cursor.
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-red)](https://github.com/sponsors/battlecook)
 
@@ -87,6 +87,23 @@ A comprehensive audio, image, PSD, video, CSV, Parquet and JSONL viewer extensio
 - CSV (Comma-Separated Values)
 - TSV (Tab-Separated Values)
 
+## 📊 Excel Viewer Features
+
+### Advanced Excel Viewer
+- **Multi-Sheet Support**: Switch between sheets via dropdown
+- **Table Display**: Clean table view of sheet data
+- **Search & Filter**: Real-time search across all columns
+- **Pagination**: Handle large datasets with page navigation
+- **Copy to Clipboard**: Copy filtered data (tab-separated)
+- **Copy as JSON**: Export current sheet data as JSON
+- **Raw View**: Toggle between table and raw JSON view
+- **File Information**: Sheet name, row count, column count, file size
+- **Keyboard Shortcuts**: Ctrl+F search, Ctrl+C copy
+
+### Supported Excel Formats
+- XLSX (Excel Workbook)
+- XLS (Excel 97-2003)
+
 ## 📄 JSONL Viewer Features
 
 ![JSONL Viewer Screenshot](https://eyedealisty-website.web.app/img/omniviewer/jsonl-screenshot.jpg)
@@ -119,20 +136,6 @@ A comprehensive audio, image, PSD, video, CSV, Parquet and JSONL viewer extensio
 
 ### Supported Parquet Formats
 - Parquet
-
-## 🖼️ PSD Viewer Features
-
-### Adobe Photoshop (PSD) Viewer
-- **Layer Panel**: Tree view of layers and groups (folders) with indent by depth
-- **Per-Layer Visibility**: Eye button to show/hide each layer independently
-- **View Button**: Open a single layer in a modal for closer inspection
-- **Composite vs Layer-by-Layer**: When all layers are visible, the full composite is shown; when any layer is hidden, the canvas is redrawn from visible leaf layers only
-- **Transparency**: Checkerboard background for transparent areas
-- **File Information**: File name, file size, and document dimensions (width × height px)
-- **Powered by**: [ag-psd](https://github.com/Agamnentzar/ag-psd) for PSD parsing and canvas output
-
-### Supported PSD Formats
-- PSD (Adobe Photoshop Document)
 
 ## 🚀 Installation and Usage
 

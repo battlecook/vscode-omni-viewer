@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as mm from 'music-metadata';
 import { parquetReadObjects, parquetSchema, parquetMetadataAsync } from 'hyparquet';
 import { parse as parseHwp } from 'hwp.js';
+import * as XLSX from 'xlsx';
 
 export class FileUtils {
     private static readonly MAX_FILE_SIZE = 50 * 1024 * 1024;
@@ -453,6 +454,98 @@ export class FileUtils {
             };
         } catch (error) {
             console.error('Error reading Parquet file:', error);
+            throw error;
+        }
+    }
+
+    public static async readExcelFile(filePath: string): Promise<{
+        sheetNames: string[];
+        sheets: Array<{
+            name: string;
+            headers: string[];
+            rows: any[][];
+            totalRows: number;
+            totalColumns: number;
+        }>;
+        fileSize: string;
+    }> {
+        try {
+            const stats = await fs.promises.stat(filePath);
+            const fileSizeBytes = stats.size;
+            const MAX_EXCEL_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+            if (fileSizeBytes > MAX_EXCEL_FILE_SIZE) {
+                throw new Error(
+                    `File too large (${(fileSizeBytes / 1024 / 1024).toFixed(1)}MB). Maximum size is ${MAX_EXCEL_FILE_SIZE / 1024 / 1024}MB.`
+                );
+            }
+
+            const buffer = await fs.promises.readFile(filePath);
+            const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+            const sheetNames = workbook.SheetNames || [];
+            const sheets: Array<{
+                name: string;
+                headers: string[];
+                rows: any[][];
+                totalRows: number;
+                totalColumns: number;
+            }> = [];
+
+            for (const name of sheetNames) {
+                const worksheet = workbook.Sheets[name];
+                if (!worksheet) continue;
+                const rawRows: any[][] = XLSX.utils.sheet_to_json(worksheet, {
+                    header: 1,
+                    defval: '',
+                    raw: false
+                });
+                if (!rawRows || rawRows.length === 0) {
+                    sheets.push({
+                        name,
+                        headers: [],
+                        rows: [],
+                        totalRows: 0,
+                        totalColumns: 0
+                    });
+                    continue;
+                }
+                const headers = (rawRows[0] || []).map((c: any) =>
+                    c === null || c === undefined ? '' : String(c)
+                );
+                const dataRows = rawRows.slice(1).map((row: any[]) =>
+                    (Array.isArray(row) ? row : []).map((cell: any) => {
+                        if (cell === null || cell === undefined) return '';
+                        if (typeof cell === 'object' && cell instanceof Date) return cell.toISOString();
+                        return cell;
+                    })
+                );
+                const maxCols = Math.max(
+                    headers.length,
+                    ...dataRows.map((r: any[]) => r.length)
+                );
+                const normalizedHeaders =
+                    maxCols > headers.length
+                        ? [...headers, ...Array(maxCols - headers.length).fill('')]
+                        : headers;
+                const normalizedRows = dataRows.map((r: any[]) =>
+                    r.length < maxCols ? [...r, ...Array(maxCols - r.length).fill('')] : r
+                );
+                sheets.push({
+                    name,
+                    headers: normalizedHeaders,
+                    rows: normalizedRows,
+                    totalRows: normalizedRows.length,
+                    totalColumns: normalizedHeaders.length
+                });
+            }
+
+            const fileSize = await this.getFileSize(filePath);
+            return {
+                sheetNames,
+                sheets,
+                fileSize
+            };
+        } catch (error) {
+            console.error('Error reading Excel file:', error);
             throw error;
         }
     }
