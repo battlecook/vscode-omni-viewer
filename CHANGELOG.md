@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.11.0] - 2026-02-13
+
+### Added
+- **Word Viewer: Microsoft Word (.docx) support**
+  - Renders DOCX as HTML (headings, paragraphs, lists, tables, images)
+  - Zoom in/out and reset (Ctrl+/-, Ctrl+0)
+  - Print (Ctrl+P)
+  - File info: name, size
+  - Powered by mammoth for DOCX to HTML conversion
+  - DOCX files open with Word Viewer by default (default priority)
+
 ## [0.10.0] - 2026-02-12
 
 ### Added
