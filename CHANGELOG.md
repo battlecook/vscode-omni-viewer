@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0] - 2026-02-14
+### Added
+- **PDF Viewer: PDF (.pdf) support**
+  - Renders PDF as HTML (headings, paragraphs, lists, tables, images)
+  - File info: name, size
+  - Powered by pdf-lib for PDF parsing
+
 ## [0.11.0] - 2026-02-13
 
 ### Added

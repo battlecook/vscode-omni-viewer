@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Viewer - {{fileName}}</title>
+    <link rel="stylesheet" href="css/pdfViewer.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="title">📄 {{fileName}}</div>
+            <div class="toolbar">
+                <button type="button" id="btnView" class="tool-btn active" title="View / move annotations">👁 View</button>
+                <button type="button" id="btnText" class="tool-btn" title="Add text">📝 Text</button>
+                <button type="button" id="btnSignature" class="tool-btn" title="Add signature">✍ Signature</button>
+                <button type="button" id="btnSave" class="tool-btn save-btn" title="Save">💾 Save</button>
+                <span class="page-info" id="pageInfo">1 / 1</span>
+            </div>
+        </div>
+
+        <div class="zoom-controls">
+            <button type="button" id="zoomOut" class="icon-btn">−</button>
+            <span id="zoomLevel">100%</span>
+            <button type="button" id="zoomIn" class="icon-btn">+</button>
+        </div>
+
+        <div id="loading" class="loading">Loading PDF...</div>
+        <div id="error" class="error" style="display: none;"></div>
+
+        <div id="pdfBody" class="pdf-body" style="display: none;">
+            <div id="thumbnailSidebar" class="thumbnail-sidebar">
+                <div id="thumbnailList" class="thumbnail-list"></div>
+            </div>
+            <div id="pdfContainer" class="pdf-container">
+                <div id="pagesContainer" class="pages-container"></div>
+                <div id="overlayLayer" class="overlay-layer"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="textModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <label>Enter text:</label>
+            <input type="text" id="textInput" placeholder="Type and press Enter" maxlength="200">
+            <div class="modal-actions">
+                <button type="button" id="textConfirm" class="btn primary">OK</button>
+                <button type="button" id="textCancel" class="btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script id="pdf-data" type="application/json">{"base64":"{{pdfBase64}}","fileName":"{{fileName}}"}</script>
+    <script src="js/pdfViewer.js"></script>
+</body>
+</html>

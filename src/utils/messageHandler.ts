@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
 export interface WebviewMessage {
     command: string;
@@ -63,6 +64,9 @@ export class MessageHandler {
                 break;
             case 'downloadFile':
                 await this.handleDownloadFile(message, documentUri);
+                break;
+            case 'savePdf':
+                await this.handleSavePdf(message, documentUri);
                 break;
 
             default:
@@ -548,6 +552,55 @@ export class MessageHandler {
         } catch (error) {
             console.error('Error handling download request:', error);
             vscode.window.showErrorMessage(`Download failed: ${error}`);
+        }
+    }
+
+    private static async handleSavePdf(message: WebviewMessage, documentUri?: vscode.Uri): Promise<void> {
+        try {
+            if (!documentUri || !message.data) {
+                throw new Error('No document or annotation data');
+            }
+
+            const pdfBytes = await vscode.workspace.fs.readFile(documentUri);
+            const pdfDoc = await PDFDocument.load(pdfBytes);
+            const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
+            const pages = pdfDoc.getPages();
+
+            const texts: Array<{ pageIndex: number; x: number; y: number; text: string; fontSize?: number }> = message.data.texts || [];
+            const signatures: Array<{ pageIndex: number; imageBase64: string; x: number; y: number; width: number; height: number }> = message.data.signatures || [];
+
+            for (const t of texts) {
+                if (t.pageIndex < 0 || t.pageIndex >= pages.length) continue;
+                const page = pages[t.pageIndex];
+                page.drawText(t.text, {
+                    x: t.x,
+                    y: t.y,
+                    size: t.fontSize || 12,
+                    font: helvetica,
+                    color: rgb(0, 0, 0)
+                });
+            }
+
+            for (const sig of signatures) {
+                if (sig.pageIndex < 0 || sig.pageIndex >= pages.length) continue;
+                const page = pages[sig.pageIndex];
+                const imgBytes = Buffer.from(sig.imageBase64, 'base64');
+                const pngImage = await pdfDoc.embedPng(imgBytes);
+                page.drawImage(pngImage, {
+                    x: sig.x,
+                    y: sig.y,
+                    width: sig.width,
+                    height: sig.height
+                });
+            }
+
+            const savedBytes = await pdfDoc.save();
+            await vscode.workspace.fs.writeFile(documentUri, new Uint8Array(savedBytes));
+            vscode.window.showInformationMessage('PDF saved successfully.');
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+            vscode.window.showErrorMessage(`Failed to save PDF: ${errorMessage}`);
+            console.error('Error saving PDF:', error);
         }
     }
 
