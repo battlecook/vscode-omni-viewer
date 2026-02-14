@@ -293,13 +293,29 @@ body {
     background: var(--vscode-button-hoverBackground);
 }
 
-.signature-canvas-wrap {
-    position: absolute;
+/* Signature modal – same layer as text modal, flat panel */
+.signature-modal-content {
+    border: 2px solid #333;
+    background: #fff;
+}
+
+.signature-modal-label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 12px;
+}
+
+.signature-canvas-modal {
+    width: 320px;
+    height: 140px;
+    margin-bottom: 12px;
     border: 2px solid #333;
     background: #fff;
     cursor: crosshair;
 }
 
-.signature-canvas-wrap canvas {
+.signature-canvas-modal .signature-canvas-el {
     display: block;
+    width: 100%;
+    height: 100%;
 }

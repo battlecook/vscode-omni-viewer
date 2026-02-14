@@ -51,6 +51,17 @@
         </div>
     </div>
 
+    <div id="signatureModal" class="modal signature-modal" style="display: none;">
+        <div class="modal-content signature-modal-content">
+            <label class="signature-modal-label">Draw your signature</label>
+            <div id="signatureCanvasWrap" class="signature-canvas-modal"></div>
+            <div class="modal-actions">
+                <button type="button" id="signatureConfirm" class="btn primary">Add Signature</button>
+                <button type="button" id="signatureCancel" class="btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <script id="pdf-data" type="application/json">{"base64":"{{pdfBase64}}","fileName":"{{fileName}}"}</script>
     <script src="js/pdfViewer.js"></script>
 </body>

@@ -25,6 +25,10 @@
     const textInput = document.getElementById('textInput');
     const textConfirm = document.getElementById('textConfirm');
     const textCancel = document.getElementById('textCancel');
+    const signatureModal = document.getElementById('signatureModal');
+    const signatureCanvasWrap = document.getElementById('signatureCanvasWrap');
+    const signatureConfirm = document.getElementById('signatureConfirm');
+    const signatureCancelBtn = document.getElementById('signatureCancel');
 
     let pdfDoc = null;
     let scale = 1;
@@ -36,6 +40,7 @@
     let pageData = []; // { pdfWidth, pdfHeight, viewWidth, viewHeight, wrapper }
     let annotations = { texts: [], signatures: [] };
     let pendingTextPosition = null;
+    let pendingSignaturePosition = null;
     let signaturePad = null;
     let signatureCanvas = null;
     let isDraggingAnnotation = false;
@@ -202,21 +207,16 @@
     }
 
     function startSignaturePad(pageIndex, viewX, viewY) {
-        if (signaturePad) return;
-        const w = 280;
-        const h = 120;
-        const wrap = document.createElement('div');
-        wrap.className = 'signature-canvas-wrap';
-        wrap.style.left = viewX + 'px';
-        wrap.style.top = viewY + 'px';
-        wrap.style.width = w + 'px';
-        wrap.style.height = h + 'px';
+        if (!signatureModal || !signatureCanvasWrap) return;
+        pendingSignaturePosition = { pageIndex, viewX, viewY };
+        signatureCanvasWrap.innerHTML = '';
+        const w = 320;
+        const h = 140;
         const canvas = document.createElement('canvas');
         canvas.width = w;
         canvas.height = h;
-        canvas.style.width = w + 'px';
-        canvas.style.height = h + 'px';
-        wrap.appendChild(canvas);
+        canvas.className = 'signature-canvas-el';
+        signatureCanvasWrap.appendChild(canvas);
         const ctx = canvas.getContext('2d');
         ctx.fillStyle = '#fff';
         ctx.fillRect(0, 0, w, h);
@@ -249,46 +249,17 @@
         canvas.addEventListener('mouseup', function () { drawing = false; });
         canvas.addEventListener('mouseleave', function () { drawing = false; });
 
-        const btnWrap = document.createElement('div');
-        btnWrap.style.marginTop = '4px';
-        btnWrap.style.textAlign = 'center';
-        const btnOk = document.createElement('button');
-        btnOk.className = 'btn primary';
-        btnOk.textContent = 'Add Signature';
-        btnOk.addEventListener('click', function () {
-            const dataUrl = canvas.toDataURL('image/png');
-            const base64 = dataUrl.replace(/^data:image\/png;base64,/, '');
-            const p = pageData[pageIndex];
-            const rect = wrap.getBoundingClientRect();
-            const pageRect = p.wrapper.getBoundingClientRect();
-            const viewX = rect.left - pageRect.left;
-            const viewY = rect.top - pageRect.top;
-            addSignatureAnnotation(pageIndex, base64, viewX, viewY, w, h);
-            wrap.remove();
-            signaturePad = null;
-            signatureCanvas = null;
-            setMode('view');
-        });
-        const btnCancel = document.createElement('button');
-        btnCancel.className = 'btn';
-        btnCancel.textContent = 'Cancel';
-        btnCancel.addEventListener('click', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            signatureCanceledAt = Date.now();
-            wrap.remove();
-            signaturePad = null;
-            signatureCanvas = null;
-        });
-        btnWrap.appendChild(btnOk);
-        btnWrap.appendChild(btnCancel);
-        wrap.appendChild(btnWrap);
+        signaturePad = signatureModal;
+        signatureCanvas = canvas;
+        signatureModal.style.display = 'flex';
+    }
 
-        if (pageIndex >= 0 && pageIndex < pageData.length) {
-            pageData[pageIndex].wrapper.appendChild(wrap);
-            signaturePad = wrap;
-            signatureCanvas = canvas;
-        }
+    function hideSignatureModal() {
+        if (signatureModal) signatureModal.style.display = 'none';
+        if (signatureCanvasWrap) signatureCanvasWrap.innerHTML = '';
+        signaturePad = null;
+        signatureCanvas = null;
+        pendingSignaturePosition = null;
     }
 
     function onPageClick(pageIndex, viewX, viewY, e) {
@@ -468,6 +439,30 @@
     textInput.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') textConfirm.click();
         if (e.key === 'Escape') hideTextModal();
+    });
+
+    signatureConfirm.addEventListener('click', function () {
+        if (!pendingSignaturePosition || !signatureCanvas) return;
+        const dataUrl = signatureCanvas.toDataURL('image/png');
+        const base64 = dataUrl.replace(/^data:image\/png;base64,/, '');
+        const w = 320;
+        const h = 140;
+        addSignatureAnnotation(
+            pendingSignaturePosition.pageIndex,
+            base64,
+            pendingSignaturePosition.viewX,
+            pendingSignaturePosition.viewY,
+            w,
+            h
+        );
+        hideSignatureModal();
+        setMode('view');
+    });
+    signatureCancelBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        signatureCanceledAt = Date.now();
+        hideSignatureModal();
     });
 
     loadPdf();
