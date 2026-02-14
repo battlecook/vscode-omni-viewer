@@ -1,11 +1,18 @@
 # Changelog
 
 ## [0.12.0] - 2026-02-14
+
 ### Added
-- **PDF Viewer: PDF (.pdf) support**
-  - Renders PDF as HTML (headings, paragraphs, lists, tables, images)
-  - File info: name, size
-  - Powered by pdf-lib for PDF parsing
+- **PDF Editor: PDF (.pdf) view and edit support**
+  - View PDF with page-by-page rendering (PDF.js)
+  - Default zoom 100%; zoom in/out controls
+  - Left sidebar with page thumbnails; click to jump to page
+  - **Add text**: Text mode → click on page → enter text → placed on PDF
+  - **Add signature**: Signature mode → click on page → draw in modal → placed on PDF
+  - **Move**: In View mode, drag text or signature to reposition
+  - Save writes annotations into the PDF file (pdf-lib)
+  - "Open with PDF Editor" in explorer context menu for .pdf files (priority: option, so default app viewer can stay default)
+  - English UI (View, Text, Signature, Save)
 
 ## [0.11.0] - 2026-02-13
 
