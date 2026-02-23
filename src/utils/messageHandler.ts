@@ -562,9 +562,61 @@ export class MessageHandler {
             }
 
             const pdfBytes = await vscode.workspace.fs.readFile(documentUri);
-            const pdfDoc = await PDFDocument.load(pdfBytes);
-            const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
-            const pages = pdfDoc.getPages();
+            const baseDoc = await PDFDocument.load(pdfBytes);
+            const sourceDocs: PDFDocument[] = [baseDoc];
+
+            const extraPdfBase64List: string[] = Array.isArray(message.data.extraPdfBase64List)
+                ? message.data.extraPdfBase64List
+                : [];
+            for (const extraBase64 of extraPdfBase64List) {
+                if (!extraBase64) {
+                    continue;
+                }
+                const extraBytes = Buffer.from(extraBase64, 'base64');
+                const extraDoc = await PDFDocument.load(extraBytes);
+                sourceDocs.push(extraDoc);
+            }
+
+            const mergedDoc = await PDFDocument.create();
+            for (const srcDoc of sourceDocs) {
+                const pageIndices = srcDoc.getPages().map((_, index) => index);
+                const copiedPages = await mergedDoc.copyPages(srcDoc, pageIndices);
+                copiedPages.forEach((copiedPage) => mergedDoc.addPage(copiedPage));
+            }
+
+            let workingDoc = mergedDoc;
+            const totalPages = mergedDoc.getPageCount();
+            const requestedPageOrder: number[] = Array.isArray(message.data.pageOrder)
+                ? message.data.pageOrder
+                : [];
+
+            if (requestedPageOrder.length > 0) {
+                const seen = new Set<number>();
+                const normalizedOrder: number[] = [];
+
+                for (const rawIndex of requestedPageOrder) {
+                    const pageIndex = Number(rawIndex);
+                    if (!Number.isInteger(pageIndex) || pageIndex < 0 || pageIndex >= totalPages || seen.has(pageIndex)) {
+                        continue;
+                    }
+                    seen.add(pageIndex);
+                    normalizedOrder.push(pageIndex);
+                }
+
+                for (let i = 0; i < totalPages; i++) {
+                    if (!seen.has(i)) {
+                        normalizedOrder.push(i);
+                    }
+                }
+
+                const reorderedDoc = await PDFDocument.create();
+                const reorderedPages = await reorderedDoc.copyPages(mergedDoc, normalizedOrder);
+                reorderedPages.forEach((copiedPage) => reorderedDoc.addPage(copiedPage));
+                workingDoc = reorderedDoc;
+            }
+
+            const helvetica = await workingDoc.embedFont(StandardFonts.Helvetica);
+            const pages = workingDoc.getPages();
 
             const texts: Array<{ pageIndex: number; x: number; y: number; text: string; fontSize?: number }> = message.data.texts || [];
             const signatures: Array<{ pageIndex: number; imageBase64: string; x: number; y: number; width: number; height: number }> = message.data.signatures || [];
@@ -594,7 +646,7 @@ export class MessageHandler {
                 });
             }
 
-            const savedBytes = await pdfDoc.save();
+            const savedBytes = await workingDoc.save();
             await vscode.workspace.fs.writeFile(documentUri, new Uint8Array(savedBytes));
             vscode.window.showInformationMessage('PDF saved successfully.');
         } catch (error) {

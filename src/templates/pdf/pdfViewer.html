@@ -15,6 +15,7 @@
                 <button type="button" id="btnView" class="tool-btn active" title="View / move annotations">👁 View</button>
                 <button type="button" id="btnText" class="tool-btn" title="Add text">📝 Text</button>
                 <button type="button" id="btnSignature" class="tool-btn" title="Add signature">✍ Signature</button>
+                <button type="button" id="btnMerge" class="tool-btn" title="Merge another PDF">🔗 Merge PDF</button>
                 <button type="button" id="btnSave" class="tool-btn save-btn" title="Save">💾 Save</button>
                 <span class="page-info" id="pageInfo">1 / 1</span>
             </div>
@@ -63,6 +64,7 @@
     </div>
 
     <script id="pdf-data" type="application/json">{"base64":"{{pdfBase64}}","fileName":"{{fileName}}"}</script>
+    <input type="file" id="mergePdfInput" accept=".pdf,application/pdf" style="display: none;">
     <script src="js/pdfViewer.js"></script>
 </body>
 </html>

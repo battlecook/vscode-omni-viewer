@@ -154,6 +154,15 @@ body {
     border-color: var(--vscode-focusBorder);
 }
 
+.thumbnail-item.dragging {
+    opacity: 0.45;
+}
+
+.thumbnail-item.drop-target {
+    border-color: var(--vscode-button-background);
+    box-shadow: 0 0 0 1px var(--vscode-button-background) inset;
+}
+
 .thumbnail-item canvas {
     display: block;
     width: 100%;

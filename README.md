@@ -177,6 +177,32 @@ If you are using jetbrains ide, check out [this repository](https://github.com/b
    npm run vscode:prepublish
    ```
 
+## Privacy & Data Use (Planned Share Feature)
+
+Omni Viewer does **not** currently enable this share upload flow in the released extension.  
+The following policy describes the planned behavior for a future share feature release.
+
+- **What data will be uploaded**
+  - The file selected by the user for sharing (single file)
+  - File metadata such as filename, content type, file size, file type, and optional viewer metadata (for example selected region/range)
+  - Request source platform (for example `vscode`)
+- **Purpose**
+  - Create a temporary share link and allow limited-time download/view access
+- **Planned storage location**
+  - GCP Cloud Run (API)
+  - GCP Cloud Storage (file object)
+  - Firestore (share metadata)
+- **Planned retention / expiration**
+  - Default share link lifetime: **5 minutes**
+  - After expiration, share access will be denied (`410`)
+  - Expired objects/metadata may be removed by backend lifecycle jobs
+- **Planned access model**
+  - Upload endpoint will require authenticated client request (API key-based)
+  - Download endpoint will be link-based with non-guessable share IDs
+  - Optional maximum access-count policy may be applied per share
+
+Privacy Policy: https://omni-viewer-web.web.app/privacy
+
 
 ## 📝 License
 

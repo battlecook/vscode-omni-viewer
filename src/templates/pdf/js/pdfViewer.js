@@ -9,18 +9,19 @@
     const loadingEl = document.getElementById('loading');
     const errorEl = document.getElementById('error');
     const pdfBody = document.getElementById('pdfBody');
-    const pdfContainer = document.getElementById('pdfContainer');
     const pagesContainer = document.getElementById('pagesContainer');
     const thumbnailList = document.getElementById('thumbnailList');
-    const overlayLayer = document.getElementById('overlayLayer');
     const pageInfoEl = document.getElementById('pageInfo');
     const zoomLevelEl = document.getElementById('zoomLevel');
     const btnView = document.getElementById('btnView');
     const btnText = document.getElementById('btnText');
     const btnSignature = document.getElementById('btnSignature');
+    const btnMerge = document.getElementById('btnMerge');
     const btnSave = document.getElementById('btnSave');
     const zoomInBtn = document.getElementById('zoomIn');
     const zoomOutBtn = document.getElementById('zoomOut');
+    const mergePdfInput = document.getElementById('mergePdfInput');
+
     const textModal = document.getElementById('textModal');
     const textInput = document.getElementById('textInput');
     const textConfirm = document.getElementById('textConfirm');
@@ -30,7 +31,10 @@
     const signatureConfirm = document.getElementById('signatureConfirm');
     const signatureCancelBtn = document.getElementById('signatureCancel');
 
-    let pdfDoc = null;
+    let pdfDocs = [];
+    let sourcePdfBase64List = [];
+    let pageEntries = []; // { sourceDocIndex, sourcePageIndex }
+
     let scale = 1;
     const MIN_SCALE = 0.5;
     const MAX_SCALE = 3;
@@ -38,14 +42,15 @@
 
     let mode = 'view'; // 'view' | 'text' | 'signature'
     let pageData = []; // { pdfWidth, pdfHeight, viewWidth, viewHeight, wrapper }
-    let annotations = { texts: [], signatures: [] };
+    const annotations = { texts: [], signatures: [] };
+
     let pendingTextPosition = null;
     let pendingSignaturePosition = null;
-    let signaturePad = null;
     let signatureCanvas = null;
     let isDraggingAnnotation = false;
     let dragEndedAt = 0;
     let signatureCanceledAt = 0;
+    let draggedThumbnailIndex = null;
 
     function base64ToUint8Array(base64) {
         const binary = atob(base64);
@@ -53,6 +58,16 @@
         const bytes = new Uint8Array(len);
         for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
         return bytes;
+    }
+
+    function uint8ArrayToBase64(bytes) {
+        let binary = '';
+        const chunkSize = 0x8000;
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+            const chunk = bytes.subarray(i, i + chunkSize);
+            binary += String.fromCharCode.apply(null, chunk);
+        }
+        return btoa(binary);
     }
 
     function getVscodeApi() {
@@ -64,6 +79,17 @@
         if (vscode) vscode.postMessage(msg);
     }
 
+    function setMode(m) {
+        mode = m;
+        btnView.classList.toggle('active', m === 'view');
+        btnText.classList.toggle('active', m === 'text');
+        btnSignature.classList.toggle('active', m === 'signature');
+    }
+
+    function entryKey(entry) {
+        return entry.sourceDocIndex + ':' + entry.sourcePageIndex;
+    }
+
     function viewToPdfCoords(pageIndex, viewX, viewY, viewW, viewH) {
         if (pageIndex < 0 || pageIndex >= pageData.length) return { x: 0, y: 0 };
         const p = pageData[pageIndex];
@@ -72,11 +98,31 @@
         return { x, y };
     }
 
-    function setMode(m) {
-        mode = m;
-        btnView.classList.toggle('active', m === 'view');
-        btnText.classList.toggle('active', m === 'text');
-        btnSignature.classList.toggle('active', m === 'signature');
+    function pdfToViewCoords(pageIndex, pdfX, pdfY) {
+        if (pageIndex < 0 || pageIndex >= pageData.length) return { x: 0, y: 0 };
+        const p = pageData[pageIndex];
+        const x = (pdfX / p.pdfWidth) * p.viewWidth;
+        const y = ((p.pdfHeight - pdfY) / p.pdfHeight) * p.viewHeight;
+        return { x, y };
+    }
+
+    function remapAnnotations(oldEntries) {
+        const newIndexByKey = new Map();
+        pageEntries.forEach(function (entry, idx) {
+            newIndexByKey.set(entryKey(entry), idx);
+        });
+
+        annotations.texts.forEach(function (ann) {
+            if (ann.pageIndex < 0 || ann.pageIndex >= oldEntries.length) return;
+            const newIndex = newIndexByKey.get(entryKey(oldEntries[ann.pageIndex]));
+            if (typeof newIndex === 'number') ann.pageIndex = newIndex;
+        });
+
+        annotations.signatures.forEach(function (ann) {
+            if (ann.pageIndex < 0 || ann.pageIndex >= oldEntries.length) return;
+            const newIndex = newIndexByKey.get(entryKey(oldEntries[ann.pageIndex]));
+            if (typeof newIndex === 'number') ann.pageIndex = newIndex;
+        });
     }
 
     function makeAnnotationDraggable(el) {
@@ -85,20 +131,33 @@
         const annIndex = parseInt(el.dataset.annotationIndex, 10);
         if (isNaN(pageIndex) || pageIndex < 0 || pageIndex >= pageData.length) return;
         const p = pageData[pageIndex];
-        let startX, startY, startLeft, startTop;
+
+        let startX;
+        let startY;
+        let startLeft;
+        let startTop;
 
         function updateAnnotationFromPosition() {
             const viewX = parseInt(el.style.left, 10) || 0;
             const viewY = parseInt(el.style.top, 10) || 0;
-            const { x: pdfX, y: pdfY } = viewToPdfCoords(pageIndex, viewX, viewY, p.viewWidth, p.viewHeight);
+            const pdfPos = viewToPdfCoords(pageIndex, viewX, viewY, p.viewWidth, p.viewHeight);
+
             if (type === 'text') {
-                annotations.texts[annIndex] = Object.assign({}, annotations.texts[annIndex], { x: pdfX, y: pdfY });
+                annotations.texts[annIndex] = Object.assign({}, annotations.texts[annIndex], {
+                    x: pdfPos.x,
+                    y: pdfPos.y
+                });
             } else if (type === 'signature') {
                 const viewW = el.offsetWidth;
                 const viewH = el.offsetHeight;
                 const pdfW = (viewW / p.viewWidth) * p.pdfWidth;
                 const pdfH = (viewH / p.viewHeight) * p.pdfHeight;
-                annotations.signatures[annIndex] = Object.assign({}, annotations.signatures[annIndex], { x: pdfX, y: pdfY, width: pdfW, height: pdfH });
+                annotations.signatures[annIndex] = Object.assign({}, annotations.signatures[annIndex], {
+                    x: pdfPos.x,
+                    y: pdfPos.y,
+                    width: pdfW,
+                    height: pdfH
+                });
             }
         }
 
@@ -115,15 +174,17 @@
             el.style.top = newTop + 'px';
             updateAnnotationFromPosition();
         }
+
         function onMouseUp() {
             document.removeEventListener('mousemove', onMouseMove);
             document.removeEventListener('mouseup', onMouseUp);
             isDraggingAnnotation = false;
             dragEndedAt = Date.now();
         }
+
         el.addEventListener('mousedown', function (e) {
             if (e.button !== 0) return;
-        if (mode !== 'view') return; // only drag annotations in View mode
+            if (mode !== 'view') return;
             e.preventDefault();
             e.stopPropagation();
             isDraggingAnnotation = true;
@@ -136,66 +197,96 @@
         });
     }
 
-    function addTextAnnotation(pageIndex, viewX, viewY, text, fontSize) {
-        if (!text || pageIndex < 0 || pageIndex >= pageData.length) return;
-        const p = pageData[pageIndex];
-        const { x: pdfX, y: pdfY } = viewToPdfCoords(pageIndex, viewX, viewY, p.viewWidth, p.viewHeight);
-        annotations.texts.push({
-            pageIndex,
-            x: pdfX,
-            y: pdfY,
-            text,
-            fontSize: fontSize || 12
-        });
-        const idx = annotations.texts.length - 1;
+    function createTextAnnotationElement(textAnn, idx) {
+        const p = pageData[textAnn.pageIndex];
+        if (!p) return;
+        const pos = pdfToViewCoords(textAnn.pageIndex, textAnn.x, textAnn.y);
         const div = document.createElement('div');
         div.className = 'annotation-text';
-        div.textContent = text;
-        div.style.fontSize = (fontSize || 12) + 'px';
-        div.style.left = viewX + 'px';
-        div.style.top = viewY + 'px';
+        div.textContent = textAnn.text;
+        div.style.fontSize = (textAnn.fontSize || 12) + 'px';
+        div.style.left = pos.x + 'px';
+        div.style.top = pos.y + 'px';
         div.dataset.type = 'text';
-        div.dataset.pageIndex = String(pageIndex);
+        div.dataset.pageIndex = String(textAnn.pageIndex);
         div.dataset.annotationIndex = String(idx);
         p.wrapper.appendChild(div);
         makeAnnotationDraggable(div);
     }
 
-    function addSignatureAnnotation(pageIndex, imageBase64, viewX, viewY, viewW, viewH) {
-        if (pageIndex < 0 || pageIndex >= pageData.length) return;
-        const p = pageData[pageIndex];
-        const { x: pdfX, y: pdfY } = viewToPdfCoords(pageIndex, viewX, viewY, p.viewWidth, p.viewHeight);
-        const pdfW = (viewW / p.viewWidth) * p.pdfWidth;
-        const pdfH = (viewH / p.viewHeight) * p.pdfHeight;
-        annotations.signatures.push({
-            pageIndex,
-            imageBase64,
-            x: pdfX,
-            y: pdfY,
-            width: pdfW,
-            height: pdfH
-        });
-        const idx = annotations.signatures.length - 1;
+    function createSignatureAnnotationElement(sigAnn, idx) {
+        const p = pageData[sigAnn.pageIndex];
+        if (!p) return;
+        const pos = pdfToViewCoords(sigAnn.pageIndex, sigAnn.x, sigAnn.y);
+        const viewW = (sigAnn.width / p.pdfWidth) * p.viewWidth;
+        const viewH = (sigAnn.height / p.pdfHeight) * p.viewHeight;
+
         const wrap = document.createElement('div');
         wrap.className = 'annotation-signature';
-        wrap.style.left = viewX + 'px';
-        wrap.style.top = viewY + 'px';
+        wrap.style.left = pos.x + 'px';
+        wrap.style.top = pos.y + 'px';
         wrap.style.width = viewW + 'px';
         wrap.style.height = viewH + 'px';
         wrap.dataset.type = 'signature';
-        wrap.dataset.pageIndex = String(pageIndex);
+        wrap.dataset.pageIndex = String(sigAnn.pageIndex);
         wrap.dataset.annotationIndex = String(idx);
+
         const img = document.createElement('img');
-        img.src = 'data:image/png;base64,' + imageBase64;
+        img.src = 'data:image/png;base64,' + sigAnn.imageBase64;
         img.draggable = false;
         img.style.pointerEvents = 'none';
         wrap.appendChild(img);
+
         p.wrapper.appendChild(wrap);
         makeAnnotationDraggable(wrap);
     }
 
+    function renderAnnotations() {
+        annotations.texts.forEach(function (t, idx) {
+            createTextAnnotationElement(t, idx);
+        });
+        annotations.signatures.forEach(function (s, idx) {
+            createSignatureAnnotationElement(s, idx);
+        });
+    }
+
+    function addTextAnnotation(pageIndex, viewX, viewY, text, fontSize) {
+        if (!text || pageIndex < 0 || pageIndex >= pageData.length) return;
+        const p = pageData[pageIndex];
+        const pdfPos = viewToPdfCoords(pageIndex, viewX, viewY, p.viewWidth, p.viewHeight);
+
+        annotations.texts.push({
+            pageIndex: pageIndex,
+            x: pdfPos.x,
+            y: pdfPos.y,
+            text: text,
+            fontSize: fontSize || 12
+        });
+
+        createTextAnnotationElement(annotations.texts[annotations.texts.length - 1], annotations.texts.length - 1);
+    }
+
+    function addSignatureAnnotation(pageIndex, imageBase64, viewX, viewY, viewW, viewH) {
+        if (pageIndex < 0 || pageIndex >= pageData.length) return;
+        const p = pageData[pageIndex];
+        const pdfPos = viewToPdfCoords(pageIndex, viewX, viewY, p.viewWidth, p.viewHeight);
+        const pdfW = (viewW / p.viewWidth) * p.pdfWidth;
+        const pdfH = (viewH / p.viewHeight) * p.pdfHeight;
+
+        annotations.signatures.push({
+            pageIndex: pageIndex,
+            imageBase64: imageBase64,
+            x: pdfPos.x,
+            y: pdfPos.y,
+            width: pdfW,
+            height: pdfH
+        });
+
+        createSignatureAnnotationElement(annotations.signatures[annotations.signatures.length - 1], annotations.signatures.length - 1);
+    }
+
     function showTextModal(pageIndex, viewX, viewY) {
-        pendingTextPosition = { pageIndex, viewX, viewY };
+        pendingTextPosition = { pageIndex: pageIndex, viewX: viewX, viewY: viewY };
         textInput.value = '';
         textModal.style.display = 'flex';
         textInput.focus();
@@ -208,8 +299,9 @@
 
     function startSignaturePad(pageIndex, viewX, viewY) {
         if (!signatureModal || !signatureCanvasWrap) return;
-        pendingSignaturePosition = { pageIndex, viewX, viewY };
+        pendingSignaturePosition = { pageIndex: pageIndex, viewX: viewX, viewY: viewY };
         signatureCanvasWrap.innerHTML = '';
+
         const w = 320;
         const h = 140;
         const canvas = document.createElement('canvas');
@@ -217,6 +309,7 @@
         canvas.height = h;
         canvas.className = 'signature-canvas-el';
         signatureCanvasWrap.appendChild(canvas);
+
         const ctx = canvas.getContext('2d');
         ctx.fillStyle = '#fff';
         ctx.fillRect(0, 0, w, h);
@@ -225,31 +318,39 @@
         ctx.lineCap = 'round';
 
         let drawing = false;
+
         function getPos(e) {
-            const r = canvas.getBoundingClientRect();
-            const scaleX = canvas.width / r.width;
-            const scaleY = canvas.height / r.height;
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
             return {
-                x: (e.clientX - r.left) * scaleX,
-                y: (e.clientY - r.top) * scaleY
+                x: (e.clientX - rect.left) * scaleX,
+                y: (e.clientY - rect.top) * scaleY
             };
         }
+
         canvas.addEventListener('mousedown', function (e) {
             drawing = true;
             const pos = getPos(e);
             ctx.beginPath();
             ctx.moveTo(pos.x, pos.y);
         });
+
         canvas.addEventListener('mousemove', function (e) {
             if (!drawing) return;
             const pos = getPos(e);
             ctx.lineTo(pos.x, pos.y);
             ctx.stroke();
         });
-        canvas.addEventListener('mouseup', function () { drawing = false; });
-        canvas.addEventListener('mouseleave', function () { drawing = false; });
 
-        signaturePad = signatureModal;
+        canvas.addEventListener('mouseup', function () {
+            drawing = false;
+        });
+
+        canvas.addEventListener('mouseleave', function () {
+            drawing = false;
+        });
+
         signatureCanvas = canvas;
         signatureModal.style.display = 'flex';
     }
@@ -257,7 +358,6 @@
     function hideSignatureModal() {
         if (signatureModal) signatureModal.style.display = 'none';
         if (signatureCanvasWrap) signatureCanvasWrap.innerHTML = '';
-        signaturePad = null;
         signatureCanvas = null;
         pendingSignaturePosition = null;
     }
@@ -265,6 +365,7 @@
     function onPageClick(pageIndex, viewX, viewY, e) {
         if (isDraggingAnnotation || (Date.now() - dragEndedAt < 150)) return;
         if (e && e.target && e.target.closest && e.target.closest('.annotation-text, .annotation-signature')) return;
+
         if (mode === 'text') {
             showTextModal(pageIndex, viewX, viewY);
         } else if (mode === 'signature') {
@@ -273,60 +374,136 @@
         }
     }
 
-    function loadPdf() {
+    async function loadPdfDocumentFromBase64(base64) {
         const pdfjsLib = window['pdfjsLib'];
-        if (!pdfjsLib) {
-            errorEl.textContent = 'Failed to load PDF.js.';
-            errorEl.style.display = 'block';
-            loadingEl.style.display = 'none';
+        if (!pdfjsLib) throw new Error('Failed to load PDF.js.');
+        const bytes = base64ToUint8Array(base64);
+        return await pdfjsLib.getDocument({ data: bytes }).promise;
+    }
+
+    function updatePageInfo() {
+        pageInfoEl.textContent = '1 / ' + pageEntries.length;
+    }
+
+    function setupMainPdf(doc) {
+        pdfDocs = [doc];
+        sourcePdfBase64List = [pdfBase64];
+        pageEntries = [];
+        for (let i = 0; i < doc.numPages; i++) {
+            pageEntries.push({ sourceDocIndex: 0, sourcePageIndex: i });
+        }
+        updatePageInfo();
+    }
+
+    async function appendSecondPdf(base64) {
+        if (sourcePdfBase64List.length >= 2) {
+            postMessage({ command: 'warning', text: 'Only one additional PDF can be merged at a time.' });
             return;
         }
-        const bytes = base64ToUint8Array(pdfBase64);
-        pdfjsLib.getDocument({ data: bytes }).promise.then(function (doc) {
-            pdfDoc = doc;
-            loadingEl.style.display = 'none';
-            pdfBody.style.display = 'flex';
-            zoomLevelEl.textContent = Math.round(scale * 100) + '%';
-            renderPagesSync();
-        }).catch(function (err) {
-            loadingEl.textContent = '';
-            loadingEl.style.display = 'none';
-            errorEl.textContent = 'Failed to load PDF: ' + (err && err.message ? err.message : String(err));
-            errorEl.style.display = 'block';
-        });
+
+        const secondDoc = await loadPdfDocumentFromBase64(base64);
+        const sourceDocIndex = pdfDocs.length;
+        pdfDocs.push(secondDoc);
+        sourcePdfBase64List.push(base64);
+
+        for (let i = 0; i < secondDoc.numPages; i++) {
+            pageEntries.push({ sourceDocIndex: sourceDocIndex, sourcePageIndex: i });
+        }
+
+        updatePageInfo();
+        renderPagesSync();
+    }
+
+    function reorderPageEntries(fromIndex, toIndex) {
+        if (fromIndex === toIndex) return;
+        if (fromIndex < 0 || fromIndex >= pageEntries.length) return;
+        if (toIndex < 0 || toIndex >= pageEntries.length) return;
+
+        const oldEntries = pageEntries.slice();
+        const moved = pageEntries.splice(fromIndex, 1)[0];
+        pageEntries.splice(toIndex, 0, moved);
+        remapAnnotations(oldEntries);
+        renderPagesSync();
     }
 
     const THUMB_SCALE = 0.2;
 
+    function clearThumbnailStates() {
+        thumbnailList.querySelectorAll('.thumbnail-item.drop-target').forEach(function (el) {
+            el.classList.remove('drop-target');
+        });
+    }
+
     function renderThumbnails() {
-        if (!pdfDoc || !thumbnailList) return;
+        if (!thumbnailList) return;
         thumbnailList.innerHTML = '';
-        const numPages = pdfDoc.numPages;
+
         function addThumb(idx) {
-            if (idx >= numPages) return;
-            const i = idx + 1;
-            pdfDoc.getPage(i).then(function (page) {
+            if (idx >= pageEntries.length) return;
+
+            const entry = pageEntries[idx];
+            const sourceDoc = pdfDocs[entry.sourceDocIndex];
+            sourceDoc.getPage(entry.sourcePageIndex + 1).then(function (page) {
                 const viewport = page.getViewport({ scale: THUMB_SCALE });
+
                 const div = document.createElement('div');
                 div.className = 'thumbnail-item';
                 div.dataset.pageIndex = String(idx);
+                div.draggable = true;
+
                 const canvas = document.createElement('canvas');
                 canvas.height = viewport.height;
                 canvas.width = viewport.width;
                 const ctx = canvas.getContext('2d');
                 div.appendChild(canvas);
+
                 const label = document.createElement('div');
                 label.className = 'page-num';
                 label.textContent = String(idx + 1);
                 div.appendChild(label);
-                thumbnailList.appendChild(div);
+
                 div.addEventListener('click', function () {
                     if (pageData[idx] && pageData[idx].wrapper) {
                         pageData[idx].wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     }
-                    thumbnailList.querySelectorAll('.thumbnail-item.active').forEach(function (el) { el.classList.remove('active'); });
+                    thumbnailList.querySelectorAll('.thumbnail-item.active').forEach(function (el) {
+                        el.classList.remove('active');
+                    });
                     div.classList.add('active');
                 });
+
+                div.addEventListener('dragstart', function () {
+                    draggedThumbnailIndex = idx;
+                    div.classList.add('dragging');
+                });
+
+                div.addEventListener('dragend', function () {
+                    draggedThumbnailIndex = null;
+                    div.classList.remove('dragging');
+                    clearThumbnailStates();
+                });
+
+                div.addEventListener('dragover', function (e) {
+                    e.preventDefault();
+                    clearThumbnailStates();
+                    div.classList.add('drop-target');
+                });
+
+                div.addEventListener('dragleave', function () {
+                    div.classList.remove('drop-target');
+                });
+
+                div.addEventListener('drop', function (e) {
+                    e.preventDefault();
+                    div.classList.remove('drop-target');
+                    const dropIndex = idx;
+                    if (typeof draggedThumbnailIndex === 'number') {
+                        reorderPageEntries(draggedThumbnailIndex, dropIndex);
+                    }
+                });
+
+                thumbnailList.appendChild(div);
+
                 page.render({
                     canvasContext: ctx,
                     viewport: viewport
@@ -335,35 +512,38 @@
                 });
             });
         }
+
         addThumb(0);
     }
 
     function renderPagesSync() {
-        if (!pdfDoc) return;
         pagesContainer.innerHTML = '';
         pageData = [];
-        const numPages = pdfDoc.numPages;
-        pageInfoEl.textContent = '1 / ' + numPages;
+        updatePageInfo();
 
         function renderOne(idx) {
-            if (idx >= numPages) {
+            if (idx >= pageEntries.length) {
                 renderThumbnails();
+                renderAnnotations();
                 setMode(mode);
                 return;
             }
-            const i = idx + 1;
-            pdfDoc.getPage(i).then(function (page) {
+
+            const entry = pageEntries[idx];
+            const sourceDoc = pdfDocs[entry.sourceDocIndex];
+            sourceDoc.getPage(entry.sourcePageIndex + 1).then(function (page) {
                 const viewport = page.getViewport({ scale: scale });
                 const wrapper = document.createElement('div');
                 wrapper.className = 'page-wrapper';
                 wrapper.dataset.pageIndex = String(idx);
 
                 const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
                 canvas.height = viewport.height;
                 canvas.width = viewport.width;
                 canvas.style.width = viewport.width + 'px';
                 canvas.style.height = viewport.height + 'px';
+
+                const ctx = canvas.getContext('2d');
                 wrapper.appendChild(canvas);
                 pagesContainer.appendChild(wrapper);
 
@@ -391,20 +571,41 @@
                 });
             });
         }
+
         renderOne(0);
     }
 
     function doSave() {
-        if (annotations.texts.length === 0 && annotations.signatures.length === 0) {
-            postMessage({ command: 'info', text: 'No text or signature added yet.' });
+        const hasMerge = sourcePdfBase64List.length > 1;
+        const hasPageOrderChange = pageEntries.some(function (entry, idx) {
+            return entry.sourceDocIndex !== 0 || entry.sourcePageIndex !== idx;
+        });
+        const hasAnnotations = annotations.texts.length > 0 || annotations.signatures.length > 0;
+
+        if (!hasAnnotations && !hasMerge && !hasPageOrderChange) {
+            postMessage({ command: 'info', text: 'No changes to save.' });
             return;
         }
+
+        const sourcePageOffsets = [];
+        let offset = 0;
+        for (let i = 0; i < pdfDocs.length; i++) {
+            sourcePageOffsets.push(offset);
+            offset += pdfDocs[i].numPages;
+        }
+
+        const pageOrder = pageEntries.map(function (entry) {
+            return sourcePageOffsets[entry.sourceDocIndex] + entry.sourcePageIndex;
+        });
+
         postMessage({
             type: 'savePdf',
             command: 'savePdf',
             data: {
                 texts: annotations.texts,
-                signatures: annotations.signatures
+                signatures: annotations.signatures,
+                pageOrder: pageOrder,
+                extraPdfBase64List: sourcePdfBase64List.slice(1)
             }
         });
     }
@@ -412,6 +613,34 @@
     btnView.addEventListener('click', function () { setMode('view'); });
     btnText.addEventListener('click', function () { setMode('text'); });
     btnSignature.addEventListener('click', function () { setMode('signature'); });
+    btnMerge.addEventListener('click', function () {
+        if (sourcePdfBase64List.length >= 2) {
+            postMessage({ command: 'warning', text: 'Only one additional PDF can be merged at a time.' });
+            return;
+        }
+        mergePdfInput.click();
+    });
+
+    mergePdfInput.addEventListener('change', async function (event) {
+        const target = event.target;
+        const file = target.files && target.files[0];
+        target.value = '';
+
+        if (!file) return;
+
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const base64 = uint8ArrayToBase64(new Uint8Array(arrayBuffer));
+            await appendSecondPdf(base64);
+            postMessage({ command: 'info', text: 'Second PDF merged into the preview. Click Save to write file.' });
+        } catch (err) {
+            postMessage({
+                command: 'error',
+                text: 'Failed to merge selected PDF: ' + (err && err.message ? err.message : String(err))
+            });
+        }
+    });
+
     btnSave.addEventListener('click', doSave);
 
     zoomInBtn.addEventListener('click', function () {
@@ -420,6 +649,7 @@
         zoomLevelEl.textContent = Math.round(scale * 100) + '%';
         renderPagesSync();
     });
+
     zoomOutBtn.addEventListener('click', function () {
         if (scale <= MIN_SCALE) return;
         scale -= SCALE_STEP;
@@ -430,11 +660,18 @@
     textConfirm.addEventListener('click', function () {
         const text = textInput.value.trim();
         if (pendingTextPosition && text) {
-            addTextAnnotation(pendingTextPosition.pageIndex, pendingTextPosition.viewX, pendingTextPosition.viewY, text, 12);
+            addTextAnnotation(
+                pendingTextPosition.pageIndex,
+                pendingTextPosition.viewX,
+                pendingTextPosition.viewY,
+                text,
+                12
+            );
             setMode('view');
         }
         hideTextModal();
     });
+
     textCancel.addEventListener('click', hideTextModal);
     textInput.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') textConfirm.click();
@@ -447,6 +684,7 @@
         const base64 = dataUrl.replace(/^data:image\/png;base64,/, '');
         const w = 320;
         const h = 140;
+
         addSignatureAnnotation(
             pendingSignaturePosition.pageIndex,
             base64,
@@ -458,6 +696,7 @@
         hideSignatureModal();
         setMode('view');
     });
+
     signatureCancelBtn.addEventListener('click', function (e) {
         e.preventDefault();
         e.stopPropagation();
@@ -465,5 +704,20 @@
         hideSignatureModal();
     });
 
-    loadPdf();
+    async function initialize() {
+        try {
+            const mainDoc = await loadPdfDocumentFromBase64(pdfBase64);
+            setupMainPdf(mainDoc);
+            loadingEl.style.display = 'none';
+            pdfBody.style.display = 'flex';
+            zoomLevelEl.textContent = Math.round(scale * 100) + '%';
+            renderPagesSync();
+        } catch (err) {
+            loadingEl.style.display = 'none';
+            errorEl.textContent = 'Failed to load PDF: ' + (err && err.message ? err.message : String(err));
+            errorEl.style.display = 'block';
+        }
+    }
+
+    initialize();
 })();
