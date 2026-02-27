@@ -10,6 +10,7 @@ import { PsdViewerProvider } from './psdViewerProvider';
 import { ExcelViewerProvider } from './excelViewerProvider';
 import { WordViewerProvider } from './wordViewerProvider';
 import { PdfViewerProvider } from './pdfViewerProvider';
+import { PptViewerProvider } from './pptViewerProvider';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('🚀 Omni Viewer extension is now active!');
@@ -27,6 +28,7 @@ export function activate(context: vscode.ExtensionContext) {
     const excelViewerProvider = new ExcelViewerProvider(context);
     const wordViewerProvider = new WordViewerProvider(context);
     const pdfViewerProvider = new PdfViewerProvider(context);
+    const pptViewerProvider = new PptViewerProvider(context);
 
     // Register commands
     const openAudioViewer = vscode.commands.registerCommand('omni-viewer.openAudioViewer', (uri: vscode.Uri) => {
@@ -114,6 +116,14 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.pdfViewer');
         } else {
             vscode.window.showErrorMessage('No PDF file selected');
+        }
+    });
+
+    const openPptViewer = vscode.commands.registerCommand('omni-viewer.openPptViewer', (uri: vscode.Uri) => {
+        if (uri) {
+            vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.pptViewer');
+        } else {
+            vscode.window.showErrorMessage('No PowerPoint file selected');
         }
     });
 
@@ -214,6 +224,15 @@ export function activate(context: vscode.ExtensionContext) {
         'omni-viewer.pdfViewer',
         pdfViewerProvider,
         {
+            webviewOptions: { retainContextWhenHidden: false },
+            supportsMultipleEditorsPerDocument: false
+        }
+    );
+
+    const pptEditorRegistration = vscode.window.registerCustomEditorProvider(
+        'omni-viewer.pptViewer',
+        pptViewerProvider,
+        {
             webviewOptions: { retainContextWhenHidden: true },
             supportsMultipleEditorsPerDocument: false
         }
@@ -231,6 +250,7 @@ export function activate(context: vscode.ExtensionContext) {
         openExcelViewer,
         openWordViewer,
         openPdfViewer,
+        openPptViewer,
         audioEditorRegistration,
         imageEditorRegistration,
         videoEditorRegistration,
@@ -241,7 +261,8 @@ export function activate(context: vscode.ExtensionContext) {
         psdEditorRegistration,
         excelEditorRegistration,
         wordEditorRegistration,
-        pdfEditorRegistration
+        pdfEditorRegistration,
+        pptEditorRegistration
     );
 }
 

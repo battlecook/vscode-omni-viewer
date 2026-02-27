@@ -1,0 +1,248 @@
+:root {
+    --bg-color: var(--vscode-editor-background, #1e1e1e);
+    --panel-color: var(--vscode-sideBar-background, #252526);
+    --text-color: var(--vscode-editor-foreground, #d4d4d4);
+    --muted-color: var(--vscode-descriptionForeground, #8b8b8b);
+    --border-color: var(--vscode-panel-border, #3c3c3c);
+    --button-bg: var(--vscode-button-secondaryBackground, #3a3d41);
+    --button-hover: var(--vscode-button-secondaryHoverBackground, #45494e);
+    --slide-bg: var(--vscode-editorWidget-background, #2a2a2a);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg-color);
+    color: var(--text-color);
+    height: 100vh;
+    overflow: hidden;
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+    background: var(--panel-color);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.title {
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.meta {
+    font-size: 12px;
+    color: var(--muted-color);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 18px;
+    background: var(--panel-color);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.zoom-controls,
+.slide-jump {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn,
+#slideSelect {
+    border: 1px solid var(--border-color);
+    background: var(--button-bg);
+    color: var(--text-color);
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 12px;
+}
+
+.btn:hover,
+#slideSelect:hover {
+    background: var(--button-hover);
+}
+
+.zoom-level {
+    min-width: 48px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted-color);
+}
+
+.slides-container {
+    flex: 1;
+    overflow: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    align-items: center;
+}
+
+.slide {
+    width: fit-content;
+    max-width: 100%;
+    background: var(--slide-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.24);
+    overflow: hidden;
+}
+
+.slide-header {
+    padding: 10px 14px;
+    font-size: 12px;
+    color: var(--muted-color);
+    border-bottom: 1px solid var(--border-color);
+    background: rgba(0, 0, 0, 0.15);
+}
+
+.slide-canvas {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 0;
+    background: #fff;
+}
+
+.slide-stage {
+    position: relative;
+    margin: 12px;
+    overflow: hidden;
+    border-radius: 6px;
+}
+
+.shape-box {
+    position: absolute;
+    overflow: hidden;
+}
+
+.text-shape {
+    color: #111;
+    white-space: pre-wrap;
+    word-break: break-word;
+    padding: 2px;
+}
+
+.title-shape .text-line {
+    font-weight: 700;
+}
+
+.text-line {
+    margin: 0 0 4px;
+    font-size: 18px;
+    line-height: 1.35;
+}
+
+.image-shape {
+    display: flex;
+    align-items: stretch;
+    justify-content: stretch;
+}
+
+.slide-image {
+    width: 100%;
+    height: 100%;
+    object-fit: fill;
+}
+
+.table-shape {
+    background: #ffffff;
+    border: 1px solid #bdbdbd;
+    overflow: auto;
+}
+
+.table-shape table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    color: #111;
+}
+
+.table-shape th,
+.table-shape td {
+    border: 1px solid #d3d3d3;
+    padding: 4px 6px;
+    vertical-align: top;
+}
+
+.chart-shape {
+    background: #f7f7f7;
+    border: 1px dashed #9a9a9a;
+    color: #333;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.chart-shape-rendered {
+    background: transparent;
+    border: none;
+}
+
+.chart-title {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.chart-subtitle {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+.generic-shape {
+    background: transparent;
+}
+
+.no-content {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    font-size: 14px;
+}
+
+.state {
+    margin-top: 30px;
+    color: var(--muted-color);
+}
+
+.error {
+    color: var(--vscode-errorForeground, #f48771);
+    white-space: pre-wrap;
+    text-align: center;
+    max-width: 900px;
+}
+
+@media (max-width: 900px) {
+    .toolbar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}

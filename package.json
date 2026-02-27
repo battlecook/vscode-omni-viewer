@@ -2,7 +2,7 @@
   "name": "omni-viewer",
   "displayName": "omni-viewer",
   "publisher": "battlecook",
-  "description": "A VSCode extension for viewing audio, image, video, csv, excel, word, parquet, jsonl, hwp, PSD and PDF files",
+  "description": "A VSCode extension for viewing audio, image, video, csv, excel, word, powerpoint, parquet, jsonl, hwp, PSD and PDF files",
   "version": "0.12.0",
   "repository": {
     "type": "git",
@@ -27,6 +27,8 @@
     "xls",
     "Word",
     "docx",
+    "PowerPoint",
+    "pptx",
     "JSONL",
     "JSON",
     "Parquet",
@@ -213,6 +215,19 @@
           }
         ],
         "priority": "option"
+      },
+      {
+        "viewType": "omni-viewer.pptViewer",
+        "displayName": "PowerPoint Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.ppt"
+          },
+          {
+            "filenamePattern": "*.pptx"
+          }
+        ],
+        "priority": "default"
       }
     ],
     "menus": {
@@ -260,6 +275,11 @@
         {
           "command": "omni-viewer.openPdfViewer",
           "when": "resourceExtname == '.pdf'",
+          "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openPptViewer",
+          "when": "resourceExtname == '.pptx' || resourceExtname == '.ppt'",
           "group": "navigation"
         }
       ]
@@ -309,6 +329,11 @@
         "command": "omni-viewer.openPdfViewer",
         "title": "Open with PDF Editor",
         "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openPptViewer",
+        "title": "Open with PowerPoint Viewer",
+        "category": "Omni Viewer"
       }
     ]
   },
@@ -348,6 +373,7 @@
     "pdf-lib": "^1.17.1",
     "hwp.js": "^0.0.3",
     "hyparquet": "^1.21.0",
+    "jszip": "^3.10.1",
     "music-metadata": "^11.8.3",
     "xlsx": "^0.18.5",
     "mammoth": "^1.6.0"

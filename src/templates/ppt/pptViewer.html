@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PPT Viewer - {{fileName}}</title>
+    <link rel="stylesheet" href="css/pptViewer.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="title">🎥 {{fileName}}</div>
+            <div class="meta">
+                <span>{{fileSize}}</span>
+                <span>•</span>
+                <span id="slideCount">{{totalSlides}} slides</span>
+            </div>
+        </header>
+
+        <section class="toolbar">
+            <div class="zoom-controls">
+                <button id="zoomOut" class="btn">-</button>
+                <span id="zoomLevel" class="zoom-level">100%</span>
+                <button id="zoomIn" class="btn">+</button>
+                <button id="zoomReset" class="btn">Reset</button>
+            </div>
+            <div class="slide-jump">
+                <label for="slideSelect">Slide</label>
+                <select id="slideSelect"></select>
+            </div>
+        </section>
+
+        <main id="slidesContainer" class="slides-container">
+            <div id="loading" class="state">Rendering slides...</div>
+            <div id="error" class="state error" style="display:none;"></div>
+        </main>
+    </div>
+
+    <script id="presentation-data" type="application/json">{{presentationData}}</script>
+    <script src="js/pptViewer.js"></script>
+</body>
+</html>

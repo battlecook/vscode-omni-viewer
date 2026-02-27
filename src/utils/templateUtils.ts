@@ -17,9 +17,9 @@ export class TemplateUtils {
             
             for (const [key, value] of Object.entries(variables)) {
                 const placeholder = `{{${key}}}`;
-                // Ensure value is a string
                 const safeValue = value === null || value === undefined ? '' : String(value);
-                template = template.replace(new RegExp(placeholder, 'g'), safeValue);
+                // Use split/join to avoid `$` replacement semantics in String.replace.
+                template = template.split(placeholder).join(safeValue);
             }
             
             return template;
@@ -43,7 +43,7 @@ export class TemplateUtils {
                     try {
                         const cssContent = await fs.promises.readFile(cssPath, 'utf8');
                         const styleTag = `<style>\n${cssContent}\n</style>`;
-                        html = html.replace(linkTag, styleTag);
+                        html = html.replace(linkTag, () => styleTag);
                     } catch (error) {
                         console.warn(`Failed to inline CSS file ${cssRelativePath}:`, error);
                     }
@@ -67,7 +67,7 @@ export class TemplateUtils {
                     try {
                         const jsContent = await fs.promises.readFile(jsPath, 'utf8');
                         const inlineScriptTag = `<script>\n${jsContent}\n</script>`;
-                        html = html.replace(scriptTag, inlineScriptTag);
+                        html = html.replace(scriptTag, () => inlineScriptTag);
                     } catch (error) {
                         console.warn(`Failed to inline JavaScript file ${jsRelativePath}:`, error);
                     }

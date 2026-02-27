@@ -1,9 +1,13 @@
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as mm from 'music-metadata';
+import { spawn } from 'child_process';
 import { parquetReadObjects, parquetSchema, parquetMetadataAsync } from 'hyparquet';
 import { parse as parseHwp } from 'hwp.js';
 import * as XLSX from 'xlsx';
+import JSZip from 'jszip';
+import { PptxXmlParser } from './pptxXmlParser';
 
 export class FileUtils {
     private static readonly MAX_FILE_SIZE = 50 * 1024 * 1024;
@@ -575,6 +579,712 @@ export class FileUtils {
             console.error('Error reading Word file:', error);
             throw error;
         }
+    }
+
+    public static async readPresentationFile(filePath: string): Promise<{
+        mode: 'xml' | 'pdf';
+        slides?: Array<{
+            slideNumber: number;
+            widthPx: number;
+            heightPx: number;
+            backgroundColor: string;
+            elements: Array<{
+                type: 'text' | 'image' | 'table' | 'chart' | 'shape';
+                x: number;
+                y: number;
+                width: number;
+                height: number;
+                rotateDeg?: number;
+                zIndex: number;
+                isTitle?: boolean;
+                paragraphs?: Array<{
+                    text: string;
+                    level: number;
+                    align?: string;
+                    fontSizePx?: number;
+                    bold?: boolean;
+                    italic?: boolean;
+                    color?: string;
+                    runs?: Array<{
+                        text: string;
+                        fontSizePx?: number;
+                        bold?: boolean;
+                        italic?: boolean;
+                        color?: string;
+                    }>;
+                }>;
+                src?: string;
+                vectorFallback?: boolean;
+                tableRows?: string[][];
+                chartKind?: string;
+                chartTitle?: string;
+                chartData?: {
+                    kind: 'stackedColumn';
+                    categories: string[];
+                    series: Array<{
+                        name: string;
+                        color: string;
+                        values: number[];
+                    }>;
+                };
+                fillColor?: string;
+                borderColor?: string;
+            }>;
+        }>;
+        pdfBase64?: string;
+        totalSlides: number;
+        fileSize: string;
+    }> {
+        try {
+            const ext = path.extname(filePath).toLowerCase();
+            if (ext !== '.pptx' && ext !== '.ppt') {
+                throw new Error(`Unsupported presentation format: ${ext}`);
+            }
+
+            const stats = await fs.promises.stat(filePath);
+            const fileSizeBytes = stats.size;
+            const MAX_PPT_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+            if (fileSizeBytes > MAX_PPT_FILE_SIZE) {
+                throw new Error(
+                    `File too large (${(fileSizeBytes / 1024 / 1024).toFixed(1)}MB). Maximum size is ${MAX_PPT_FILE_SIZE / 1024 / 1024}MB.`
+                );
+            }
+
+            const fileSize = await this.getFileSize(filePath);
+
+            if (ext === '.pptx') {
+                const parsed = await PptxXmlParser.parse(filePath);
+                const hasRenderableElement = parsed.slides.some((slide) =>
+                    Array.isArray(slide.elements) && slide.elements.length > 0
+                );
+
+                if (!hasRenderableElement) {
+                    // Fallback to the legacy PPTX extractor so users still see content
+                    // if advanced XML parsing misses a specific deck structure.
+                    const fallback = await this.readPptFile(filePath);
+                    return {
+                        mode: 'xml',
+                        slides: fallback.slides.map((slide) => ({
+                            slideNumber: slide.slideNumber,
+                            widthPx: slide.widthPx,
+                            heightPx: slide.heightPx,
+                            backgroundColor: slide.backgroundColor,
+                            elements: slide.elements.map((el) => ({
+                                type: el.type as 'text' | 'image' | 'table' | 'chart' | 'shape',
+                                x: el.x,
+                                y: el.y,
+                                width: el.width,
+                                height: el.height,
+                                rotateDeg: el.rotateDeg,
+                                zIndex: el.zIndex,
+                                isTitle: el.isTitle,
+                                paragraphs: el.paragraphs,
+                                src: el.src
+                            }))
+                        })),
+                        totalSlides: fallback.totalSlides,
+                        fileSize
+                    };
+                }
+
+                return {
+                    mode: 'xml',
+                    slides: parsed.slides,
+                    totalSlides: parsed.totalSlides,
+                    fileSize
+                };
+            }
+
+            // .ppt is a binary format, so keep conversion fallback only for this extension.
+            const pdfBuffer = await this.convertPresentationToPdf(filePath);
+            const totalSlides = this.countPdfPages(pdfBuffer);
+            return {
+                mode: 'pdf',
+                pdfBase64: pdfBuffer.toString('base64'),
+                totalSlides,
+                fileSize
+            };
+        } catch (error) {
+            console.error('Error reading presentation file:', error);
+            throw error;
+        }
+    }
+
+    private static async convertPresentationToPdf(filePath: string): Promise<Buffer> {
+        const sofficePath = await this.findSofficePath();
+        if (!sofficePath) {
+            throw new Error(
+                'LibreOffice (soffice) is required to render PPT/PPTX accurately. Please install LibreOffice and ensure "soffice" is available in PATH.'
+            );
+        }
+
+        const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'omni-viewer-ppt-'));
+        try {
+            await this.runProcess(sofficePath, [
+                '--headless',
+                '--convert-to',
+                'pdf',
+                '--outdir',
+                tempDir,
+                filePath
+            ]);
+
+            const expectedPdf = path.join(tempDir, `${path.parse(filePath).name}.pdf`);
+            let pdfPath = expectedPdf;
+            if (!fs.existsSync(pdfPath)) {
+                const convertedFiles = await fs.promises.readdir(tempDir);
+                const anyPdf = convertedFiles.find((name) => name.toLowerCase().endsWith('.pdf'));
+                if (!anyPdf) {
+                    throw new Error('Presentation conversion succeeded but no PDF output was found.');
+                }
+                pdfPath = path.join(tempDir, anyPdf);
+            }
+
+            return await fs.promises.readFile(pdfPath);
+        } finally {
+            await fs.promises.rm(tempDir, { recursive: true, force: true });
+        }
+    }
+
+    private static async findSofficePath(): Promise<string | null> {
+        const envPath = process.env.SOFFICE_PATH;
+        const candidates = [
+            ...(envPath ? [envPath] : []),
+            'soffice',
+            '/Applications/LibreOffice.app/Contents/MacOS/soffice'
+        ];
+
+        for (const candidate of candidates) {
+            try {
+                await this.runProcess(candidate, ['--version']);
+                return candidate;
+            } catch {
+                // Try next candidate.
+            }
+        }
+
+        return null;
+    }
+
+    private static runProcess(command: string, args: string[]): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const proc = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+            let stderr = '';
+
+            proc.stderr.on('data', (chunk) => {
+                stderr += chunk.toString();
+            });
+
+            proc.on('error', (err) => {
+                reject(err);
+            });
+
+            proc.on('close', (code) => {
+                if (code === 0) {
+                    resolve();
+                } else {
+                    reject(new Error(stderr.trim() || `Process exited with code ${code}`));
+                }
+            });
+        });
+    }
+
+    private static countPdfPages(pdfBuffer: Buffer): number {
+        try {
+            const text = pdfBuffer.toString('latin1');
+            const matches = text.match(/\/Type\s*\/Page\b/g);
+            return matches ? matches.length : 0;
+        } catch {
+            return 0;
+        }
+    }
+
+    public static async readPptFile(filePath: string): Promise<{
+        slides: Array<{
+            slideNumber: number;
+            widthPx: number;
+            heightPx: number;
+            backgroundColor: string;
+            elements: Array<{
+                type: 'text' | 'image';
+                x: number;
+                y: number;
+                width: number;
+                height: number;
+                rotateDeg?: number;
+                zIndex: number;
+                isTitle?: boolean;
+                paragraphs?: Array<{
+                    text: string;
+                    level: number;
+                    align?: string;
+                    fontSizePx?: number;
+                    bold?: boolean;
+                    italic?: boolean;
+                    color?: string;
+                }>;
+                src?: string;
+            }>;
+        }>;
+        totalSlides: number;
+        fileSize: string;
+    }> {
+        try {
+            const stats = await fs.promises.stat(filePath);
+            const fileSizeBytes = stats.size;
+            const MAX_PPT_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+            if (fileSizeBytes > MAX_PPT_FILE_SIZE) {
+                throw new Error(
+                    `File too large (${(fileSizeBytes / 1024 / 1024).toFixed(1)}MB). Maximum size is ${MAX_PPT_FILE_SIZE / 1024 / 1024}MB.`
+                );
+            }
+
+            const buffer = await fs.promises.readFile(filePath);
+            const zip = await JSZip.loadAsync(buffer);
+            const orderedSlidePaths = await this.getOrderedSlidePaths(zip);
+            const slideSize = await this.getPresentationSize(zip);
+
+            const slides: Array<{
+                slideNumber: number;
+                widthPx: number;
+                heightPx: number;
+                backgroundColor: string;
+                elements: Array<{
+                    type: 'text' | 'image';
+                    x: number;
+                    y: number;
+                    width: number;
+                    height: number;
+                    rotateDeg?: number;
+                    zIndex: number;
+                    isTitle?: boolean;
+                    paragraphs?: Array<{
+                        text: string;
+                        level: number;
+                        align?: string;
+                        fontSizePx?: number;
+                        bold?: boolean;
+                        italic?: boolean;
+                        color?: string;
+                    }>;
+                    src?: string;
+                }>;
+            }> = [];
+            for (let i = 0; i < orderedSlidePaths.length; i++) {
+                const slidePath = orderedSlidePaths[i];
+                const slideFile = zip.file(slidePath);
+                if (!slideFile) {
+                    continue;
+                }
+
+                const slideXml = await slideFile.async('text');
+                const slideRels = await this.getSlideRelationships(zip, slidePath);
+                const parsedSlide = await this.parseSlideXml(zip, slidePath, slideXml, slideRels);
+                slides.push({
+                    slideNumber: i + 1,
+                    widthPx: slideSize.widthPx,
+                    heightPx: slideSize.heightPx,
+                    backgroundColor: parsedSlide.backgroundColor,
+                    elements: parsedSlide.elements
+                });
+            }
+
+            const fileSize = await this.getFileSize(filePath);
+            return {
+                slides,
+                totalSlides: slides.length,
+                fileSize
+            };
+        } catch (error) {
+            console.error('Error reading PowerPoint file:', error);
+            throw error;
+        }
+    }
+
+    private static async getPresentationSize(zip: JSZip): Promise<{ widthPx: number; heightPx: number }> {
+        const DEFAULT_WIDTH = 1280;
+        const DEFAULT_HEIGHT = 720;
+        const presentationFile = zip.file('ppt/presentation.xml');
+        if (!presentationFile) {
+            return { widthPx: DEFAULT_WIDTH, heightPx: DEFAULT_HEIGHT };
+        }
+
+        const presentationXml = await presentationFile.async('text');
+        const sldSzTag = presentationXml.match(/<p:sldSz[^>]*\/?>/);
+        if (!sldSzTag || !sldSzTag[0]) {
+            return { widthPx: DEFAULT_WIDTH, heightPx: DEFAULT_HEIGHT };
+        }
+
+        const cx = Number(this.getAttrValue(sldSzTag[0], 'cx') || 0);
+        const cy = Number(this.getAttrValue(sldSzTag[0], 'cy') || 0);
+        if (!cx || !cy) {
+            return { widthPx: DEFAULT_WIDTH, heightPx: DEFAULT_HEIGHT };
+        }
+
+        const widthPx = this.emuToPx(cx);
+        const heightPx = this.emuToPx(cy);
+
+        // Guard against malformed or mismatched unit parsing causing tiny canvases.
+        if (widthPx < 300 || heightPx < 200) {
+            return { widthPx: DEFAULT_WIDTH, heightPx: DEFAULT_HEIGHT };
+        }
+
+        return { widthPx, heightPx };
+    }
+
+    private static async getOrderedSlidePaths(zip: JSZip): Promise<string[]> {
+        const presentationFile = zip.file('ppt/presentation.xml');
+        const relsFile = zip.file('ppt/_rels/presentation.xml.rels');
+
+        if (presentationFile && relsFile) {
+            const presentationXml = await presentationFile.async('text');
+            const relsXml = await relsFile.async('text');
+
+            const relMap: Record<string, string> = {};
+            const relRegex = /<Relationship[^>]*Id="([^"]+)"[^>]*Target="([^"]+)"[^>]*>/g;
+            let relMatch: RegExpExecArray | null;
+            while ((relMatch = relRegex.exec(relsXml)) !== null) {
+                const relId = relMatch[1];
+                const target = relMatch[2];
+                relMap[relId] = this.resolveZipTargetPath('ppt/presentation.xml', target);
+            }
+
+            const orderedPaths: string[] = [];
+            const slideIdRegex = /<p:sldId[^>]*r:id="([^"]+)"[^>]*\/?>/g;
+            let slideIdMatch: RegExpExecArray | null;
+            while ((slideIdMatch = slideIdRegex.exec(presentationXml)) !== null) {
+                const relId = slideIdMatch[1];
+                const resolvedPath = relMap[relId];
+                if (resolvedPath && zip.file(resolvedPath)) {
+                    orderedPaths.push(resolvedPath);
+                }
+            }
+
+            if (orderedPaths.length > 0) {
+                return orderedPaths;
+            }
+        }
+
+        const fallbackPaths = Object.keys(zip.files)
+            .filter((name) => /^ppt\/slides\/slide\d+\.xml$/i.test(name))
+            .sort((a, b) => {
+                const aNum = Number(a.match(/slide(\d+)\.xml/i)?.[1] || 0);
+                const bNum = Number(b.match(/slide(\d+)\.xml/i)?.[1] || 0);
+                return aNum - bNum;
+            });
+
+        return fallbackPaths;
+    }
+
+    private static async getSlideRelationships(
+        zip: JSZip,
+        slidePath: string
+    ): Promise<Record<string, string>> {
+        const fileName = slidePath.split('/').pop() || '';
+        const relPath = `ppt/slides/_rels/${fileName}.rels`;
+        const relFile = zip.file(relPath);
+        if (!relFile) {
+            return {};
+        }
+
+        const relXml = await relFile.async('text');
+        const relMap: Record<string, string> = {};
+        const relRegex = /<Relationship[^>]*Id="([^"]+)"[^>]*Target="([^"]+)"[^>]*>/g;
+        let relMatch: RegExpExecArray | null;
+        while ((relMatch = relRegex.exec(relXml)) !== null) {
+            relMap[relMatch[1]] = this.resolveZipTargetPath(slidePath, relMatch[2]);
+        }
+        return relMap;
+    }
+
+    private static async parseSlideXml(
+        zip: JSZip,
+        slidePath: string,
+        slideXml: string,
+        slideRels: Record<string, string>
+    ): Promise<{
+        backgroundColor: string;
+        elements: Array<{
+            type: 'text' | 'image';
+            x: number;
+            y: number;
+            width: number;
+            height: number;
+            rotateDeg?: number;
+            zIndex: number;
+            isTitle?: boolean;
+            paragraphs?: Array<{
+                text: string;
+                level: number;
+                align?: string;
+                fontSizePx?: number;
+                bold?: boolean;
+                italic?: boolean;
+                color?: string;
+            }>;
+            src?: string;
+        }>;
+    }> {
+        const elements: Array<{
+            type: 'text' | 'image';
+            x: number;
+            y: number;
+            width: number;
+            height: number;
+            rotateDeg?: number;
+            zIndex: number;
+            isTitle?: boolean;
+            paragraphs?: Array<{
+                text: string;
+                level: number;
+                align?: string;
+                fontSizePx?: number;
+                bold?: boolean;
+                italic?: boolean;
+                color?: string;
+            }>;
+            src?: string;
+        }> = [];
+
+        const backgroundColor = this.extractSlideBackgroundColor(slideXml) || '#ffffff';
+        const shapeMatches = slideXml.match(/<p:sp\b[\s\S]*?<\/p:sp>/g) || [];
+        for (let i = 0; i < shapeMatches.length; i++) {
+            const shapeXml = shapeMatches[i];
+            const geometry = this.extractGeometry(shapeXml);
+            if (!geometry) {
+                continue;
+            }
+
+            const isTitle = this.isTitleShape(shapeXml);
+            const paragraphs = this.extractTextParagraphs(shapeXml);
+            if (paragraphs.length === 0) {
+                continue;
+            }
+
+            elements.push({
+                type: 'text',
+                x: this.emuToPx(geometry.x),
+                y: this.emuToPx(geometry.y),
+                width: this.emuToPx(geometry.cx),
+                height: this.emuToPx(geometry.cy),
+                rotateDeg: geometry.rotateDeg,
+                zIndex: i,
+                isTitle,
+                paragraphs
+            });
+        }
+
+        const pictureMatches = slideXml.match(/<p:pic\b[\s\S]*?<\/p:pic>/g) || [];
+        for (let i = 0; i < pictureMatches.length; i++) {
+            const pictureXml = pictureMatches[i];
+            const geometry = this.extractGeometry(pictureXml);
+            if (!geometry) {
+                continue;
+            }
+
+            const embedIdMatch = pictureXml.match(/<a:blip[^>]*r:embed="([^"]+)"/);
+            const embedId = embedIdMatch?.[1];
+            if (!embedId) {
+                continue;
+            }
+
+            const targetPath = slideRels[embedId];
+            if (!targetPath) {
+                continue;
+            }
+
+            const mediaFile = zip.file(targetPath);
+            if (!mediaFile) {
+                continue;
+            }
+
+            const base64 = await mediaFile.async('base64');
+            const mimeType = this.getMimeTypeByExtension(targetPath);
+            elements.push({
+                type: 'image',
+                x: this.emuToPx(geometry.x),
+                y: this.emuToPx(geometry.y),
+                width: this.emuToPx(geometry.cx),
+                height: this.emuToPx(geometry.cy),
+                rotateDeg: geometry.rotateDeg,
+                zIndex: shapeMatches.length + i,
+                src: `data:${mimeType};base64,${base64}`
+            });
+        }
+
+        return {
+            backgroundColor,
+            elements
+        };
+    }
+
+    private static extractSlideBackgroundColor(slideXml: string): string | undefined {
+        const bgPr = slideXml.match(/<p:bgPr[\s\S]*?<\/p:bgPr>/);
+        if (!bgPr || !bgPr[0]) {
+            return undefined;
+        }
+
+        const srgb = bgPr[0].match(/<a:srgbClr[^>]*val="([^"]+)"/);
+        if (srgb && srgb[1]) {
+            return `#${srgb[1]}`;
+        }
+
+        const sysClr = bgPr[0].match(/<a:sysClr[^>]*lastClr="([^"]+)"/);
+        if (sysClr && sysClr[1]) {
+            return `#${sysClr[1]}`;
+        }
+
+        return undefined;
+    }
+
+    private static isTitleShape(shapeXml: string): boolean {
+        const placeholderType = shapeXml.match(/<p:ph[^>]*type="([^"]+)"/)?.[1] || '';
+        if (placeholderType === 'title' || placeholderType === 'ctrTitle') {
+            return true;
+        }
+
+        const shapeName = shapeXml.match(/<p:cNvPr[^>]*name="([^"]+)"/)?.[1] || '';
+        return /title/i.test(shapeName);
+    }
+
+    private static extractTextParagraphs(shapeXml: string): Array<{
+        text: string;
+        level: number;
+        align?: string;
+        fontSizePx?: number;
+        bold?: boolean;
+        italic?: boolean;
+        color?: string;
+    }> {
+        const paragraphs: Array<{
+            text: string;
+            level: number;
+            align?: string;
+            fontSizePx?: number;
+            bold?: boolean;
+            italic?: boolean;
+            color?: string;
+        }> = [];
+
+        const paragraphMatches = shapeXml.match(/<a:p[\s\S]*?<\/a:p>/g) || [];
+        for (const paragraphXml of paragraphMatches) {
+            const textParts: string[] = [];
+            const textRegex = /<a:t[^>]*>([\s\S]*?)<\/a:t>/g;
+            let textMatch: RegExpExecArray | null;
+            while ((textMatch = textRegex.exec(paragraphXml)) !== null) {
+                textParts.push(this.decodeXmlEntities(textMatch[1]));
+            }
+
+            const text = textParts.join('').trim();
+            if (!text) {
+                continue;
+            }
+
+            const pPr = paragraphXml.match(/<a:pPr[^>]*\/?>/)?.[0] || '';
+            const rPr = paragraphXml.match(/<a:rPr[^>]*>/)?.[0]
+                || paragraphXml.match(/<a:defRPr[^>]*\/?>/)?.[0]
+                || '';
+            const color = paragraphXml.match(/<a:srgbClr[^>]*val="([^"]+)"/)?.[1];
+
+            const level = Number(this.getAttrValue(pPr, 'lvl') || 0);
+            const align = this.getAttrValue(pPr, 'algn') || undefined;
+            const fontSizeHundredthPt = Number(this.getAttrValue(rPr, 'sz') || 0);
+
+            paragraphs.push({
+                text,
+                level: Number.isFinite(level) ? level : 0,
+                align,
+                fontSizePx: fontSizeHundredthPt > 0 ? Math.round((fontSizeHundredthPt / 100) * 1.333) : undefined,
+                bold: this.getAttrValue(rPr, 'b') === '1',
+                italic: this.getAttrValue(rPr, 'i') === '1',
+                color: color ? `#${color}` : undefined
+            });
+        }
+
+        return paragraphs;
+    }
+
+    private static extractGeometry(xmlBlock: string): { x: number; y: number; cx: number; cy: number; rotateDeg?: number } | null {
+        const xfrmTag = xmlBlock.match(/<a:xfrm[^>]*>[\s\S]*?<\/a:xfrm>/)?.[0]
+            || xmlBlock.match(/<a:xfrm[^>]*\/>/)?.[0]
+            || '';
+        if (!xfrmTag) {
+            return null;
+        }
+
+        const offTag = xfrmTag.match(/<a:off[^>]*x=(?:"[^"]+"|'[^']+')(?=[^>]*y=(?:"[^"]+"|'[^']+'))[^>]*\/>/)?.[0] || '';
+        const extTag = xfrmTag.match(/<a:ext[^>]*cx=(?:"[^"]+"|'[^']+')(?=[^>]*cy=(?:"[^"]+"|'[^']+'))[^>]*\/>/)?.[0] || '';
+
+        const x = Number(this.getAttrValue(offTag, 'x') || 0);
+        const y = Number(this.getAttrValue(offTag, 'y') || 0);
+        const cx = Number(this.getAttrValue(extTag, 'cx') || 0);
+        const cy = Number(this.getAttrValue(extTag, 'cy') || 0);
+        if (!cx || !cy) {
+            return null;
+        }
+
+        const rotRaw = Number(this.getAttrValue(xfrmTag, 'rot') || 0);
+        return {
+            x,
+            y,
+            cx,
+            cy,
+            rotateDeg: rotRaw ? rotRaw / 60000 : undefined
+        };
+    }
+
+    private static getAttrValue(tag: string, attrName: string): string | undefined {
+        if (!tag) {
+            return undefined;
+        }
+        const escaped = attrName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const match = tag.match(new RegExp(`${escaped}=(?:"([^"]+)"|'([^']+)')`));
+        if (!match) {
+            return undefined;
+        }
+        return match[1] || match[2];
+    }
+
+    private static resolveZipTargetPath(baseFilePath: string, target: string): string {
+        if (!target) {
+            return '';
+        }
+        if (target.startsWith('/')) {
+            return target.replace(/^\/+/, '');
+        }
+        return path.posix.normalize(path.posix.join(path.posix.dirname(baseFilePath), target));
+    }
+
+    private static getMimeTypeByExtension(filePath: string): string {
+        const ext = path.extname(filePath).toLowerCase();
+        const map: Record<string, string> = {
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.gif': 'image/gif',
+            '.bmp': 'image/bmp',
+            '.webp': 'image/webp',
+            '.svg': 'image/svg+xml',
+            '.wmf': 'image/wmf',
+            '.emf': 'image/emf'
+        };
+        return map[ext] || 'application/octet-stream';
+    }
+
+    private static emuToPx(emu: number): number {
+        return Math.round(emu / 9525);
+    }
+
+    private static decodeXmlEntities(input: string): string {
+        return input
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/&#xD;/gi, '')
+            .replace(/&#xA;/gi, ' ')
+            .replace(/&#10;/g, ' ');
     }
 
     public static async readHwpFile(filePath: string): Promise<{
