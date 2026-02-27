@@ -3,8 +3,9 @@
 
     const pdfDataEl = document.getElementById('pdf-data');
     const pdfData = JSON.parse(pdfDataEl.textContent);
-    const pdfBase64 = pdfData.base64;
-    const fileName = pdfData.fileName || 'document.pdf';
+    let currentPdfBase64 = pdfData.base64;
+    let fileName = pdfData.fileName || 'document.pdf';
+    const vscode = typeof acquireVsCodeApi !== 'undefined' ? acquireVsCodeApi() : null;
 
     const loadingEl = document.getElementById('loading');
     const errorEl = document.getElementById('error');
@@ -18,9 +19,11 @@
     const btnSignature = document.getElementById('btnSignature');
     const btnMerge = document.getElementById('btnMerge');
     const btnSave = document.getElementById('btnSave');
+    const btnSaveAs = document.getElementById('btnSaveAs');
+    const textColorInput = document.getElementById('textColorInModal');
+    const signatureColorInput = document.getElementById('signatureColorInModal');
     const zoomInBtn = document.getElementById('zoomIn');
     const zoomOutBtn = document.getElementById('zoomOut');
-    const mergePdfInput = document.getElementById('mergePdfInput');
 
     const textModal = document.getElementById('textModal');
     const textInput = document.getElementById('textInput');
@@ -34,6 +37,7 @@
     let pdfDocs = [];
     let sourcePdfBase64List = [];
     let pageEntries = []; // { sourceDocIndex, sourcePageIndex }
+    let hasMergeInExtensionCache = false;
 
     let scale = 1;
     const MIN_SCALE = 0.5;
@@ -47,6 +51,8 @@
     let pendingTextPosition = null;
     let pendingSignaturePosition = null;
     let signatureCanvas = null;
+    let signaturePadCtx = null;
+    let selectedAnnotation = null;
     let isDraggingAnnotation = false;
     let dragEndedAt = 0;
     let signatureCanceledAt = 0;
@@ -60,27 +66,21 @@
         return bytes;
     }
 
-    function uint8ArrayToBase64(bytes) {
-        let binary = '';
-        const chunkSize = 0x8000;
-        for (let i = 0; i < bytes.length; i += chunkSize) {
-            const chunk = bytes.subarray(i, i + chunkSize);
-            binary += String.fromCharCode.apply(null, chunk);
-        }
-        return btoa(binary);
-    }
-
-    function getVscodeApi() {
-        return typeof acquireVsCodeApi !== 'undefined' ? acquireVsCodeApi() : null;
-    }
-
     function postMessage(msg) {
-        const vscode = getVscodeApi();
         if (vscode) vscode.postMessage(msg);
+    }
+
+    function getTextColor() {
+        return (textColorInput && textColorInput.value) ? textColorInput.value : '#000000';
+    }
+
+    function getSignatureColor() {
+        return (signatureColorInput && signatureColorInput.value) ? signatureColorInput.value : '#000000';
     }
 
     function setMode(m) {
         mode = m;
+        clearAnnotationSelection();
         btnView.classList.toggle('active', m === 'view');
         btnText.classList.toggle('active', m === 'text');
         btnSignature.classList.toggle('active', m === 'signature');
@@ -125,6 +125,46 @@
         });
     }
 
+    function clearAnnotationSelection() {
+        selectedAnnotation = null;
+        document.querySelectorAll('.annotation-text.selected, .annotation-signature.selected').forEach(function (el) {
+            el.classList.remove('selected');
+        });
+        document.querySelectorAll('.annotation-delete-btn').forEach(function (el) {
+            el.remove();
+        });
+    }
+
+    function removeAnnotation(type, index) {
+        clearAnnotationSelection();
+        if (type === 'text') {
+            if (index < 0 || index >= annotations.texts.length) return;
+            annotations.texts.splice(index, 1);
+        } else if (type === 'signature') {
+            if (index < 0 || index >= annotations.signatures.length) return;
+            annotations.signatures.splice(index, 1);
+        }
+        renderPagesSync();
+    }
+
+    function selectAnnotation(el, type, annIndex) {
+        clearAnnotationSelection();
+        selectedAnnotation = { type: type, index: annIndex };
+        el.classList.add('selected');
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'annotation-delete-btn';
+        deleteBtn.textContent = '×';
+        deleteBtn.title = 'Delete annotation';
+        deleteBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            removeAnnotation(type, annIndex);
+        });
+        el.appendChild(deleteBtn);
+    }
+
     function makeAnnotationDraggable(el) {
         const type = el.dataset.type;
         const pageIndex = parseInt(el.dataset.pageIndex, 10);
@@ -143,11 +183,13 @@
             const pdfPos = viewToPdfCoords(pageIndex, viewX, viewY, p.viewWidth, p.viewHeight);
 
             if (type === 'text') {
+                if (!annotations.texts[annIndex]) return;
                 annotations.texts[annIndex] = Object.assign({}, annotations.texts[annIndex], {
                     x: pdfPos.x,
                     y: pdfPos.y
                 });
             } else if (type === 'signature') {
+                if (!annotations.signatures[annIndex]) return;
                 const viewW = el.offsetWidth;
                 const viewH = el.offsetHeight;
                 const pdfW = (viewW / p.viewWidth) * p.pdfWidth;
@@ -185,6 +227,7 @@
         el.addEventListener('mousedown', function (e) {
             if (e.button !== 0) return;
             if (mode !== 'view') return;
+            if (e.target && e.target.closest && e.target.closest('.annotation-delete-btn')) return;
             e.preventDefault();
             e.stopPropagation();
             isDraggingAnnotation = true;
@@ -205,11 +248,18 @@
         div.className = 'annotation-text';
         div.textContent = textAnn.text;
         div.style.fontSize = (textAnn.fontSize || 12) + 'px';
+        div.style.color = textAnn.color || '#000000';
         div.style.left = pos.x + 'px';
         div.style.top = pos.y + 'px';
         div.dataset.type = 'text';
         div.dataset.pageIndex = String(textAnn.pageIndex);
         div.dataset.annotationIndex = String(idx);
+        div.addEventListener('click', function (e) {
+            if (mode !== 'view') return;
+            e.preventDefault();
+            e.stopPropagation();
+            selectAnnotation(div, 'text', idx);
+        });
         p.wrapper.appendChild(div);
         makeAnnotationDraggable(div);
     }
@@ -230,6 +280,12 @@
         wrap.dataset.type = 'signature';
         wrap.dataset.pageIndex = String(sigAnn.pageIndex);
         wrap.dataset.annotationIndex = String(idx);
+        wrap.addEventListener('click', function (e) {
+            if (mode !== 'view') return;
+            e.preventDefault();
+            e.stopPropagation();
+            selectAnnotation(wrap, 'signature', idx);
+        });
 
         const img = document.createElement('img');
         img.src = 'data:image/png;base64,' + sigAnn.imageBase64;
@@ -242,6 +298,7 @@
     }
 
     function renderAnnotations() {
+        clearAnnotationSelection();
         annotations.texts.forEach(function (t, idx) {
             createTextAnnotationElement(t, idx);
         });
@@ -260,7 +317,8 @@
             x: pdfPos.x,
             y: pdfPos.y,
             text: text,
-            fontSize: fontSize || 12
+            fontSize: fontSize || 12,
+            color: getTextColor()
         });
 
         createTextAnnotationElement(annotations.texts[annotations.texts.length - 1], annotations.texts.length - 1);
@@ -311,11 +369,11 @@
         signatureCanvasWrap.appendChild(canvas);
 
         const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(0, 0, w, h);
-        ctx.strokeStyle = '#000';
+        ctx.clearRect(0, 0, w, h);
+        ctx.strokeStyle = getSignatureColor();
         ctx.lineWidth = 2;
         ctx.lineCap = 'round';
+        signaturePadCtx = ctx;
 
         let drawing = false;
 
@@ -359,6 +417,7 @@
         if (signatureModal) signatureModal.style.display = 'none';
         if (signatureCanvasWrap) signatureCanvasWrap.innerHTML = '';
         signatureCanvas = null;
+        signaturePadCtx = null;
         pendingSignaturePosition = null;
     }
 
@@ -387,7 +446,7 @@
 
     function setupMainPdf(doc) {
         pdfDocs = [doc];
-        sourcePdfBase64List = [pdfBase64];
+        sourcePdfBase64List = [currentPdfBase64];
         pageEntries = [];
         for (let i = 0; i < doc.numPages; i++) {
             pageEntries.push({ sourceDocIndex: 0, sourcePageIndex: i });
@@ -426,6 +485,51 @@
         renderPagesSync();
     }
 
+    function deletePageAtIndex(index) {
+        if (index < 0 || index >= pageEntries.length) return;
+        if (pageEntries.length <= 1) {
+            postMessage({ command: 'warning', text: 'At least one page must remain.' });
+            return;
+        }
+
+        const oldEntries = pageEntries.slice();
+        const removedEntry = oldEntries[index];
+        const removedKey = entryKey(removedEntry);
+
+        pageEntries.splice(index, 1);
+
+        const newIndexByKey = new Map();
+        pageEntries.forEach(function (entry, newIndex) {
+            newIndexByKey.set(entryKey(entry), newIndex);
+        });
+
+        annotations.texts = annotations.texts
+            .map(function (ann) {
+                const oldEntry = oldEntries[ann.pageIndex];
+                if (!oldEntry) return null;
+                const key = entryKey(oldEntry);
+                if (key === removedKey) return null;
+                const newPageIndex = newIndexByKey.get(key);
+                if (typeof newPageIndex !== 'number') return null;
+                return Object.assign({}, ann, { pageIndex: newPageIndex });
+            })
+            .filter(function (ann) { return !!ann; });
+
+        annotations.signatures = annotations.signatures
+            .map(function (ann) {
+                const oldEntry = oldEntries[ann.pageIndex];
+                if (!oldEntry) return null;
+                const key = entryKey(oldEntry);
+                if (key === removedKey) return null;
+                const newPageIndex = newIndexByKey.get(key);
+                if (typeof newPageIndex !== 'number') return null;
+                return Object.assign({}, ann, { pageIndex: newPageIndex });
+            })
+            .filter(function (ann) { return !!ann; });
+
+        renderPagesSync();
+    }
+
     const THUMB_SCALE = 0.2;
 
     function clearThumbnailStates() {
@@ -461,6 +565,18 @@
                 label.className = 'page-num';
                 label.textContent = String(idx + 1);
                 div.appendChild(label);
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.type = 'button';
+                deleteBtn.className = 'thumbnail-delete-btn';
+                deleteBtn.title = 'Delete this page';
+                deleteBtn.textContent = '×';
+                deleteBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    deletePageAtIndex(idx);
+                });
+                div.appendChild(deleteBtn);
 
                 div.addEventListener('click', function () {
                     if (pageData[idx] && pageData[idx].wrapper) {
@@ -548,8 +664,8 @@
                 pagesContainer.appendChild(wrapper);
 
                 pageData.push({
-                    pdfWidth: viewport.width,
-                    pdfHeight: viewport.height,
+                    pdfWidth: page.view[2],
+                    pdfHeight: page.view[3],
                     viewWidth: viewport.width,
                     viewHeight: viewport.height,
                     wrapper: wrapper
@@ -575,14 +691,52 @@
         renderOne(0);
     }
 
-    function doSave() {
-        const hasMerge = sourcePdfBase64List.length > 1;
+    function doSave(saveAs) {
+        function buildTextStamps() {
+            return annotations.texts.map(function (t) {
+                const fontSize = t.fontSize || 12;
+                const color = t.color || '#000000';
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                ctx.font = fontSize + 'px sans-serif';
+                const padding = 3;
+                const measuredWidth = Math.ceil(ctx.measureText(t.text || '').width);
+                const canvasWidth = Math.max(1, measuredWidth + padding * 2);
+                const canvasHeight = Math.max(1, Math.ceil(fontSize * 1.6) + padding * 2);
+                canvas.width = canvasWidth;
+                canvas.height = canvasHeight;
+
+                const drawCtx = canvas.getContext('2d');
+                drawCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+                drawCtx.font = fontSize + 'px sans-serif';
+                drawCtx.fillStyle = color;
+                drawCtx.textBaseline = 'top';
+                drawCtx.fillText(t.text || '', padding, padding);
+
+                const pngBase64 = canvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, '');
+                const pdfWidth = canvasWidth * 0.75;
+                const pdfHeight = canvasHeight * 0.75;
+                return {
+                    pageIndex: t.pageIndex,
+                    x: t.x,
+                    y: t.y - pdfHeight,
+                    width: pdfWidth,
+                    height: pdfHeight,
+                    imageBase64: pngBase64
+                };
+            });
+        }
+
+        const hasMergePreview = sourcePdfBase64List.length > 1;
+        const hasMerge = hasMergePreview || hasMergeInExtensionCache;
+        const totalSourcePages = pdfDocs.reduce(function (sum, doc) { return sum + doc.numPages; }, 0);
+        const hasPageDeletion = pageEntries.length !== totalSourcePages;
         const hasPageOrderChange = pageEntries.some(function (entry, idx) {
             return entry.sourceDocIndex !== 0 || entry.sourcePageIndex !== idx;
         });
         const hasAnnotations = annotations.texts.length > 0 || annotations.signatures.length > 0;
 
-        if (!hasAnnotations && !hasMerge && !hasPageOrderChange) {
+        if (!saveAs && !hasAnnotations && !hasMerge && !hasPageOrderChange && !hasPageDeletion) {
             postMessage({ command: 'info', text: 'No changes to save.' });
             return;
         }
@@ -597,15 +751,21 @@
         const pageOrder = pageEntries.map(function (entry) {
             return sourcePageOffsets[entry.sourceDocIndex] + entry.sourcePageIndex;
         });
+        const textStamps = buildTextStamps();
 
+        const saveCommand = saveAs ? 'savePdfAs' : 'savePdf';
         postMessage({
-            type: 'savePdf',
-            command: 'savePdf',
+            type: saveCommand,
+            command: saveCommand,
             data: {
                 texts: annotations.texts,
+                textStamps: textStamps,
                 signatures: annotations.signatures,
                 pageOrder: pageOrder,
-                extraPdfBase64List: sourcePdfBase64List.slice(1)
+                hasMerge: hasMerge,
+                previewIncludesMergedPages: hasMergePreview,
+                saveAs: saveAs,
+                sourceFileName: fileName
             }
         });
     }
@@ -618,30 +778,17 @@
             postMessage({ command: 'warning', text: 'Only one additional PDF can be merged at a time.' });
             return;
         }
-        mergePdfInput.click();
+        postMessage({ command: 'selectMergePdf' });
     });
 
-    mergePdfInput.addEventListener('change', async function (event) {
-        const target = event.target;
-        const file = target.files && target.files[0];
-        target.value = '';
-
-        if (!file) return;
-
-        try {
-            const arrayBuffer = await file.arrayBuffer();
-            const base64 = uint8ArrayToBase64(new Uint8Array(arrayBuffer));
-            await appendSecondPdf(base64);
-            postMessage({ command: 'info', text: 'Second PDF merged into the preview. Click Save to write file.' });
-        } catch (err) {
-            postMessage({
-                command: 'error',
-                text: 'Failed to merge selected PDF: ' + (err && err.message ? err.message : String(err))
-            });
+    btnSave.addEventListener('click', function () { doSave(false); });
+    btnSaveAs.addEventListener('click', function () { doSave(true); });
+    document.addEventListener('keydown', function (e) {
+        if ((e.key === 'Delete' || e.key === 'Backspace') && selectedAnnotation && mode === 'view') {
+            e.preventDefault();
+            removeAnnotation(selectedAnnotation.type, selectedAnnotation.index);
         }
     });
-
-    btnSave.addEventListener('click', doSave);
 
     zoomInBtn.addEventListener('click', function () {
         if (scale >= MAX_SCALE) return;
@@ -704,9 +851,19 @@
         hideSignatureModal();
     });
 
+    if (signatureColorInput) {
+        signatureColorInput.addEventListener('input', function () {
+            if (signaturePadCtx) {
+                signaturePadCtx.strokeStyle = getSignatureColor();
+            }
+        });
+    }
+
     async function initialize() {
         try {
-            const mainDoc = await loadPdfDocumentFromBase64(pdfBase64);
+            postMessage({ command: 'resetMergePdfCache' });
+            hasMergeInExtensionCache = false;
+            const mainDoc = await loadPdfDocumentFromBase64(currentPdfBase64);
             setupMainPdf(mainDoc);
             loadingEl.style.display = 'none';
             pdfBody.style.display = 'flex';
@@ -718,6 +875,61 @@
             errorEl.style.display = 'block';
         }
     }
+
+    window.addEventListener('message', async function (event) {
+        const message = event.data || {};
+        if (message.type === 'pdfSaved') {
+            if (!message.data || !message.data.base64) return;
+            try {
+                currentPdfBase64 = String(message.data.base64);
+                if (message.data.fileName) {
+                    fileName = String(message.data.fileName);
+                    const titleEl = document.querySelector('.title');
+                    if (titleEl) {
+                        titleEl.textContent = '📄 ' + fileName;
+                    }
+                }
+                annotations.texts = [];
+                annotations.signatures = [];
+                hasMergeInExtensionCache = false;
+                const mainDoc = await loadPdfDocumentFromBase64(currentPdfBase64);
+                setupMainPdf(mainDoc);
+                renderPagesSync();
+            } catch (err) {
+                postMessage({
+                    command: 'error',
+                    text: 'Saved PDF reload failed: ' + (err && err.message ? err.message : String(err))
+                });
+            }
+            return;
+        }
+
+        if (message.type === 'selectedMergePdf') {
+            if (!message.data || !message.data.base64) return;
+
+            try {
+                await appendSecondPdf(message.data.base64);
+                hasMergeInExtensionCache = false;
+                const mergedName = message.data.fileName ? String(message.data.fileName) : 'selected file';
+                postMessage({ command: 'info', text: mergedName + ' merged into preview. Click Save/Save As to apply.' });
+            } catch (err) {
+                postMessage({
+                    command: 'error',
+                    text: 'Failed to merge selected PDF: ' + (err && err.message ? err.message : String(err))
+                });
+            }
+            return;
+        }
+
+        if (message.type === 'selectedMergePdfMeta') {
+            hasMergeInExtensionCache = true;
+            const mergedName = message.data && message.data.fileName ? String(message.data.fileName) : 'selected file';
+            postMessage({
+                command: 'info',
+                text: mergedName + ' selected for merge. It will be applied on Save/Save As.'
+            });
+        }
+    });
 
     initialize();
 })();

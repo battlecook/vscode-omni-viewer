@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.13.0] - 2026-02-28
+
+### Added
+- **PDF Editor: PDF merge support**
+  - Added a "Merge PDF" button in the PDF editor
+  - Supports adding and merging multiple PDF files into the current document
+  - Maintains page order during merge with improved drag-and-drop UX
+- **PowerPoint Viewer: Microsoft PowerPoint (.pptx) support**
+  - Added PowerPoint custom viewer with XML-based slide rendering for `.pptx`
+  - Supports both `.pptx` and `.ppt` files
+  - `.ppt` files are converted to PDF for rendering
+  - Slide jump selector and zoom controls (Ctrl+/-, Ctrl+0)
+  - File info header with file size and total slide count
+  - Added "Open with PowerPoint Viewer" in explorer context menu for `.pptx` and `.ppt`
+  - PowerPoint files open with PowerPoint Viewer by default
+  - Requires LibreOffice (`soffice`) for `.ppt` to PDF conversion
+
 ## [0.12.0] - 2026-02-14
 
 ### Added

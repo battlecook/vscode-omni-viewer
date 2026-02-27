@@ -600,6 +600,7 @@ export class FileUtils {
                 paragraphs?: Array<{
                     text: string;
                     level: number;
+                    bullet?: boolean;
                     align?: string;
                     fontSizePx?: number;
                     bold?: boolean;
@@ -625,7 +626,38 @@ export class FileUtils {
                         name: string;
                         color: string;
                         values: number[];
+                        dataLabel?: {
+                            showValue?: boolean;
+                            numFmt?: string;
+                            fontSizePx?: number;
+                            color?: string;
+                        };
                     }>;
+                    gapWidth?: number;
+                    overlap?: number;
+                    legend?: {
+                        position?: string;
+                        fontSizePx?: number;
+                        color?: string;
+                        align?: string;
+                    };
+                    categoryAxis?: {
+                        numFmt?: string;
+                        fontSizePx?: number;
+                        color?: string;
+                        lineColor?: string;
+                    };
+                    valueAxis?: {
+                        numFmt?: string;
+                        fontSizePx?: number;
+                        color?: string;
+                        lineColor?: string;
+                        gridColor?: string;
+                        majorUnit?: number;
+                        min?: number;
+                        max?: number;
+                        crossesAt?: number;
+                    };
                 };
                 fillColor?: string;
                 borderColor?: string;
@@ -653,14 +685,18 @@ export class FileUtils {
             const fileSize = await this.getFileSize(filePath);
 
             if (ext === '.pptx') {
+                const parseStartedAt = Date.now();
                 const parsed = await PptxXmlParser.parse(filePath);
+                const parseElapsedMs = Date.now() - parseStartedAt;
                 const hasRenderableElement = parsed.slides.some((slide) =>
                     Array.isArray(slide.elements) && slide.elements.length > 0
                 );
+                console.log(`[PPT] Parsed PPTX XML in ${parseElapsedMs}ms (${parsed.totalSlides} slides)`);
 
                 if (!hasRenderableElement) {
                     // Fallback to the legacy PPTX extractor so users still see content
                     // if advanced XML parsing misses a specific deck structure.
+                    console.warn('[PPT] Parsed slides had no renderable elements. Falling back to legacy extractor.');
                     const fallback = await this.readPptFile(filePath);
                     return {
                         mode: 'xml',

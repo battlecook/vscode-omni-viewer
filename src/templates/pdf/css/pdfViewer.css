@@ -137,7 +137,16 @@ body {
     padding: 8px;
 }
 
+.thumbnail-help {
+    font-size: 10px;
+    line-height: 1.35;
+    color: var(--vscode-descriptionForeground);
+    padding: 8px;
+    border-bottom: 1px solid var(--vscode-widget-border);
+}
+
 .thumbnail-item {
+    position: relative;
     margin-bottom: 8px;
     cursor: pointer;
     border: 2px solid transparent;
@@ -167,6 +176,26 @@ body {
     display: block;
     width: 100%;
     height: auto;
+}
+
+.thumbnail-delete-btn {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 16px;
+    height: 16px;
+    border: none;
+    border-radius: 8px;
+    font-size: 12px;
+    line-height: 16px;
+    cursor: pointer;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 0;
+}
+
+.thumbnail-delete-btn:hover {
+    background: rgba(204, 0, 0, 0.85);
 }
 
 .thumbnail-item .page-num {
@@ -227,6 +256,29 @@ body {
     pointer-events: auto;
 }
 
+.annotation-text.selected,
+.annotation-signature.selected {
+    outline: 2px solid var(--vscode-focusBorder);
+    outline-offset: 1px;
+}
+
+.annotation-delete-btn {
+    position: absolute;
+    top: -9px;
+    right: -9px;
+    width: 18px;
+    height: 18px;
+    border: none;
+    border-radius: 9px;
+    background: rgba(170, 0, 0, 0.9);
+    color: #fff;
+    font-size: 12px;
+    line-height: 18px;
+    text-align: center;
+    cursor: pointer;
+    padding: 0;
+}
+
 .annotation-signature {
     position: absolute;
     pointer-events: auto;
@@ -277,6 +329,24 @@ body {
     border-radius: 4px;
 }
 
+.modal-inline-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.modal-inline-label input[type="color"] {
+    width: 40px;
+    height: 24px;
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 4px;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+}
+
 .modal-actions {
     display: flex;
     justify-content: flex-end;
@@ -312,6 +382,11 @@ body {
     display: block;
     margin-bottom: 8px;
     font-size: 12px;
+    color: #000;
+}
+
+.signature-modal .modal-inline-label {
+    color: #000;
 }
 
 .signature-canvas-modal {

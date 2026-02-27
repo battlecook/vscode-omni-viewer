@@ -20,7 +20,20 @@ export interface WebviewMessage {
 }
 
 export class MessageHandler {
-    public static async handleWebviewMessage(message: WebviewMessage, documentUri?: vscode.Uri): Promise<void> {
+    private static mergedPdfCache = new Map<string, string[]>();
+
+    private static getDocumentCacheKey(documentUri?: vscode.Uri): string | null {
+        if (!documentUri) {
+            return null;
+        }
+        return documentUri.toString();
+    }
+
+    public static async handleWebviewMessage(
+        message: WebviewMessage,
+        documentUri?: vscode.Uri,
+        webview?: vscode.Webview
+    ): Promise<void> {
         // Handle both command-based and type-based messages
         const messageType = message.type || message.command;
         
@@ -66,7 +79,16 @@ export class MessageHandler {
                 await this.handleDownloadFile(message, documentUri);
                 break;
             case 'savePdf':
-                await this.handleSavePdf(message, documentUri);
+                await this.handleSavePdf(message, documentUri, webview);
+                break;
+            case 'savePdfAs':
+                await this.handleSavePdf(message, documentUri, webview);
+                break;
+            case 'selectMergePdf':
+                await this.handleSelectMergePdf(documentUri, webview);
+                break;
+            case 'resetMergePdfCache':
+                this.resetMergedPdfCache(documentUri);
                 break;
 
             default:
@@ -425,8 +447,66 @@ export class MessageHandler {
             }
 
             // Pass document URI to handleWebviewMessage for save operations
-            await this.handleWebviewMessage(message, documentUri);
+            await this.handleWebviewMessage(message, documentUri, webview);
         });
+    }
+
+    private static resetMergedPdfCache(documentUri?: vscode.Uri): void {
+        const key = this.getDocumentCacheKey(documentUri);
+        if (!key) {
+            return;
+        }
+        this.mergedPdfCache.delete(key);
+    }
+
+    private static async handleSelectMergePdf(documentUri?: vscode.Uri, webview?: vscode.Webview): Promise<void> {
+        try {
+            if (!documentUri || !webview) {
+                throw new Error('No active PDF document');
+            }
+
+            const selectedUris = await vscode.window.showOpenDialog({
+                canSelectFiles: true,
+                canSelectFolders: false,
+                canSelectMany: false,
+                filters: { 'PDF files': ['pdf'] }
+            });
+
+            if (!selectedUris || selectedUris.length === 0) {
+                return;
+            }
+
+            const mergeUri = selectedUris[0];
+            const mergeBytes = await vscode.workspace.fs.readFile(mergeUri);
+            const mergeBase64 = Buffer.from(mergeBytes).toString('base64');
+            const cacheKey = this.getDocumentCacheKey(documentUri);
+            if (cacheKey) {
+                this.mergedPdfCache.set(cacheKey, [mergeBase64]);
+            }
+            const mergedFileName = path.basename(mergeUri.fsPath);
+            const MAX_WEBVIEW_BASE64_BYTES = 1_500_000;
+
+            if (mergeBytes.length <= MAX_WEBVIEW_BASE64_BYTES) {
+                await webview.postMessage({
+                    type: 'selectedMergePdf',
+                    data: {
+                        base64: mergeBase64,
+                        fileName: mergedFileName
+                    }
+                });
+            } else {
+                await webview.postMessage({
+                    type: 'selectedMergePdfMeta',
+                    data: {
+                        fileName: mergedFileName
+                    }
+                });
+            }
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+            vscode.window.showErrorMessage(`Failed to select merge PDF: ${errorMessage}`);
+            console.error('Error selecting merge PDF:', error);
+        }
     }
 
     private static async handleSaveRegionFile(message: WebviewMessage): Promise<void> {
@@ -555,19 +635,44 @@ export class MessageHandler {
         }
     }
 
-    private static async handleSavePdf(message: WebviewMessage, documentUri?: vscode.Uri): Promise<void> {
+    private static async handleSavePdf(
+        message: WebviewMessage,
+        documentUri?: vscode.Uri,
+        webview?: vscode.Webview
+    ): Promise<void> {
         try {
             if (!documentUri || !message.data) {
                 throw new Error('No document or annotation data');
             }
 
+            const isSaveAs = message.data.saveAs === true || message.command === 'savePdfAs' || message.type === 'savePdfAs';
+            let targetUri = documentUri;
+            if (isSaveAs) {
+                const sourcePath = documentUri.fsPath;
+                const sourceExt = path.extname(sourcePath) || '.pdf';
+                const sourceBase = path.basename(sourcePath, sourceExt);
+                const defaultPath = path.join(path.dirname(sourcePath), `${sourceBase}-edited.pdf`);
+
+                const saveAsUri = await vscode.window.showSaveDialog({
+                    defaultUri: vscode.Uri.file(defaultPath),
+                    filters: { 'PDF files': ['pdf'] }
+                });
+
+                if (!saveAsUri) {
+                    return;
+                }
+                targetUri = saveAsUri;
+            }
+
             const pdfBytes = await vscode.workspace.fs.readFile(documentUri);
             const baseDoc = await PDFDocument.load(pdfBytes);
             const sourceDocs: PDFDocument[] = [baseDoc];
+            const cacheKey = this.getDocumentCacheKey(documentUri);
+            const cachedExtraPdfs = cacheKey ? (this.mergedPdfCache.get(cacheKey) || []) : [];
 
             const extraPdfBase64List: string[] = Array.isArray(message.data.extraPdfBase64List)
                 ? message.data.extraPdfBase64List
-                : [];
+                : (message.data.hasMerge ? cachedExtraPdfs : []);
             for (const extraBase64 of extraPdfBase64List) {
                 if (!extraBase64) {
                     continue;
@@ -603,9 +708,17 @@ export class MessageHandler {
                     normalizedOrder.push(pageIndex);
                 }
 
-                for (let i = 0; i < totalPages; i++) {
-                    if (!seen.has(i)) {
-                        normalizedOrder.push(i);
+                if (normalizedOrder.length === 0) {
+                    throw new Error('No valid pages left to save.');
+                }
+
+                const hasMerge = message.data.hasMerge === true;
+                const previewIncludesMergedPages = message.data.previewIncludesMergedPages === true;
+                if (hasMerge && !previewIncludesMergedPages) {
+                    for (let i = 0; i < totalPages; i++) {
+                        if (!seen.has(i)) {
+                            normalizedOrder.push(i);
+                        }
                     }
                 }
 
@@ -618,26 +731,43 @@ export class MessageHandler {
             const helvetica = await workingDoc.embedFont(StandardFonts.Helvetica);
             const pages = workingDoc.getPages();
 
-            const texts: Array<{ pageIndex: number; x: number; y: number; text: string; fontSize?: number }> = message.data.texts || [];
+            const texts: Array<{ pageIndex: number; x: number; y: number; text: string; fontSize?: number; color?: string }> = message.data.texts || [];
+            const textStamps: Array<{ pageIndex: number; imageBase64: string; x: number; y: number; width: number; height: number }> = message.data.textStamps || [];
             const signatures: Array<{ pageIndex: number; imageBase64: string; x: number; y: number; width: number; height: number }> = message.data.signatures || [];
 
-            for (const t of texts) {
-                if (t.pageIndex < 0 || t.pageIndex >= pages.length) continue;
-                const page = pages[t.pageIndex];
-                page.drawText(t.text, {
-                    x: t.x,
-                    y: t.y,
-                    size: t.fontSize || 12,
-                    font: helvetica,
-                    color: rgb(0, 0, 0)
-                });
+            if (textStamps.length > 0) {
+                for (const stamp of textStamps) {
+                    if (stamp.pageIndex < 0 || stamp.pageIndex >= pages.length) continue;
+                    const page = pages[stamp.pageIndex];
+                    const imgBytes = Buffer.from(stamp.imageBase64, 'base64');
+                    const pngImage = await workingDoc.embedPng(imgBytes);
+                    page.drawImage(pngImage, {
+                        x: stamp.x,
+                        y: stamp.y,
+                        width: stamp.width,
+                        height: stamp.height
+                    });
+                }
+            } else {
+                for (const t of texts) {
+                    if (t.pageIndex < 0 || t.pageIndex >= pages.length) continue;
+                    const page = pages[t.pageIndex];
+                    const textColor = this.hexToRgb(t.color);
+                    page.drawText(t.text, {
+                        x: t.x,
+                        y: t.y,
+                        size: t.fontSize || 12,
+                        font: helvetica,
+                        color: rgb(textColor.r, textColor.g, textColor.b)
+                    });
+                }
             }
 
             for (const sig of signatures) {
                 if (sig.pageIndex < 0 || sig.pageIndex >= pages.length) continue;
                 const page = pages[sig.pageIndex];
                 const imgBytes = Buffer.from(sig.imageBase64, 'base64');
-                const pngImage = await pdfDoc.embedPng(imgBytes);
+                const pngImage = await workingDoc.embedPng(imgBytes);
                 page.drawImage(pngImage, {
                     x: sig.x,
                     y: sig.y,
@@ -647,8 +777,21 @@ export class MessageHandler {
             }
 
             const savedBytes = await workingDoc.save();
-            await vscode.workspace.fs.writeFile(documentUri, new Uint8Array(savedBytes));
-            vscode.window.showInformationMessage('PDF saved successfully.');
+            await vscode.workspace.fs.writeFile(targetUri, new Uint8Array(savedBytes));
+            vscode.window.showInformationMessage(`PDF saved: ${path.basename(targetUri.fsPath)}`);
+            this.resetMergedPdfCache(documentUri);
+            if (webview) {
+                await webview.postMessage({
+                    type: 'pdfSaved',
+                    data: {
+                        base64: Buffer.from(savedBytes).toString('base64'),
+                        fileName: path.basename(targetUri.fsPath)
+                    }
+                });
+            }
+
+            // Force-refresh the custom PDF editor so UI state always matches saved file.
+            await vscode.commands.executeCommand('vscode.openWith', targetUri, 'omni-viewer.pdfViewer');
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
             vscode.window.showErrorMessage(`Failed to save PDF: ${errorMessage}`);
@@ -664,5 +807,24 @@ export class MessageHandler {
             .replace(/_{2,}/g, '_')          // Replace multiple underscores with single
             .replace(/^_|_$/g, '')          // Remove leading/trailing underscores
             .substring(0, 255);              // Limit length
+    }
+
+    private static hexToRgb(hex?: string): { r: number; g: number; b: number } {
+        if (!hex || typeof hex !== 'string') {
+            return { r: 0, g: 0, b: 0 };
+        }
+        const normalized = hex.trim().replace('#', '');
+        const fullHex = normalized.length === 3
+            ? normalized.split('').map((c) => c + c).join('')
+            : normalized;
+        if (!/^[0-9a-fA-F]{6}$/.test(fullHex)) {
+            return { r: 0, g: 0, b: 0 };
+        }
+        const intVal = parseInt(fullHex, 16);
+        return {
+            r: ((intVal >> 16) & 255) / 255,
+            g: ((intVal >> 8) & 255) / 255,
+            b: (intVal & 255) / 255
+        };
     }
 }

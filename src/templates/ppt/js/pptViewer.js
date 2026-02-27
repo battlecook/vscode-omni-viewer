@@ -15,7 +15,12 @@
     let presentation = {};
     let parseError = null;
     try {
-        presentation = JSON.parse((dataTag && dataTag.textContent) ? dataTag.textContent : '{}');
+        const raw = (dataTag && dataTag.textContent) ? dataTag.textContent : '{}';
+        if (raw.length > 60 * 1024 * 1024) {
+            throw new Error('Presentation payload is too large to render safely.');
+        }
+        const parsed = JSON.parse(raw);
+        presentation = normalizePresentation(parsed);
     } catch (err) {
         parseError = err instanceof Error ? err : new Error(String(err));
     }
@@ -27,6 +32,49 @@
 
     let pdfDoc = null;
     let pdfJsReady = false;
+    let renderToken = 0;
+
+    const RENDER_TIMEOUT_MS = 30000;
+    const PDFJS_LOAD_TIMEOUT_MS = 12000;
+
+    function normalizePresentation(parsed) {
+        if (!parsed || typeof parsed !== 'object') {
+            return { mode: 'xml', slides: [], totalSlides: 0 };
+        }
+        const normalized = { ...parsed };
+        if (normalized.mode !== 'pdf' && normalized.mode !== 'xml') {
+            normalized.mode = 'xml';
+        }
+        if (!Array.isArray(normalized.slides)) {
+            normalized.slides = [];
+        }
+        if (!Number.isFinite(normalized.totalSlides)) {
+            normalized.totalSlides = normalized.mode === 'pdf'
+                ? Number(normalized.totalSlides || 0)
+                : normalized.slides.length;
+        }
+        return normalized;
+    }
+
+    function nextFrame() {
+        return new Promise((resolve) => {
+            requestAnimationFrame(() => resolve());
+        });
+    }
+
+    async function withTimeout(promise, timeoutMs, message) {
+        let timer = null;
+        try {
+            return await Promise.race([
+                promise,
+                new Promise((_, reject) => {
+                    timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+                })
+            ]);
+        } finally {
+            if (timer) clearTimeout(timer);
+        }
+    }
 
     function setError(message) {
         if (loading) loading.style.display = 'none';
@@ -103,22 +151,36 @@
         if (element.borderColor) box.style.border = `1px solid ${element.borderColor}`;
 
         const paragraphs = Array.isArray(element.paragraphs) ? element.paragraphs : [];
+        const isLikelyList = !element.isTitle && paragraphs.length >= 3;
         paragraphs.forEach((paragraph) => {
             const p = document.createElement('p');
             p.className = 'text-line';
             p.style.marginLeft = `${Math.max(0, Number(paragraph.level || 0)) * 16}px`;
             p.style.textAlign = mapAlign(paragraph.align);
             const level = Math.max(0, Number(paragraph.level || 0));
-            const inferredSize = element.isTitle ? 64 : Math.max(16, 24 - level * 2);
+            const inferredSize = element.isTitle ? 52 : Math.max(16, 24 - level * 2);
             const fontSize = paragraph.fontSizePx || inferredSize;
             p.style.fontSize = `${fontSize}px`;
             p.style.lineHeight = `${Math.max(18, Math.round(fontSize * 1.18))}px`;
 
-            if (paragraph.bold || element.isTitle) p.style.fontWeight = '700';
+            if (paragraph.bold) p.style.fontWeight = '700';
             else p.style.fontWeight = '400';
             if (paragraph.italic) p.style.fontStyle = 'italic';
             const inferredTitleColor = (element.isTitle && !paragraph.color) ? '#8e8f92' : undefined;
-            p.style.color = paragraph.color || inferredTitleColor || fallbackColor || '#111111';
+            const paragraphColor = paragraph.color || inferredTitleColor || fallbackColor || '#111111';
+            p.style.color = paragraphColor;
+
+            const showBullet = !!paragraph.bullet || (isLikelyList && !!(paragraph.text || '').trim());
+            if (showBullet) {
+                const bullet = document.createElement('span');
+                bullet.textContent = '•';
+                bullet.style.display = 'inline-block';
+                bullet.style.width = '26px';
+                bullet.style.marginRight = '6px';
+                bullet.style.textAlign = 'center';
+                bullet.style.color = paragraphColor;
+                p.appendChild(bullet);
+            }
 
             const runs = Array.isArray(paragraph.runs) ? paragraph.runs : [];
             if (runs.length > 0) {
@@ -128,11 +190,11 @@
                     if (run.fontSizePx) span.style.fontSize = `${run.fontSizePx}px`;
                     if (run.bold) span.style.fontWeight = '700';
                     if (run.italic) span.style.fontStyle = 'italic';
-                    span.style.color = run.color || (fallbackColor || '#111111');
+                    span.style.color = run.color || paragraphColor;
                     p.appendChild(span);
                 });
             } else {
-                p.textContent = paragraph.text || '';
+                p.appendChild(document.createTextNode(paragraph.text || ''));
             }
             box.appendChild(p);
         });
@@ -276,20 +338,63 @@
         return box;
     }
 
+    function getDecimalPlaces(formatCode) {
+        if (!formatCode) return 0;
+        const match = formatCode.match(/0\.([0#]+)/);
+        return match ? match[1].length : 0;
+    }
+
+    function formatChartValue(value, formatCode) {
+        const decimals = getDecimalPlaces(formatCode);
+        const isCurrency = typeof formatCode === 'string' && formatCode.includes('$');
+        const useParensForNegative = typeof formatCode === 'string' && /;\s*\\?\(.*0/.test(formatCode);
+        const abs = Math.abs(value);
+        const numeric = abs.toLocaleString('en-US', {
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals
+        });
+        const prefixed = isCurrency ? `$${numeric}` : numeric;
+        if (value < 0) {
+            return useParensForNegative ? `(${prefixed})` : `-${prefixed}`;
+        }
+        return prefixed;
+    }
+
+    function getNiceStep(span, targetTicks) {
+        const safeSpan = Math.max(0.000001, span);
+        const rough = safeSpan / Math.max(1, targetTicks);
+        const power = Math.pow(10, Math.floor(Math.log10(rough)));
+        const normalized = rough / power;
+        let unit = 1;
+        if (normalized > 5) unit = 10;
+        else if (normalized > 2) unit = 5;
+        else if (normalized > 1) unit = 2;
+        return unit * power;
+    }
+
     function drawStackedColumnChart(canvas, chartData) {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
         const w = canvas.width;
         const h = canvas.height;
-        const margin = { left: 66, right: 14, top: 20, bottom: 78 };
+        const margin = { left: 74, right: 20, top: 20, bottom: 88 };
         const plotW = w - margin.left - margin.right;
         const plotH = h - margin.top - margin.bottom;
-        if (plotW <= 10 || plotH <= 10) return;
+        if (plotW <= 20 || plotH <= 20) return;
 
         const categories = Array.isArray(chartData.categories) ? chartData.categories : [];
         const series = Array.isArray(chartData.series) ? chartData.series : [];
         if (categories.length === 0 || series.length === 0) return;
+
+        const valueAxis = chartData.valueAxis || {};
+        const categoryAxis = chartData.categoryAxis || {};
+        const legend = chartData.legend || {};
+        const axisFormat = valueAxis.numFmt || '$#,##0.0';
+        const axisTextColor = valueAxis.color || '#222222';
+        const axisFontSize = Math.max(10, Number(valueAxis.fontSizePx || 11));
+        const categoryTextColor = categoryAxis.color || '#222222';
+        const categoryFontSize = Math.max(10, Number(categoryAxis.fontSizePx || 11));
 
         const sums = categories.map((_, idx) =>
             series.reduce((acc, s) => acc + Math.max(0, Number((s.values || [])[idx] || 0)), 0)
@@ -298,39 +403,48 @@
             series.reduce((acc, s) => acc + Math.min(0, Number((s.values || [])[idx] || 0)), 0)
         );
 
-        const rawMin = Math.min(0, ...mins);
-        const rawMax = Math.max(1, ...sums);
-        const minValue = Math.floor(rawMin - 0.5);
-        const maxValue = Math.ceil(rawMax + 0.5);
-        const span = maxValue - minValue || 1;
+        const axisMin = Number(valueAxis.min);
+        const axisMax = Number(valueAxis.max);
+        let minValue = Number.isFinite(axisMin) ? axisMin : Math.min(0, ...mins);
+        let maxValue = Number.isFinite(axisMax) ? axisMax : Math.max(1, ...sums);
+        if (minValue >= maxValue) {
+            maxValue = minValue + 1;
+        }
+        const span = maxValue - minValue;
         const yFor = (v) => margin.top + ((maxValue - v) / span) * plotH;
-        const zeroY = yFor(0);
+        const zeroY = yFor(Number.isFinite(valueAxis.crossesAt) ? valueAxis.crossesAt : 0);
+        const yStep = Number.isFinite(valueAxis.majorUnit) && valueAxis.majorUnit > 0
+            ? valueAxis.majorUnit
+            : getNiceStep(span, 8);
 
         ctx.clearRect(0, 0, w, h);
-        const yStep = 1;
 
-        ctx.strokeStyle = '#4f81bd';
+        ctx.strokeStyle = valueAxis.lineColor || '#4f81bd';
         ctx.lineWidth = 1;
         ctx.strokeRect(margin.left, margin.top, plotW, plotH);
 
-        ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+        ctx.strokeStyle = valueAxis.gridColor || 'rgba(0,0,0,0.22)';
         ctx.lineWidth = 1;
-        for (let v = minValue; v <= maxValue; v += yStep) {
-            const y = yFor(v);
+        let tick = Math.floor(minValue / yStep) * yStep;
+        let safeTickCount = 0;
+        while (tick <= maxValue + yStep * 0.5 && safeTickCount < 250) {
+            const y = yFor(tick);
             ctx.beginPath();
             ctx.moveTo(margin.left, y);
             ctx.lineTo(margin.left + plotW, y);
             ctx.stroke();
 
-            const label = v >= 0 ? `$${v.toFixed(1)}` : `($${Math.abs(v).toFixed(1)})`;
-            ctx.fillStyle = '#222';
-            ctx.font = '400 11px Arial, sans-serif';
+            ctx.fillStyle = axisTextColor;
+            ctx.font = `400 ${axisFontSize}px Arial, sans-serif`;
             ctx.textAlign = 'right';
             ctx.textBaseline = 'middle';
-            ctx.fillText(label, margin.left - 12, y);
+            ctx.fillText(formatChartValue(tick, axisFormat), margin.left - 12, y);
+
+            tick += yStep;
+            safeTickCount += 1;
         }
 
-        ctx.strokeStyle = '#111';
+        ctx.strokeStyle = '#111111';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(margin.left, zeroY);
@@ -338,7 +452,9 @@
         ctx.stroke();
 
         const groupW = plotW / categories.length;
-        const barW = Math.max(8, groupW * 0.58);
+        const gapWidth = Number(chartData.gapWidth);
+        const gapScale = Number.isFinite(gapWidth) ? Math.max(0.2, Math.min(0.9, 1 - gapWidth / 300)) : 0.58;
+        const barW = Math.max(8, groupW * gapScale);
 
         categories.forEach((cat, idx) => {
             const cx = margin.left + groupW * idx + groupW / 2;
@@ -349,7 +465,6 @@
                 const raw = Number((s.values || [])[idx] || 0);
                 if (!Number.isFinite(raw) || raw === 0) return;
 
-                const color = s.color || '#d10000';
                 let from;
                 let to;
                 if (raw >= 0) {
@@ -364,22 +479,27 @@
                 const top = Math.min(from, to);
                 const height = Math.max(1, Math.abs(from - to));
 
-                ctx.fillStyle = color;
+                ctx.fillStyle = s.color || '#d10000';
                 ctx.fillRect(cx - barW / 2, top, barW, height);
 
-                if (Math.abs(raw) >= 0.1 && height > 14) {
-                    const valueLabel = (raw < 0 ? '-' : '') + '$' + Math.abs(raw).toFixed(1);
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = '400 11px Arial, sans-serif';
+                const dataLabel = s.dataLabel || {};
+                const showValue = dataLabel.showValue !== false;
+                if (showValue && Math.abs(raw) >= 0.1 && height > 12) {
+                    const labelFmt = dataLabel.numFmt || axisFormat;
+                    const labelColor = dataLabel.color || '#ffffff';
+                    const labelSize = Math.max(9, Number(dataLabel.fontSizePx || 11));
+                    ctx.fillStyle = labelColor;
+                    ctx.font = `400 ${labelSize}px Arial, sans-serif`;
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
-                    ctx.fillText(valueLabel, cx, top + height / 2);
+                    ctx.fillText(formatChartValue(raw, labelFmt), cx, top + height / 2);
                 }
             });
 
-            ctx.fillStyle = '#222';
-            ctx.font = '12px Arial, sans-serif';
+            ctx.fillStyle = categoryTextColor;
+            ctx.font = `400 ${categoryFontSize}px Arial, sans-serif`;
             ctx.textAlign = 'center';
+            ctx.textBaseline = 'alphabetic';
             const parts = String(cat).split(' ');
             if (parts.length > 1) {
                 ctx.fillText(parts[0], cx, h - 30);
@@ -387,31 +507,30 @@
             } else {
                 ctx.fillText(cat, cx, h - 16);
             }
-
-            const grayValue = Number((series[0]?.values || [])[idx] || 0);
-            if (grayValue > 0) {
-                const total = series.reduce((acc, s) => acc + Math.max(0, Number((s.values || [])[idx] || 0)), 0);
-                const topY = yFor(total);
-                ctx.fillStyle = '#111';
-                ctx.font = '700 11px Arial, sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'bottom';
-                ctx.fillText(`$${total.toFixed(1)}`, cx, topY - 4);
-            }
         });
 
+        const legendFontSize = Math.max(10, Number(legend.fontSizePx || 12));
+        const legendTextColor = legend.color || '#222222';
+        const legendItems = series.map((s, i) => ({
+            color: s.color || '#999999',
+            label: s.name || `Series ${i + 1}`
+        }));
         const legendY = h - 6;
-        const legendGap = 150;
-        const startX = w / 2 - legendGap / 2;
-        series.slice(0, 2).forEach((s, i) => {
-            const x = startX + i * legendGap;
-            ctx.fillStyle = s.color || '#999';
-            ctx.fillRect(x, legendY - 10, 8, 8);
-            ctx.fillStyle = '#222';
-            ctx.font = '12px Arial, sans-serif';
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'alphabetic';
-            ctx.fillText(s.name || `Series ${i + 1}`, x + 12, legendY - 2);
+        const itemGap = 22;
+        const swatchW = 10;
+        const contentWidth = legendItems.reduce((acc, item) => acc + swatchW + 6 + item.label.length * (legendFontSize * 0.55) + itemGap, 0);
+        let cursorX = Math.max(8, (w - contentWidth) / 2);
+
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+        ctx.font = `400 ${legendFontSize}px Arial, sans-serif`;
+        legendItems.forEach((item) => {
+            ctx.fillStyle = item.color;
+            ctx.fillRect(cursorX, legendY - 10, swatchW, swatchW);
+            cursorX += swatchW + 6;
+            ctx.fillStyle = legendTextColor;
+            ctx.fillText(item.label, cursorX, legendY - 1);
+            cursorX += item.label.length * (legendFontSize * 0.55) + itemGap;
         });
     }
 
@@ -481,19 +600,33 @@
         return slideEl;
     }
 
-    async function renderXmlSlides() {
+    async function renderXmlSlides(token) {
         const slides = Array.isArray(presentation.slides) ? presentation.slides : [];
         slidesContainer.querySelectorAll('.slide').forEach((el) => el.remove());
-        slides.forEach((slide, index) => {
+        for (let index = 0; index < slides.length; index++) {
+            if (token !== renderToken) {
+                return false;
+            }
+            const slide = slides[index];
             slidesContainer.appendChild(createXmlSlideElement(slide, index));
-        });
+            if (loading && slides.length > 0) {
+                loading.textContent = `Rendering slides... (${index + 1}/${slides.length})`;
+            }
+            if ((index + 1) % 2 === 0) {
+                await nextFrame();
+            }
+        }
+        return true;
     }
 
-    async function renderPdfSlides() {
-        if (!pdfDoc) return;
+    async function renderPdfSlides(token) {
+        if (!pdfDoc) return false;
         slidesContainer.querySelectorAll('.slide').forEach((el) => el.remove());
 
         for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+            if (token !== renderToken) {
+                return false;
+            }
             const page = await pdfDoc.getPage(pageNum);
             const viewport = page.getViewport({ scale: currentScale });
 
@@ -517,14 +650,33 @@
             slide.appendChild(header);
             slide.appendChild(canvas);
             slidesContainer.appendChild(slide);
+            if (loading && pdfDoc.numPages > 0) {
+                loading.textContent = `Rendering slides... (${pageNum}/${pdfDoc.numPages})`;
+            }
+            if (pageNum % 2 === 0) {
+                await nextFrame();
+            }
         }
+        return true;
     }
 
     async function renderSlides() {
-        if (presentation.mode === 'pdf') {
-            await renderPdfSlides();
-        } else {
-            await renderXmlSlides();
+        const token = ++renderToken;
+        const renderStartedAt = performance.now();
+        if (loading) {
+            loading.style.display = 'block';
+            loading.textContent = 'Rendering slides...';
+        }
+        console.log(`[PPT] render start token=${token} mode=${presentation.mode} scale=${currentScale.toFixed(2)}`);
+        const finished = await withTimeout(
+            presentation.mode === 'pdf' ? renderPdfSlides(token) : renderXmlSlides(token),
+            RENDER_TIMEOUT_MS,
+            'Slide rendering timed out. Please reopen the file.'
+        );
+        const elapsed = Math.round(performance.now() - renderStartedAt);
+        console.log(`[PPT] render end token=${token} finished=${Boolean(finished)} elapsed=${elapsed}ms`);
+        if (token === renderToken && finished && loading) {
+            loading.style.display = 'none';
         }
     }
 
@@ -602,10 +754,24 @@
         }
 
         await new Promise((resolve, reject) => {
+            let timeoutId = null;
+            const clear = () => {
+                if (timeoutId) clearTimeout(timeoutId);
+            };
+            timeoutId = setTimeout(() => {
+                reject(new Error('Timed out while loading pdf.js. Network access may be blocked.'));
+            }, PDFJS_LOAD_TIMEOUT_MS);
+
             const existing = document.querySelector('script[data-pdfjs="true"]');
             if (existing) {
-                existing.addEventListener('load', () => resolve(), { once: true });
-                existing.addEventListener('error', () => reject(new Error('Failed to load pdf.js')), { once: true });
+                existing.addEventListener('load', () => {
+                    clear();
+                    resolve();
+                }, { once: true });
+                existing.addEventListener('error', () => {
+                    clear();
+                    reject(new Error('Failed to load pdf.js'));
+                }, { once: true });
                 return;
             }
 
@@ -613,8 +779,14 @@
             script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
             script.async = true;
             script.dataset.pdfjs = 'true';
-            script.onload = () => resolve();
-            script.onerror = () => reject(new Error('pdf.js failed to load. Check your network connection.'));
+            script.onload = () => {
+                clear();
+                resolve();
+            };
+            script.onerror = () => {
+                clear();
+                reject(new Error('pdf.js failed to load. Check your network connection.'));
+            };
             document.head.appendChild(script);
         });
 
@@ -643,7 +815,6 @@
             bindEvents();
             await renderSlides();
             updateZoomText();
-            if (loading) loading.style.display = 'none';
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             setError(message);

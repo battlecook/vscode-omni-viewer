@@ -39,6 +39,7 @@ interface ParsedElement {
     paragraphs?: Array<{
         text: string;
         level: number;
+        bullet?: boolean;
         align?: string;
         fontSizePx?: number;
         bold?: boolean;
@@ -64,7 +65,38 @@ interface ParsedElement {
             name: string;
             color: string;
             values: number[];
+            dataLabel?: {
+                showValue?: boolean;
+                numFmt?: string;
+                fontSizePx?: number;
+                color?: string;
+            };
         }>;
+        gapWidth?: number;
+        overlap?: number;
+        legend?: {
+            position?: string;
+            fontSizePx?: number;
+            color?: string;
+            align?: string;
+        };
+        categoryAxis?: {
+            numFmt?: string;
+            fontSizePx?: number;
+            color?: string;
+            lineColor?: string;
+        };
+        valueAxis?: {
+            numFmt?: string;
+            fontSizePx?: number;
+            color?: string;
+            lineColor?: string;
+            gridColor?: string;
+            majorUnit?: number;
+            min?: number;
+            max?: number;
+            crossesAt?: number;
+        };
     };
     fillColor?: string;
     borderColor?: string;
@@ -343,6 +375,26 @@ export class PptxXmlParser {
         const placeholderKey = this.getPlaceholderKey(shapeXml);
         const isTitle = this.isTitleShape(shapeXml);
         const paragraphs = this.extractTextParagraphs(shapeXml, colors);
+        if (paragraphs.length > 0 && sourcePriority < 3) {
+            const hasOnlyPromptText = paragraphs.every((p) => this.isPlaceholderPromptText(p.text));
+            if (hasOnlyPromptText) {
+                if (placeholderKey && geom) {
+                    return {
+                        type: 'shape',
+                        x: geom.x,
+                        y: geom.y,
+                        width: geom.width,
+                        height: geom.height,
+                        rotateDeg: geom.rotateDeg,
+                        zIndex,
+                        sourcePriority,
+                        placeholderKey,
+                        hasGeometry: true
+                    };
+                }
+                return null;
+            }
+        }
 
         const fillColor = this.extractFillColor(shapeXml, colors);
         const borderColor = this.extractLineColor(shapeXml, colors);
@@ -396,19 +448,47 @@ export class PptxXmlParser {
         zIndex: number
     ): Promise<ParsedElement | null> {
         const localGeom = this.parseGeometry(picXml);
-        if (!localGeom) {
+        const geom = localGeom ? this.applyTransform(localGeom, parentTx) : null;
+        const placeholderKey = this.getPlaceholderKey(picXml);
+        const picName = picXml.match(/<p:cNvPr[^>]*name="([^"]+)"/)?.[1] || '';
+
+        if (sourcePriority < 3 && !placeholderKey && /placeholder/i.test(picName)) {
             return null;
         }
-        const geom = this.applyTransform(localGeom, parentTx);
 
         const embedId = picXml.match(/<a:blip[^>]*r:embed="([^"]+)"/)?.[1];
         if (!embedId) {
-            return null;
+            if (!geom && !placeholderKey) {
+                return null;
+            }
+            return {
+                type: 'shape',
+                x: geom ? geom.x : 0,
+                y: geom ? geom.y : 0,
+                width: geom ? geom.width : 0,
+                height: geom ? geom.height : 0,
+                rotateDeg: geom?.rotateDeg,
+                zIndex,
+                sourcePriority,
+                placeholderKey,
+                hasGeometry: !!geom
+            };
         }
 
         const target = rels.find((r) => r.id === embedId)?.target;
         if (!target) {
-            return null;
+            return geom || placeholderKey ? {
+                type: 'shape',
+                x: geom ? geom.x : 0,
+                y: geom ? geom.y : 0,
+                width: geom ? geom.width : 0,
+                height: geom ? geom.height : 0,
+                rotateDeg: geom?.rotateDeg,
+                zIndex,
+                sourcePriority,
+                placeholderKey,
+                hasGeometry: !!geom
+            } : null;
         }
 
         const selectedTarget = this.resolveImageTarget(zip, target);
@@ -427,16 +507,17 @@ export class PptxXmlParser {
 
         return {
             type: 'image',
-            x: geom.x,
-            y: geom.y,
-            width: geom.width,
-            height: geom.height,
-            rotateDeg: geom.rotateDeg,
+            x: geom ? geom.x : 0,
+            y: geom ? geom.y : 0,
+            width: geom ? geom.width : 0,
+            height: geom ? geom.height : 0,
+            rotateDeg: geom?.rotateDeg,
             zIndex,
             sourcePriority,
-            placeholderKey: this.getPlaceholderKey(picXml),
+            placeholderKey,
             src: `data:${mime};base64,${base64}`,
-            vectorFallback
+            vectorFallback,
+            hasGeometry: !!geom
         };
     }
 
@@ -562,6 +643,7 @@ export class PptxXmlParser {
     private static extractTextParagraphs(shapeXml: string, colors: ColorContext): Array<{
         text: string;
         level: number;
+        bullet?: boolean;
         align?: string;
         fontSizePx?: number;
         bold?: boolean;
@@ -578,6 +660,7 @@ export class PptxXmlParser {
         const paragraphs: Array<{
             text: string;
             level: number;
+            bullet?: boolean;
             align?: string;
             fontSizePx?: number;
             bold?: boolean;
@@ -644,10 +727,13 @@ export class PptxXmlParser {
             const align = this.getAttr(pPr, 'algn') || undefined;
             const size = Number(this.getAttr(rPr, 'sz') || 0);
             const color = this.extractColorFromXml(rPr, colors);
+            const hasBullet = /<a:buChar\b|<a:buAutoNum\b|<a:buBlip\b/.test(pXml);
+            const hasBuNone = /<a:buNone\b/.test(pXml);
 
             paragraphs.push({
                 text,
                 level: Number.isFinite(level) ? level : 0,
+                bullet: hasBullet && !hasBuNone,
                 align,
                 fontSizePx: size > 0 ? Math.round((size / 100) * 1.333) : undefined,
                 bold: this.getAttr(rPr, 'b') === '1',
@@ -839,13 +925,16 @@ export class PptxXmlParser {
     private static getPlaceholderKey(xml: string): string | undefined {
         const ph = xml.match(/<p:ph[^>]*\/>/)?.[0] || xml.match(/<p:ph[^>]*>/)?.[0] || '';
         if (!ph) return undefined;
-        const idx = this.getAttr(ph, 'idx') || '0';
-        if (idx && idx !== '0') {
-            return `idx:${idx}`;
-        }
-
+        const rawIdx = this.getAttr(ph, 'idx') || '0';
+        const idx = (rawIdx && rawIdx !== '0' && rawIdx !== '4294967295') ? rawIdx : undefined;
         const type = (this.getAttr(ph, 'type') || 'body').toLowerCase();
         const normalizedType = this.normalizePlaceholderType(type);
+        if (normalizedType === 'title' || normalizedType === 'body' || normalizedType === 'sldnum' || normalizedType === 'ftr' || normalizedType === 'dt') {
+            return `type:${normalizedType}`;
+        }
+        if (idx) {
+            return `idx:${idx}`;
+        }
         return `type:${normalizedType}`;
     }
 
@@ -1122,10 +1211,12 @@ export class PptxXmlParser {
 
             const valuePts = serXml.match(/<c:val[\s\S]*?<\/c:val>/)?.[0] || '';
             const values = this.extractChartNumericPoints(valuePts, categories.length || undefined);
+            const dataLabel = this.parseSeriesDataLabel(serXml, colors);
             return {
                 name,
                 color: seriesColor,
-                values
+                values,
+                dataLabel
             };
         });
 
@@ -1139,10 +1230,147 @@ export class PptxXmlParser {
             values: this.padValues(s.values, categories.length)
         }));
 
+        const gapWidth = this.parseNumber(barChart.match(/<c:gapWidth[^>]*val="([^"]+)"/)?.[1]);
+        const overlap = this.parseNumber(barChart.match(/<c:overlap[^>]*val="([^"]+)"/)?.[1]);
+        const categoryAxis = this.parseCategoryAxis(xml, colors);
+        const valueAxis = this.parseValueAxis(xml, colors);
+        const legend = this.parseLegend(xml, colors);
+
         return {
             kind: 'stackedColumn',
             categories,
-            series: normalizedSeries
+            series: normalizedSeries,
+            gapWidth,
+            overlap,
+            categoryAxis,
+            valueAxis,
+            legend
+        };
+    }
+
+    private static parseSeriesDataLabel(
+        serXml: string,
+        colors: ColorContext
+    ): { showValue?: boolean; numFmt?: string; fontSizePx?: number; color?: string } | undefined {
+        const dLbls = this.extractTagBlock(serXml, 'c:dLbls') || '';
+        if (!dLbls) return undefined;
+
+        const txPr = this.extractTagBlock(dLbls, 'c:txPr') || '';
+        const style = this.parseTxPrStyle(txPr, colors);
+        const numFmtRaw = dLbls.match(/<c:numFmt[^>]*formatCode="([^"]+)"/)?.[1];
+        const showValRaw = dLbls.match(/<c:showVal[^>]*val="([^"]+)"/)?.[1];
+        const numFmt = numFmtRaw ? this.decodeXmlEntities(numFmtRaw) : undefined;
+        const showValue = showValRaw === '1' ? true : (showValRaw === '0' ? false : undefined);
+
+        if (showValue === undefined && !numFmt && !style.fontSizePx && !style.color) {
+            return undefined;
+        }
+
+        return {
+            showValue,
+            numFmt,
+            fontSizePx: style.fontSizePx,
+            color: style.color
+        };
+    }
+
+    private static parseCategoryAxis(
+        chartXml: string,
+        colors: ColorContext
+    ): { numFmt?: string; fontSizePx?: number; color?: string; lineColor?: string } | undefined {
+        const catAx = this.extractTagBlock(chartXml, 'c:catAx') || '';
+        if (!catAx) return undefined;
+
+        const txPr = this.extractTagBlock(catAx, 'c:txPr') || '';
+        const style = this.parseTxPrStyle(txPr, colors);
+        const lineColor = this.extractColorFromXml(this.extractTagBlock(catAx, 'c:spPr') || '', colors);
+        const numFmtRaw = catAx.match(/<c:numFmt[^>]*formatCode="([^"]+)"/)?.[1];
+        const numFmt = numFmtRaw ? this.decodeXmlEntities(numFmtRaw) : undefined;
+
+        return {
+            numFmt,
+            fontSizePx: style.fontSizePx,
+            color: style.color,
+            lineColor
+        };
+    }
+
+    private static parseValueAxis(
+        chartXml: string,
+        colors: ColorContext
+    ): {
+        numFmt?: string;
+        fontSizePx?: number;
+        color?: string;
+        lineColor?: string;
+        gridColor?: string;
+        majorUnit?: number;
+        min?: number;
+        max?: number;
+        crossesAt?: number;
+    } | undefined {
+        const valAx = this.extractTagBlock(chartXml, 'c:valAx') || '';
+        if (!valAx) return undefined;
+
+        const txPr = this.extractTagBlock(valAx, 'c:txPr') || '';
+        const style = this.parseTxPrStyle(txPr, colors);
+        const lineColor = this.extractColorFromXml(this.extractTagBlock(valAx, 'c:spPr') || '', colors);
+        const majorGridColor = this.extractColorFromXml(this.extractTagBlock(valAx, 'c:majorGridlines') || '', colors);
+        const numFmtRaw = valAx.match(/<c:numFmt[^>]*formatCode="([^"]+)"/)?.[1];
+        const numFmt = numFmtRaw ? this.decodeXmlEntities(numFmtRaw) : undefined;
+
+        const scaling = this.extractTagBlock(valAx, 'c:scaling') || '';
+        const min = this.parseNumber(scaling.match(/<c:min[^>]*val="([^"]+)"/)?.[1]);
+        const max = this.parseNumber(scaling.match(/<c:max[^>]*val="([^"]+)"/)?.[1]);
+        const majorUnit = this.parseNumber(valAx.match(/<c:majorUnit[^>]*val="([^"]+)"/)?.[1]);
+        const crossesAt = this.parseNumber(valAx.match(/<c:crossesAt[^>]*val="([^"]+)"/)?.[1]);
+
+        return {
+            numFmt,
+            fontSizePx: style.fontSizePx,
+            color: style.color,
+            lineColor,
+            gridColor: majorGridColor,
+            majorUnit,
+            min,
+            max,
+            crossesAt
+        };
+    }
+
+    private static parseLegend(
+        chartXml: string,
+        colors: ColorContext
+    ): { position?: string; fontSizePx?: number; color?: string; align?: string } | undefined {
+        const legend = this.extractTagBlock(chartXml, 'c:legend') || '';
+        if (!legend) return undefined;
+
+        const position = legend.match(/<c:legendPos[^>]*val="([^"]+)"/)?.[1];
+        const txPr = this.extractTagBlock(legend, 'c:txPr') || '';
+        const style = this.parseTxPrStyle(txPr, colors);
+
+        return {
+            position: position || undefined,
+            fontSizePx: style.fontSizePx,
+            color: style.color,
+            align: style.align
+        };
+    }
+
+    private static parseTxPrStyle(
+        txPr: string,
+        colors: ColorContext
+    ): { fontSizePx?: number; color?: string; align?: string } {
+        if (!txPr) return {};
+        const pPr = txPr.match(/<a:pPr[^>]*\/?>/)?.[0] || '';
+        const defRPr = txPr.match(/<a:defRPr[^>]*\/?>/)?.[0] || '';
+        const endRPr = txPr.match(/<a:endParaRPr[^>]*\/?>/)?.[0] || '';
+        const fontRaw = Number(this.getAttr(defRPr, 'sz') || this.getAttr(endRPr, 'sz') || 0);
+        const color = this.extractColorFromXml(defRPr || txPr, colors);
+        return {
+            fontSizePx: fontRaw > 0 ? Math.round((fontRaw / 100) * 1.333) : undefined,
+            color,
+            align: this.getAttr(pPr, 'algn') || undefined
         };
     }
 
@@ -1238,6 +1466,30 @@ export class PptxXmlParser {
 
     private static rgbToHex(r: number, g: number, b: number): string {
         return `#${[r, g, b].map((c) => c.toString(16).padStart(2, '0')).join('')}`;
+    }
+
+    private static parseNumber(raw: string | undefined): number | undefined {
+        if (raw === undefined) return undefined;
+        const value = Number(raw);
+        return Number.isFinite(value) ? value : undefined;
+    }
+
+    private static isPlaceholderPromptText(text: string): boolean {
+        const normalized = (text || '').replace(/\s+/g, ' ').trim().toLowerCase();
+        if (!normalized) return true;
+        const promptPatterns = [
+            /^click to edit master/i,
+            /^click to edit/i,
+            /^insert text here$/i,
+            /^list (first|second|third|fourth|fifth|sixth|seventh|eighth|ninth) level$/i,
+            /^click icon to add picture$/i,
+            /^presentation title$/i,
+            /^author$/i,
+            /^department$/i,
+            /^date$/i,
+            /^location$/i
+        ];
+        return promptPatterns.some((re) => re.test(normalized));
     }
 
     private static resolveImageTarget(zip: JSZip, target: string): string {
