@@ -8,6 +8,8 @@ import { parse as parseHwp } from 'hwp.js';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { PptxXmlParser } from './pptxXmlParser';
+import { PptBinaryParser } from './pptBinaryParser';
+import { DocBinaryParser } from './docBinaryParser';
 
 export class FileUtils {
     private static readonly MAX_FILE_SIZE = 50 * 1024 * 1024;
@@ -555,7 +557,11 @@ export class FileUtils {
     }
 
     public static async readWordFile(filePath: string): Promise<{
-        html: string;
+        renderer: 'docx-preview' | 'legacy-html';
+        docxBase64?: string;
+        htmlContent?: string;
+        sourceFormat: 'docx' | 'doc';
+        wasConverted: boolean;
         fileSize: string;
     }> {
         try {
@@ -567,17 +573,84 @@ export class FileUtils {
                     `File too large (${(fileSizeBytes / 1024 / 1024).toFixed(1)}MB). Maximum size is ${MAX_WORD_FILE_SIZE / 1024 / 1024}MB.`
                 );
             }
-            const buffer = await fs.promises.readFile(filePath);
-            const mammoth = require('mammoth');
-            const result = await mammoth.convertToHtml({ buffer });
+
+            const ext = path.extname(filePath).toLowerCase();
+            let docxBuffer: Buffer;
+            let sourceFormat: 'docx' | 'doc';
+            let wasConverted = false;
+
+            if (ext === '.docx') {
+                docxBuffer = await fs.promises.readFile(filePath);
+                sourceFormat = 'docx';
+            } else if (ext === '.doc') {
+                sourceFormat = 'doc';
+                try {
+                    const htmlContent = await DocBinaryParser.parseToHtml(filePath);
+                    const fileSize = await this.getFileSize(filePath);
+                    return {
+                        renderer: 'legacy-html',
+                        htmlContent,
+                        sourceFormat,
+                        wasConverted: false,
+                        fileSize
+                    };
+                } catch (standaloneError) {
+                    console.warn('[WORD] Standalone .doc parser failed, trying soffice fallback:', standaloneError);
+                }
+
+                docxBuffer = await this.convertLegacyWordToDocx(filePath);
+                wasConverted = true;
+            } else {
+                throw new Error(`Unsupported Word format: ${ext || 'unknown'}`);
+            }
+
             const fileSize = await this.getFileSize(filePath);
             return {
-                html: result.value || '',
+                renderer: 'docx-preview',
+                docxBase64: docxBuffer.toString('base64'),
+                sourceFormat,
+                wasConverted,
                 fileSize
             };
         } catch (error) {
             console.error('Error reading Word file:', error);
             throw error;
+        }
+    }
+
+    private static async convertLegacyWordToDocx(filePath: string): Promise<Buffer> {
+        const sofficePath = await this.findSofficePath();
+        if (!sofficePath) {
+            throw new Error(
+                'LibreOffice (soffice) is required to open .doc files. Please install LibreOffice and ensure "soffice" is available in PATH.'
+            );
+        }
+
+        const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'omni-viewer-doc-'));
+        try {
+            await this.runProcess(sofficePath, [
+                '--headless',
+                '--convert-to',
+                'docx',
+                '--outdir',
+                tempDir,
+                filePath
+            ]);
+
+            const expectedDocx = path.join(tempDir, `${path.parse(filePath).name}.docx`);
+            let docxPath = expectedDocx;
+            if (!fs.existsSync(docxPath)) {
+                const convertedFiles = await fs.promises.readdir(tempDir);
+                const anyDocx = convertedFiles.find((name) => name.toLowerCase().endsWith('.docx'));
+                if (!anyDocx) {
+                    throw new Error('.doc conversion succeeded but no .docx output was found.');
+                }
+                docxPath = path.join(tempDir, anyDocx);
+            }
+
+            return await fs.promises.readFile(docxPath);
+        } finally {
+            await fs.promises.rm(tempDir, { recursive: true, force: true });
         }
     }
 
@@ -731,7 +804,25 @@ export class FileUtils {
                 };
             }
 
-            // .ppt is a binary format, so keep conversion fallback only for this extension.
+            // Legacy .ppt: standalone parser first (no LibreOffice dependency).
+            try {
+                const parseStartedAt = Date.now();
+                const parsedLegacy = await PptBinaryParser.parse(filePath);
+                const parseElapsedMs = Date.now() - parseStartedAt;
+                console.log(`[PPT] Parsed legacy PPT in ${parseElapsedMs}ms (${parsedLegacy.totalSlides} slides)`);
+                if (parsedLegacy.totalSlides > 0) {
+                    return {
+                        mode: 'xml',
+                        slides: parsedLegacy.slides,
+                        totalSlides: parsedLegacy.totalSlides,
+                        fileSize
+                    };
+                }
+            } catch (legacyErr) {
+                console.warn('[PPT] Legacy standalone parser failed, trying conversion fallback:', legacyErr);
+            }
+
+            // Optional fallback for unsupported structures.
             const pdfBuffer = await this.convertPresentationToPdf(filePath);
             const totalSlides = this.countPdfPages(pdfBuffer);
             return {

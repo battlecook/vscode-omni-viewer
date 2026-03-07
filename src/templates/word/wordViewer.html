@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Word Viewer - {{fileName}}</title>
     <link rel="stylesheet" href="css/wordViewer.css">
+    <link rel="stylesheet" href="../../../node_modules/docx-preview/dist/docx-preview.css">
 </head>
 <body>
     <div class="container">
@@ -38,6 +39,9 @@
         </div>
     </div>
 
+    <script id="wordConfig" type="application/json">{{wordConfigJson}}</script>
+    <script src="../../../node_modules/jszip/dist/jszip.min.js"></script>
+    <script src="../../../node_modules/docx-preview/dist/docx-preview.js"></script>
     <script src="js/wordViewer.js"></script>
 </body>
 </html>

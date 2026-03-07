@@ -124,6 +124,100 @@ body {
     transition: transform 0.2s ease;
 }
 
+.word-content.docx-mode {
+    background: transparent;
+    color: inherit;
+    padding: 0;
+    min-width: auto;
+    max-width: none;
+    min-height: auto;
+    box-shadow: none;
+}
+
+.word-content.legacy-mode {
+    background: var(--vscode-editor-background, #1e1e1e);
+    color: var(--vscode-editor-foreground, #d4d4d4);
+    padding: 32px 44px;
+    min-width: 210mm;
+    max-width: 210mm;
+    min-height: 297mm;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.word-content.legacy-mode .ov-doc-legacy h1 {
+    font-size: 28px;
+    margin: 0 0 18px 0;
+    line-height: 1.25;
+}
+
+.word-content.legacy-mode .ov-doc-legacy p {
+    margin: 0 0 12px 0;
+    line-height: 1.6;
+    white-space: pre-wrap;
+}
+
+.word-content.legacy-mode .ov-doc-legacy-empty {
+    color: var(--vscode-descriptionForeground, #808080);
+    font-style: italic;
+}
+
+.word-content.docx-mode .docx-wrapper {
+    background: transparent;
+}
+
+.word-content.docx-mode p[data-ov-bullet-fix="1"]::before,
+.word-content.docx-mode li[data-ov-bullet-fix="1"]::before {
+    content: "* " !important;
+}
+
+.word-content.docx-mode .ov-chart-card {
+    border: 1px solid #c7cbd1;
+    background: #f8fafc;
+    padding: 14px;
+    margin: 14px auto;
+    width: min(100%, 760px);
+}
+
+.word-content.docx-mode .ov-chart-title {
+    font-size: 28px;
+    line-height: 1.1;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 10px;
+}
+
+.word-content.docx-mode .ov-chart-layout {
+    display: flex;
+    align-items: flex-start;
+    gap: 18px;
+}
+
+.word-content.docx-mode .ov-chart-svg {
+    width: 100%;
+    max-width: 560px;
+    height: auto;
+}
+
+.word-content.docx-mode .ov-chart-legend {
+    min-width: 130px;
+    padding-top: 18px;
+}
+
+.word-content.docx-mode .ov-chart-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    color: #111827;
+    font-size: 14px;
+}
+
+.word-content.docx-mode .ov-chart-legend-color {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+}
+
 .word-content p {
     margin: 0 0 1em 0;
     line-height: 1.6;

@@ -32,8 +32,15 @@ export class WordViewerProvider implements vscode.CustomReadonlyEditorProvider {
             const wordContent = await FileUtils.readWordFile(wordPath);
             const html = await TemplateUtils.loadTemplate(this.context, 'word/wordViewer.html', {
                 fileName: wordFileName,
-                wordContent: wordContent.html || '',
-                fileSize: wordContent.fileSize || ''
+                wordContent: wordContent.renderer === 'legacy-html' ? (wordContent.htmlContent || '') : '',
+                fileSize: wordContent.fileSize || '',
+                wordConfigJson: JSON.stringify({
+                    renderer: wordContent.renderer,
+                    docxBase64: wordContent.docxBase64,
+                    htmlContent: wordContent.htmlContent,
+                    sourceFormat: wordContent.sourceFormat,
+                    wasConverted: wordContent.wasConverted
+                })
             });
             webviewPanel.webview.html = html;
             MessageHandler.setupMessageListener(webviewPanel.webview, document.uri);

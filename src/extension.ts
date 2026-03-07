@@ -111,14 +111,6 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    const openPdfViewer = vscode.commands.registerCommand('omni-viewer.openPdfViewer', (uri: vscode.Uri) => {
-        if (uri) {
-            vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.pdfViewer');
-        } else {
-            vscode.window.showErrorMessage('No PDF file selected');
-        }
-    });
-
     const openPptViewer = vscode.commands.registerCommand('omni-viewer.openPptViewer', (uri: vscode.Uri) => {
         if (uri) {
             vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.pptViewer');
@@ -249,7 +241,6 @@ export function activate(context: vscode.ExtensionContext) {
         openPsdViewer,
         openExcelViewer,
         openWordViewer,
-        openPdfViewer,
         openPptViewer,
         audioEditorRegistration,
         imageEditorRegistration,

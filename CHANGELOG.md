@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.14.0] - 2026-03-01
+
+### Changed
+- **PDF Editor: Open behavior**
+  - Changed PDF custom editor priority to `default` so `.pdf` files open directly in Omni Viewer PDF Editor
+- **PowerPoint Viewer**
+  - Improved PPTX rendering stability and slide/chart accuracy
+
+### Added
+- **PDF Editor**
+  - Added `Save As` support with VS Code save dialog
+  - Added per-page delete action (`×`) in thumbnails
+  - Added text/signature color selection in modal popup
+  - Added annotation deletion (delete button + Delete/Backspace)
+- **Legacy Office support (standalone path)**
+  - Added `.ppt` standalone parser path (LibreOffice optional fallback)
+  - Added `.doc` legacy HTML renderer path
+
+### Fixed
+- **PDF Editor**
+  - Fixed save flow reliability (`Merge PDF`, `Save`, `Save As`)
+  - Fixed annotation placement mismatch under zoom
+  - Fixed stale preview after save by syncing/reloading saved state
+  - Fixed non-Latin text save error (`WinAnsi cannot encode ...`)
+- **PowerPoint / Word**
+  - Fixed intermittent PPT `Rendering slides...` stuck state
+  - Fixed PPT placeholder text/image rendering issues
+  - Fixed `.doc` hard failure when LibreOffice is not installed
+
+### Removed
+- Removed `Open with PDF Editor` explorer menu command (`omni-viewer.openPdfViewer`)
+
 ## [0.13.0] - 2026-02-28
 
 ### Added

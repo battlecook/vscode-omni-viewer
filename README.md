@@ -107,14 +107,16 @@ A comprehensive audio, image, PSD, video, CSV, Excel, Word, PowerPoint, Parquet 
 ## 📄 Word Viewer Features
 
 ### Microsoft Word (DOCX) Viewer
-- **Document View**: Renders .docx content as HTML (headings, paragraphs, lists, tables, images)
+- **Document View**: Renders `.docx` with `docx-preview` for improved layout fidelity
+- **DOC Support**: Opens `.doc` via standalone legacy HTML fallback (and uses LibreOffice conversion fallback when needed)
 - **Zoom Controls**: Zoom in/out and reset (Ctrl+/-, Ctrl+0)
 - **Print**: Print document (Ctrl+P)
 - **File Information**: File name and file size
-- **Powered by**: [mammoth](https://github.com/mwilliamson/mammoth.js) for DOCX to HTML conversion
+- **Powered by**: [docx-preview](https://github.com/VolodymyrBaydalka/docxjs) for DOCX rendering
 
 ### Supported Word Formats
 - DOCX (Microsoft Word Document)
+- DOC (Microsoft Word 97-2003)
 
 ## 📽️ PowerPoint Viewer Features
 
@@ -129,6 +131,19 @@ A comprehensive audio, image, PSD, video, CSV, Excel, Word, PowerPoint, Parquet 
 ### Supported PowerPoint Formats
 - PPT (Microsoft PowerPoint 97-2003)
 - PPTX (Microsoft PowerPoint Presentation)
+
+## 📑 PDF Editor Features
+
+### PDF View & Edit
+- **Page View**: Page-by-page rendering with thumbnail sidebar
+- **Zoom Controls**: Zoom in/out and reset
+- **Annotations**: Add text/signature, select, move, and delete annotations
+- **Page Editing**: Reorder pages (drag & drop) and delete pages
+- **Merge PDF**: Merge another PDF into the current document
+- **Save Flows**: Save and Save As with state synchronization after save
+
+### Supported PDF Formats
+- PDF
 
 ## 📄 JSONL Viewer Features
 
@@ -173,6 +188,14 @@ A comprehensive audio, image, PSD, video, CSV, Excel, Word, PowerPoint, Parquet 
 - **[Open VSX Registry](https://open-vsx.org/extension/battlecook/omni-viewer)** - Open Source VSX Registry
 
 If you are using jetbrains ide, check out [this repository](https://github.com/battlecook/intellij-omni-viewer)
+
+## 🌐 Other Platforms
+
+Omni Viewer is also available on web and mobile platforms:
+
+- **Web**: [Web App](https://omni-viewer-web.web.app/)
+- **Android**: [Google Play](https://play.google.com/store/apps/details?id=com.eyedealisty.omniviewer)
+- **iOS**: [App Store](https://apps.apple.com/kr/app/omni-viewer-mobile/id6759875642)
 
 ### Development Setup
 
