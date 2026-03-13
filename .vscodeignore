@@ -6,5 +6,7 @@ node_modules/**
 .git/**
 .gitignore
 README.md
+HANDOFF_NEXT_SESSION.md
+OPEN_VSX_LISTING_PRIVACY.md
 coverage/**
 *.log

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.1] - 2026-03-14
+
+### Fixed
+- **Word Viewer: DOCX packaged dependency loading**
+  - Bundled `docx-preview` and `jszip` as Word viewer vendor assets instead of relying on runtime `node_modules` paths
+  - Fixed installed extension builds showing `docx-preview library is not available.` when opening `.docx` files
+
 ## [0.14.0] - 2026-03-01
 
 ### Changed
