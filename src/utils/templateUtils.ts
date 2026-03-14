@@ -45,7 +45,8 @@ export class TemplateUtils {
                         const styleTag = `<style>\n${cssContent}\n</style>`;
                         html = html.replace(linkTag, () => styleTag);
                     } catch (error) {
-                        console.warn(`Failed to inline CSS file ${cssRelativePath}:`, error);
+                        console.error(`Failed to inline required CSS file ${cssRelativePath}:`, error);
+                        throw new Error(`Required CSS asset could not be loaded: ${cssRelativePath}`);
                     }
                 }
             }
@@ -69,7 +70,8 @@ export class TemplateUtils {
                         const inlineScriptTag = `<script>\n${jsContent}\n</script>`;
                         html = html.replace(scriptTag, () => inlineScriptTag);
                     } catch (error) {
-                        console.warn(`Failed to inline JavaScript file ${jsRelativePath}:`, error);
+                        console.error(`Failed to inline required JavaScript file ${jsRelativePath}:`, error);
+                        throw new Error(`Required JavaScript asset could not be loaded: ${jsRelativePath}`);
                     }
                 }
             }

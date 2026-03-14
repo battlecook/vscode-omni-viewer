@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.2] - 2026-03-14
+
+### Fixed
+- **Webview asset loading**
+  - Stopped silently falling back when required local CSS/JS assets fail to inline into viewer webviews
+  - Improved compatibility for environments where webview relative asset requests can be blocked with `403 Forbidden`
+
 ## [0.14.1] - 2026-03-14
 
 ### Fixed
