@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.14.5] - 2026-03-16
+
+### Changed
+- **Release version follow-up**
+  - Bumped the release version once more after `0.14.4` because the VS Code Marketplace publish path had already consumed that version while Open VSX had been published separately
+
 ## [0.14.4] - 2026-03-16
 
 ### Fixed
