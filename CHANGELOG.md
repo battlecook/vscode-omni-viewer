@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.4] - 2026-03-16
+
+### Fixed
+- **Audio Viewer: Standalone WaveSurfer packaging**
+  - Removed runtime CDN loading for `wavesurfer.js` and audio plugins in the audio viewer webview
+  - Bundled WaveSurfer core and required plugins into the local audio viewer build so playback no longer depends on external network or CDN asset layout
+  - Fixed audio viewer initialization failing with `Cannot read properties of undefined (reading 'create')` in Cursor and similar webview environments
+
 ## [0.14.3] - 2026-03-16
 
 ### Fixed

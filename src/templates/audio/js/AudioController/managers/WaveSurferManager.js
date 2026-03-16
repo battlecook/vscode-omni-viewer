@@ -1,3 +1,5 @@
+import WaveSurfer from 'wavesurfer.js';
+import HoverPlugin from '../../../../../../node_modules/wavesurfer.js/dist/plugins/hover.js';
 import { CONSTANTS } from '../utils/Constants.js';
 import { AudioUtils } from '../utils/AudioUtils.js';
 
@@ -25,7 +27,7 @@ export class WaveSurferManager {
             hideScrollbar: false,
             interact: true,
             plugins: [
-                WaveSurfer.Hover.create({
+                HoverPlugin.create({
                     lineWidth: 2,
                     labelBackground: '#000000',
                     labelColor: '#fff',

@@ -1,3 +1,6 @@
+import SpectrogramPlugin from '../../../../../../node_modules/wavesurfer.js/dist/plugins/spectrogram.js';
+import TimelinePlugin from '../../../../../../node_modules/wavesurfer.js/dist/plugins/timeline.js';
+import RegionsPlugin from '../../../../../../node_modules/wavesurfer.js/dist/plugins/regions.js';
 import { CONSTANTS } from '../utils/Constants.js';
 import { AudioUtils } from '../utils/AudioUtils.js';
 
@@ -23,7 +26,7 @@ export class PluginManager {
         }
         
         try {
-            this.state.spectrogramPlugin = this.state.wavesurfer.registerPlugin(WaveSurfer.Spectrogram.create({
+            this.state.spectrogramPlugin = this.state.wavesurfer.registerPlugin(SpectrogramPlugin.create({
                 container: '#spectrogram',
                 labels: true,
                 scale: CONSTANTS.SPECTROGRAM.DEFAULT_SCALE,
@@ -57,7 +60,7 @@ export class PluginManager {
             }
             
             // Create new spectrogram plugin with new scale
-            this.state.spectrogramPlugin = this.state.wavesurfer.registerPlugin(WaveSurfer.Spectrogram.create({
+            this.state.spectrogramPlugin = this.state.wavesurfer.registerPlugin(SpectrogramPlugin.create({
                 container: '#spectrogram',
                 labels: true,
                 scale: newScale,
@@ -98,7 +101,7 @@ export class PluginManager {
         const intervals = this.waveSurferManager.getTimelineIntervals(this.state.wavesurfer.getDuration());
         
         try {
-            this.state.timelinePlugin = this.state.wavesurfer.registerPlugin(WaveSurfer.Timeline.create({
+            this.state.timelinePlugin = this.state.wavesurfer.registerPlugin(TimelinePlugin.create({
                 container: '#timeline',
                 formatTimeCallback: AudioUtils.formatTime,
                 timeInterval: intervals.timeInterval,
@@ -114,7 +117,7 @@ export class PluginManager {
 
     async setupRegions() {
         try {
-            this.state.regionsPlugin = this.state.wavesurfer.registerPlugin(WaveSurfer.Regions.create({}));
+            this.state.regionsPlugin = this.state.wavesurfer.registerPlugin(RegionsPlugin.create({}));
             AudioUtils.log('Regions plugin registered successfully');
         } catch (error) {
             console.warn('Failed to register regions plugin:', error);
