@@ -13,6 +13,7 @@ import { DocBinaryParser } from './docBinaryParser';
 
 export class FileUtils {
     private static readonly MAX_FILE_SIZE = 50 * 1024 * 1024;
+    private static readonly DEFAULT_DELIMITER = ',';
 
     public static getAudioMimeType(filePath: string): string {
         const ext = path.extname(filePath).toLowerCase();
@@ -125,20 +126,20 @@ export class FileUtils {
         totalRows: number;
         totalColumns: number;
         fileSize: string;
+        delimiter: string;
     }> {
         try {
             const content = await fs.promises.readFile(filePath, 'utf-8');
             const lines = content.split('\n').filter(line => line.trim() !== '');
+            const delimiter = this.getDelimitedFileDelimiter(filePath);
             
             if (lines.length === 0) {
                 throw new Error('CSV file is empty');
             }
 
-            // Parse CSV (simple implementation - assumes comma-separated values)
             const rows: string[][] = [];
             for (const line of lines) {
-                // Simple CSV parsing - split by comma, handle quoted values
-                const row = this.parseCsvLine(line);
+                const row = this.parseDelimitedLine(line, delimiter);
                 rows.push(row);
             }
 
@@ -151,7 +152,8 @@ export class FileUtils {
                 rows: dataRows,
                 totalRows: dataRows.length,
                 totalColumns: headers.length,
-                fileSize
+                fileSize,
+                delimiter
             };
         } catch (error) {
             console.error('Error reading CSV file:', error);
@@ -159,7 +161,11 @@ export class FileUtils {
         }
     }
 
-    private static parseCsvLine(line: string): string[] {
+    public static getDelimitedFileDelimiter(filePath: string): string {
+        return path.extname(filePath).toLowerCase() === '.tsv' ? '\t' : this.DEFAULT_DELIMITER;
+    }
+
+    private static parseDelimitedLine(line: string, delimiter: string): string[] {
         const result: string[] = [];
         let current = '';
         let inQuotes = false;
@@ -176,7 +182,7 @@ export class FileUtils {
                     // Toggle quote state
                     inQuotes = !inQuotes;
                 }
-            } else if (char === ',' && !inQuotes) {
+            } else if (char === delimiter && !inQuotes) {
                 // End of field
                 result.push(current.trim());
                 current = '';

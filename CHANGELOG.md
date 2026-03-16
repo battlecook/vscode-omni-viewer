@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.3] - 2026-03-16
+
+### Fixed
+- **CSV Viewer: TSV format compatibility**
+  - Fixed `.tsv` files being parsed with comma-separated CSV rules even though they were already registered to open in the CSV Viewer
+  - Preserved tab delimiters in table load, Raw View editing, and save flows so edited `.tsv` files remain TSV
+  - Added regression tests for TSV parsing and delimiter-aware save serialization
+
 ## [0.14.2] - 2026-03-14
 
 ### Fixed

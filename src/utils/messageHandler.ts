@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { FileUtils } from './fileUtils';
 
 export interface WebviewMessage {
     command: string;
@@ -122,8 +123,8 @@ export class MessageHandler {
             // Handle CSV data specifically
             if (message.data.headers && message.data.rows) {
                 console.log('Processing CSV data - headers:', message.data.headers.length, 'rows:', message.data.rows.length);
-                // Convert CSV data to CSV string format
-                const csvContent = this.convertToCsvString(message.data.headers, message.data.rows);
+                const delimiter = message.data.delimiter || FileUtils.getDelimitedFileDelimiter(uri.fsPath);
+                const csvContent = this.convertToDelimitedString(message.data.headers, message.data.rows, delimiter);
                 console.log('CSV content length:', csvContent.length);
                 console.log('First 200 chars of CSV content:', csvContent.substring(0, 200));
                 
@@ -353,29 +354,23 @@ export class MessageHandler {
         }
     }
 
-    private static convertToCsvString(headers: string[], rows: string[][]): string {
-        // Escape CSV values and join with commas
-        const escapeCsvValue = (value: string): string => {
+    public static convertToDelimitedString(headers: string[], rows: string[][], delimiter: string = ','): string {
+        const escapeDelimitedValue = (value: string): string => {
             if (value === null || value === undefined) {
                 return '';
             }
             const stringValue = String(value);
-            // If value contains comma, quote, or newline, wrap in quotes and escape internal quotes
-            if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+            if (stringValue.includes(delimiter) || stringValue.includes('"') || stringValue.includes('\n')) {
                 return `"${stringValue.replace(/"/g, '""')}"`;
             }
             return stringValue;
         };
 
-        // Convert headers to CSV line
-        const headerLine = headers.map(escapeCsvValue).join(',');
-        
-        // Convert rows to CSV lines
+        const headerLine = headers.map(escapeDelimitedValue).join(delimiter);
         const rowLines = rows.map(row => 
-            row.map(escapeCsvValue).join(',')
+            row.map(escapeDelimitedValue).join(delimiter)
         );
 
-        // Combine all lines
         return [headerLine, ...rowLines].join('\n');
     }
 

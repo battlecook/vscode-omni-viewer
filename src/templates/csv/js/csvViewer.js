@@ -5,6 +5,7 @@ class CsvViewer {
     constructor() {
         this.csvData = null;
         this.filteredData = [];
+        this.delimiter = ',';
         this.currentPage = 1;
         this.rowsPerPage = 100;
         this.searchTerm = '';
@@ -26,6 +27,7 @@ class CsvViewer {
             const dataScript = document.getElementById('csv-data');
             if (dataScript) {
                 this.csvData = JSON.parse(dataScript.textContent);
+                this.delimiter = this.csvData.delimiter || ',';
                 this.filteredData = [...this.csvData.rows];
                 this.updateFileInfo();
                 this.renderTable();
@@ -271,16 +273,10 @@ class CsvViewer {
         const rawDataEl = document.getElementById('rawData');
         if (!rawDataEl) return;
 
-        // Create raw CSV format
-        const headers = this.csvData.headers.join(',');
+        // Create raw delimited text using the original file separator
+        const headers = this.csvData.headers.map(cell => this.escapeDelimitedValue(cell)).join(this.delimiter);
         const rows = this.filteredData.map(row => 
-            row.map(cell => {
-                // Escape commas and quotes in CSV format
-                if (cell && (cell.includes(',') || cell.includes('"'))) {
-                    return `"${cell.replace(/"/g, '""')}"`;
-                }
-                return cell || '';
-            }).join(',')
+            row.map(cell => this.escapeDelimitedValue(cell)).join(this.delimiter)
         ).join('\n');
         
         const rawCsv = `${headers}\n${rows}`;
@@ -335,7 +331,15 @@ class CsvViewer {
 
 
 
-    parseCsvLine(line) {
+    escapeDelimitedValue(value) {
+        const stringValue = value || '';
+        if (stringValue.includes(this.delimiter) || stringValue.includes('"') || stringValue.includes('\n')) {
+            return `"${stringValue.replace(/"/g, '""')}"`;
+        }
+        return stringValue;
+    }
+
+    parseDelimitedLine(line) {
         const result = [];
         let current = '';
         let inQuotes = false;
@@ -352,7 +356,7 @@ class CsvViewer {
                     // Toggle quote state
                     inQuotes = !inQuotes;
                 }
-            } else if (char === ',' && !inQuotes) {
+            } else if (char === this.delimiter && !inQuotes) {
                 // End of field
                 result.push(current);
                 current = '';
@@ -1095,7 +1099,8 @@ class CsvViewer {
             command: 'saveChanges',
             data: {
                 headers: this.csvData.headers,
-                rows: this.csvData.rows
+                rows: this.csvData.rows,
+                delimiter: this.delimiter
             }
         });
     }
@@ -1154,7 +1159,7 @@ class CsvViewer {
             }
 
             // Parse headers
-            const headers = this.parseCsvLine(lines[0]);
+            const headers = this.parseDelimitedLine(lines[0]);
             if (headers.length === 0) {
                 return;
             }
@@ -1164,7 +1169,7 @@ class CsvViewer {
             // Parse data rows
             const newRows = [];
             for (let i = 1; i < lines.length; i++) {
-                const row = this.parseCsvLine(lines[i]);
+                const row = this.parseDelimitedLine(lines[i]);
                 if (row.length > 0) {
                     // Pad row if it's shorter than headers
                     while (row.length < headers.length) {
