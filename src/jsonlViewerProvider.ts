@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import * as fs from 'fs';
 import { FileUtils } from './utils/fileUtils';
 import { TemplateUtils } from './utils/templateUtils';
 import { MessageHandler } from './utils/messageHandler';
@@ -36,6 +35,13 @@ export class JsonlViewerProvider implements vscode.CustomEditorProvider {
         console.log('📁 File name:', jsonlFileName);
 
         try {
+            const detection = await FileUtils.detectViewerType(jsonlPath, JsonlViewerProvider.viewType);
+            if (detection.viewType && detection.viewType !== JsonlViewerProvider.viewType) {
+                await vscode.commands.executeCommand('vscode.openWith', jsonlUri, detection.viewType);
+                webviewPanel.dispose();
+                return;
+            }
+
             // Read file content directly
             console.log('🔄 Reading file content...');
             const jsonlContent = await FileUtils.readJsonlFile(jsonlPath);

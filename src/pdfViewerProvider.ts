@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import { FileUtils } from './utils/fileUtils';
 import { TemplateUtils } from './utils/templateUtils';
 import { MessageHandler } from './utils/messageHandler';
 
@@ -28,12 +29,27 @@ export class PdfViewerProvider implements vscode.CustomReadonlyEditorProvider {
         const pdfFileName = path.basename(pdfPath);
 
         try {
+            const detection = await FileUtils.detectViewerType(pdfPath, PdfViewerProvider.viewType);
+            if (detection.viewType && detection.viewType !== PdfViewerProvider.viewType) {
+                await vscode.commands.executeCommand('vscode.openWith', pdfUri, detection.viewType);
+                webviewPanel.dispose();
+                return;
+            }
+
             const pdfBytes = await vscode.workspace.fs.readFile(pdfUri);
             const pdfBase64 = Buffer.from(pdfBytes).toString('base64');
+            const pdfJsScriptUri = webviewPanel.webview.asWebviewUri(
+                vscode.Uri.file(path.join(this.context.extensionPath, 'node_modules', 'pdfjs-dist', 'build', 'pdf.min.js'))
+            );
+            const pdfJsWorkerUri = webviewPanel.webview.asWebviewUri(
+                vscode.Uri.file(path.join(this.context.extensionPath, 'node_modules', 'pdfjs-dist', 'build', 'pdf.worker.min.js'))
+            );
 
             const html = await TemplateUtils.loadTemplate(this.context, 'pdf/pdfViewer.html', {
                 fileName: pdfFileName,
-                pdfBase64: pdfBase64
+                pdfBase64: pdfBase64,
+                pdfJsScriptUri: pdfJsScriptUri.toString(),
+                pdfJsWorkerUri: pdfJsWorkerUri.toString()
             });
 
             webviewPanel.webview.html = html;

@@ -148,7 +148,7 @@
             box.style.transformOrigin = 'top left';
         }
         if (element.fillColor) box.style.backgroundColor = element.fillColor;
-        if (element.borderColor) box.style.border = `1px solid ${element.borderColor}`;
+        if (element.borderColor) box.style.border = `${Math.max(1, Number(element.borderWidthPx || 1))}px solid ${element.borderColor}`;
 
         const paragraphs = Array.isArray(element.paragraphs) ? element.paragraphs : [];
         const isLikelyList = !element.isTitle && paragraphs.length >= 3;
@@ -547,7 +547,7 @@
             box.style.transformOrigin = 'top left';
         }
         if (element.fillColor) box.style.backgroundColor = element.fillColor;
-        if (element.borderColor) box.style.border = `1px solid ${element.borderColor}`;
+        if (element.borderColor) box.style.border = `${Math.max(1, Number(element.borderWidthPx || 1))}px solid ${element.borderColor}`;
         return box;
     }
 
@@ -739,7 +739,9 @@
         }
         await ensurePdfJsLoaded();
 
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        if (window.__OMNI_PDFJS_WORKER__ && pdfjsLib && pdfjsLib.GlobalWorkerOptions) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = window.__OMNI_PDFJS_WORKER__;
+        }
         const bytes = base64ToUint8Array(presentation.pdfBase64);
         const loadingTask = pdfjsLib.getDocument({ data: bytes });
         pdfDoc = await loadingTask.promise;
@@ -776,7 +778,7 @@
             }
 
             const script = document.createElement('script');
-            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+            script.src = window.__OMNI_PDFJS_SCRIPT__ || '';
             script.async = true;
             script.dataset.pdfjs = 'true';
             script.onload = () => {
@@ -785,7 +787,7 @@
             };
             script.onerror = () => {
                 clear();
-                reject(new Error('pdf.js failed to load. Check your network connection.'));
+                reject(new Error('pdf.js failed to load from the packaged extension assets.'));
             };
             document.head.appendChild(script);
         });

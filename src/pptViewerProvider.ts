@@ -29,13 +29,28 @@ export class PptViewerProvider implements vscode.CustomReadonlyEditorProvider {
         const pptFileName = path.basename(pptPath);
 
         try {
+            const detection = await FileUtils.detectViewerType(pptPath, PptViewerProvider.viewType);
+            if (detection.viewType && detection.viewType !== PptViewerProvider.viewType) {
+                await vscode.commands.executeCommand('vscode.openWith', pptUri, detection.viewType);
+                webviewPanel.dispose();
+                return;
+            }
+
             const pptContent = await FileUtils.readPresentationFile(pptPath);
+            const pdfJsScriptUri = webviewPanel.webview.asWebviewUri(
+                vscode.Uri.file(path.join(this.context.extensionPath, 'node_modules', 'pdfjs-dist', 'build', 'pdf.min.js'))
+            );
+            const pdfJsWorkerUri = webviewPanel.webview.asWebviewUri(
+                vscode.Uri.file(path.join(this.context.extensionPath, 'node_modules', 'pdfjs-dist', 'build', 'pdf.worker.min.js'))
+            );
 
             const html = await TemplateUtils.loadTemplate(this.context, 'ppt/pptViewer.html', {
                 fileName: pptFileName,
                 fileSize: pptContent.fileSize,
                 totalSlides: String(pptContent.totalSlides),
-                presentationData: JSON.stringify(pptContent)
+                presentationData: JSON.stringify(pptContent),
+                pdfJsScriptUri: pdfJsScriptUri.toString(),
+                pdfJsWorkerUri: pdfJsWorkerUri.toString()
             });
 
             webviewPanel.webview.html = html;

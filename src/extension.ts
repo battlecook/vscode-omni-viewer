@@ -11,6 +11,7 @@ import { ExcelViewerProvider } from './excelViewerProvider';
 import { WordViewerProvider } from './wordViewerProvider';
 import { PdfViewerProvider } from './pdfViewerProvider';
 import { PptViewerProvider } from './pptViewerProvider';
+import { FileUtils, OmniViewerViewType } from './utils/fileUtils';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('🚀 Omni Viewer extension is now active!');
@@ -30,93 +31,65 @@ export function activate(context: vscode.ExtensionContext) {
     const pdfViewerProvider = new PdfViewerProvider(context);
     const pptViewerProvider = new PptViewerProvider(context);
 
+    const openViewerWithSignatureCheck = async (uri: vscode.Uri | undefined, requestedViewType: OmniViewerViewType, missingMessage: string) => {
+        if (!uri) {
+            vscode.window.showErrorMessage(missingMessage);
+            return;
+        }
+
+        const detection = await FileUtils.detectViewerType(uri.fsPath, requestedViewType);
+        const targetViewType = detection.viewType ?? requestedViewType;
+
+        if (targetViewType !== requestedViewType) {
+            vscode.window.showWarningMessage(`Opened with a different viewer because the file signature matched ${targetViewType}. ${detection.reason}`);
+        }
+
+        await vscode.commands.executeCommand('vscode.openWith', uri, targetViewType);
+    };
+
     // Register commands
-    const openAudioViewer = vscode.commands.registerCommand('omni-viewer.openAudioViewer', (uri: vscode.Uri) => {
-        if (uri) {
-            vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.audioViewer');
-        } else {
-            vscode.window.showErrorMessage('No audio file selected');
-        }
+    const openAudioViewer = vscode.commands.registerCommand('omni-viewer.openAudioViewer', async (uri: vscode.Uri) => {
+        await openViewerWithSignatureCheck(uri, 'omni-viewer.audioViewer', 'No audio file selected');
     });
 
-    const openImageViewer = vscode.commands.registerCommand('omni-viewer.openImageViewer', (uri: vscode.Uri) => {
-        if (uri) {
-            vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.imageViewer');
-        } else {
-            vscode.window.showErrorMessage('No image file selected');
-        }
+    const openImageViewer = vscode.commands.registerCommand('omni-viewer.openImageViewer', async (uri: vscode.Uri) => {
+        await openViewerWithSignatureCheck(uri, 'omni-viewer.imageViewer', 'No image file selected');
     });
 
-    const openVideoViewer = vscode.commands.registerCommand('omni-viewer.openVideoViewer', (uri: vscode.Uri) => {
-        if (uri) {
-            vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.videoViewer');
-        } else {
-            vscode.window.showErrorMessage('No video file selected');
-        }
+    const openVideoViewer = vscode.commands.registerCommand('omni-viewer.openVideoViewer', async (uri: vscode.Uri) => {
+        await openViewerWithSignatureCheck(uri, 'omni-viewer.videoViewer', 'No video file selected');
     });
 
-    const openCsvViewer = vscode.commands.registerCommand('omni-viewer.openCsvViewer', (uri: vscode.Uri) => {
-        if (uri) {
-            vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.csvViewer');
-        } else {
-            vscode.window.showErrorMessage('No CSV file selected');
-        }
+    const openCsvViewer = vscode.commands.registerCommand('omni-viewer.openCsvViewer', async (uri: vscode.Uri) => {
+        await openViewerWithSignatureCheck(uri, 'omni-viewer.csvViewer', 'No CSV file selected');
     });
 
-    const openJsonlViewer = vscode.commands.registerCommand('omni-viewer.openJsonlViewer', (uri: vscode.Uri) => {
-        if (uri) {
-            vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.jsonlViewer');
-        } else {
-            vscode.window.showErrorMessage('No JSONL file selected');
-        }
+    const openJsonlViewer = vscode.commands.registerCommand('omni-viewer.openJsonlViewer', async (uri: vscode.Uri) => {
+        await openViewerWithSignatureCheck(uri, 'omni-viewer.jsonlViewer', 'No JSONL file selected');
     });
 
-    const openParquetViewer = vscode.commands.registerCommand('omni-viewer.openParquetViewer', (uri: vscode.Uri) => {
-        if (uri) {
-            vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.parquetViewer');
-        } else {
-            vscode.window.showErrorMessage('No Parquet file selected');
-        }
+    const openParquetViewer = vscode.commands.registerCommand('omni-viewer.openParquetViewer', async (uri: vscode.Uri) => {
+        await openViewerWithSignatureCheck(uri, 'omni-viewer.parquetViewer', 'No Parquet file selected');
     });
 
-    const openHwpViewer = vscode.commands.registerCommand('omni-viewer.openHwpViewer', (uri: vscode.Uri) => {
-        if (uri) {
-            vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.hwpViewer');
-        } else {
-            vscode.window.showErrorMessage('No HWP file selected');
-        }
+    const openHwpViewer = vscode.commands.registerCommand('omni-viewer.openHwpViewer', async (uri: vscode.Uri) => {
+        await openViewerWithSignatureCheck(uri, 'omni-viewer.hwpViewer', 'No HWP file selected');
     });
 
-    const openPsdViewer = vscode.commands.registerCommand('omni-viewer.openPsdViewer', (uri: vscode.Uri) => {
-        if (uri) {
-            vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.psdViewer');
-        } else {
-            vscode.window.showErrorMessage('No PSD file selected');
-        }
+    const openPsdViewer = vscode.commands.registerCommand('omni-viewer.openPsdViewer', async (uri: vscode.Uri) => {
+        await openViewerWithSignatureCheck(uri, 'omni-viewer.psdViewer', 'No PSD file selected');
     });
 
-    const openExcelViewer = vscode.commands.registerCommand('omni-viewer.openExcelViewer', (uri: vscode.Uri) => {
-        if (uri) {
-            vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.excelViewer');
-        } else {
-            vscode.window.showErrorMessage('No Excel file selected');
-        }
+    const openExcelViewer = vscode.commands.registerCommand('omni-viewer.openExcelViewer', async (uri: vscode.Uri) => {
+        await openViewerWithSignatureCheck(uri, 'omni-viewer.excelViewer', 'No Excel file selected');
     });
 
-    const openWordViewer = vscode.commands.registerCommand('omni-viewer.openWordViewer', (uri: vscode.Uri) => {
-        if (uri) {
-            vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.wordViewer');
-        } else {
-            vscode.window.showErrorMessage('No Word file selected');
-        }
+    const openWordViewer = vscode.commands.registerCommand('omni-viewer.openWordViewer', async (uri: vscode.Uri) => {
+        await openViewerWithSignatureCheck(uri, 'omni-viewer.wordViewer', 'No Word file selected');
     });
 
-    const openPptViewer = vscode.commands.registerCommand('omni-viewer.openPptViewer', (uri: vscode.Uri) => {
-        if (uri) {
-            vscode.commands.executeCommand('vscode.openWith', uri, 'omni-viewer.pptViewer');
-        } else {
-            vscode.window.showErrorMessage('No PowerPoint file selected');
-        }
+    const openPptViewer = vscode.commands.registerCommand('omni-viewer.openPptViewer', async (uri: vscode.Uri) => {
+        await openViewerWithSignatureCheck(uri, 'omni-viewer.pptViewer', 'No PowerPoint file selected');
     });
 
     // Register custom editors

@@ -30,6 +30,13 @@ export class PsdViewerProvider implements vscode.CustomReadonlyEditorProvider {
         const fileName = path.basename(psdPath);
 
         try {
+            const detection = await FileUtils.detectViewerType(psdPath, PsdViewerProvider.viewType);
+            if (detection.viewType && detection.viewType !== PsdViewerProvider.viewType) {
+                await vscode.commands.executeCommand('vscode.openWith', psdUri, detection.viewType);
+                webviewPanel.dispose();
+                return;
+            }
+
             const buffer = await fs.promises.readFile(psdPath);
             const psdBase64 = buffer.toString('base64');
             const fileSize = await FileUtils.getFileSize(psdPath);

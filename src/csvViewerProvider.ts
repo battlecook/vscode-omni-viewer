@@ -29,6 +29,13 @@ export class CsvViewerProvider implements vscode.CustomReadonlyEditorProvider {
         const csvFileName = path.basename(csvPath);
 
         try {
+            const detection = await FileUtils.detectViewerType(csvPath, CsvViewerProvider.viewType);
+            if (detection.viewType && detection.viewType !== CsvViewerProvider.viewType) {
+                await vscode.commands.executeCommand('vscode.openWith', csvUri, detection.viewType);
+                webviewPanel.dispose();
+                return;
+            }
+
             const csvContent = await FileUtils.readCsvFile(csvPath);
             const csvData = JSON.stringify(csvContent);
 

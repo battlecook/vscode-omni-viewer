@@ -29,6 +29,13 @@ export class WordViewerProvider implements vscode.CustomReadonlyEditorProvider {
         const wordFileName = path.basename(wordPath);
 
         try {
+            const detection = await FileUtils.detectViewerType(wordPath, WordViewerProvider.viewType);
+            if (detection.viewType && detection.viewType !== WordViewerProvider.viewType) {
+                await vscode.commands.executeCommand('vscode.openWith', wordUri, detection.viewType);
+                webviewPanel.dispose();
+                return;
+            }
+
             const wordContent = await FileUtils.readWordFile(wordPath);
             const html = await TemplateUtils.loadTemplate(this.context, 'word/wordViewer.html', {
                 fileName: wordFileName,

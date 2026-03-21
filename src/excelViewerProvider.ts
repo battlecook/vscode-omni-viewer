@@ -29,6 +29,13 @@ export class ExcelViewerProvider implements vscode.CustomReadonlyEditorProvider 
         const excelFileName = path.basename(excelPath);
 
         try {
+            const detection = await FileUtils.detectViewerType(excelPath, ExcelViewerProvider.viewType);
+            if (detection.viewType && detection.viewType !== ExcelViewerProvider.viewType) {
+                await vscode.commands.executeCommand('vscode.openWith', excelUri, detection.viewType);
+                webviewPanel.dispose();
+                return;
+            }
+
             const excelContent = await FileUtils.readExcelFile(excelPath);
             const excelData = JSON.stringify(excelContent);
 

@@ -304,6 +304,11 @@
 
     function appendSourceInfo(config, hasCharts) {
         if (!fileInfo || !config) return;
+        if (config.sourceFormat === 'doc' && !config.wasConverted) {
+            const engineInfo = document.createElement('span');
+            engineInfo.textContent = ' • native .doc engine';
+            fileInfo.appendChild(engineInfo);
+        }
         if (config.sourceFormat === 'doc' && config.wasConverted) {
             const sourceInfo = document.createElement('span');
             sourceInfo.textContent = ' • converted from .doc';

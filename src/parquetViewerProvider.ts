@@ -29,6 +29,13 @@ export class ParquetViewerProvider implements vscode.CustomReadonlyEditorProvide
         const parquetFileName = path.basename(parquetPath);
 
         try {
+            const detection = await FileUtils.detectViewerType(parquetPath, ParquetViewerProvider.viewType);
+            if (detection.viewType && detection.viewType !== ParquetViewerProvider.viewType) {
+                await vscode.commands.executeCommand('vscode.openWith', parquetUri, detection.viewType);
+                webviewPanel.dispose();
+                return;
+            }
+
             const parquetContent = await FileUtils.readParquetFile(parquetPath);
             const parquetData = JSON.stringify(parquetContent);
 
@@ -112,4 +119,3 @@ export class ParquetViewerProvider implements vscode.CustomReadonlyEditorProvide
 </html>`;
     }
 }
-

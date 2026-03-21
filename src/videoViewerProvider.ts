@@ -29,6 +29,13 @@ export class VideoViewerProvider implements vscode.CustomReadonlyEditorProvider 
         const videoFileName = path.basename(videoPath);
 
         try {
+            const detection = await FileUtils.detectViewerType(videoPath, VideoViewerProvider.viewType);
+            if (detection.viewType && detection.viewType !== VideoViewerProvider.viewType) {
+                await vscode.commands.executeCommand('vscode.openWith', videoUri, detection.viewType);
+                webviewPanel.dispose();
+                return;
+            }
+
             const mimeType = FileUtils.getVideoMimeType(videoPath);
             const videoData = await FileUtils.fileToDataUrl(videoPath, mimeType);
             

@@ -11,9 +11,160 @@ import { PptxXmlParser } from './pptxXmlParser';
 import { PptBinaryParser } from './pptBinaryParser';
 import { DocBinaryParser } from './docBinaryParser';
 
+export type OmniViewerViewType =
+    | 'omni-viewer.audioViewer'
+    | 'omni-viewer.videoViewer'
+    | 'omni-viewer.imageViewer'
+    | 'omni-viewer.csvViewer'
+    | 'omni-viewer.jsonlViewer'
+    | 'omni-viewer.parquetViewer'
+    | 'omni-viewer.hwpViewer'
+    | 'omni-viewer.psdViewer'
+    | 'omni-viewer.excelViewer'
+    | 'omni-viewer.wordViewer'
+    | 'omni-viewer.pdfViewer'
+    | 'omni-viewer.pptViewer';
+
+export interface FileViewerDetectionResult {
+    viewType: OmniViewerViewType | null;
+    reason: string;
+    matchedBySignature: boolean;
+}
+
 export class FileUtils {
     private static readonly MAX_FILE_SIZE = 50 * 1024 * 1024;
     private static readonly DEFAULT_DELIMITER = ',';
+    private static readonly SIGNATURE_READ_SIZE = 64 * 1024;
+
+    public static async detectViewerType(filePath: string, fallbackViewType?: OmniViewerViewType): Promise<FileViewerDetectionResult> {
+        const buffer = await this.readSignatureBuffer(filePath);
+        const ext = path.extname(filePath).toLowerCase();
+        const bufferLength = buffer.length;
+        const preferredOfficeViewType = this.getOfficeViewTypeForExtension(ext);
+
+        if (bufferLength === 0) {
+            return {
+                viewType: fallbackViewType ?? null,
+                reason: 'The file is empty, so the extension fallback was used.',
+                matchedBySignature: false
+            };
+        }
+
+        if (this.hasAsciiPrefix(buffer, '%PDF-')) {
+            return this.signatureMatch('omni-viewer.pdfViewer', 'Matched the PDF header.');
+        }
+
+        if (this.matchesBytes(buffer, [0x38, 0x42, 0x50, 0x53])) {
+            return this.signatureMatch('omni-viewer.psdViewer', 'Matched the PSD signature.');
+        }
+
+        if (this.matchesBytes(buffer, [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])) {
+            return this.signatureMatch('omni-viewer.imageViewer', 'Matched the PNG signature.');
+        }
+
+        if (this.matchesBytes(buffer, [0xFF, 0xD8, 0xFF])) {
+            return this.signatureMatch('omni-viewer.imageViewer', 'Matched the JPEG signature.');
+        }
+
+        if (this.hasAsciiPrefix(buffer, 'GIF87a') || this.hasAsciiPrefix(buffer, 'GIF89a')) {
+            return this.signatureMatch('omni-viewer.imageViewer', 'Matched the GIF signature.');
+        }
+
+        if (this.matchesBytes(buffer, [0x42, 0x4D])) {
+            return this.signatureMatch('omni-viewer.imageViewer', 'Matched the BMP signature.');
+        }
+
+        if (this.hasAsciiPrefix(buffer.subarray(8), 'WEBP') && this.hasAsciiPrefix(buffer, 'RIFF')) {
+            return this.signatureMatch('omni-viewer.imageViewer', 'Matched the WebP RIFF signature.');
+        }
+
+        if (this.isSvg(buffer)) {
+            return this.signatureMatch('omni-viewer.imageViewer', 'Matched SVG markup.');
+        }
+
+        if (this.hasAsciiPrefix(buffer, 'fLaC')) {
+            return this.signatureMatch('omni-viewer.audioViewer', 'Matched the FLAC signature.');
+        }
+
+        if (this.hasAsciiPrefix(buffer, 'OggS')) {
+            return this.signatureMatch('omni-viewer.audioViewer', 'Matched the OGG container signature.');
+        }
+
+        if (this.hasAsciiPrefix(buffer, 'ID3') || this.isMp3FrameHeader(buffer)) {
+            return this.signatureMatch('omni-viewer.audioViewer', 'Matched MP3 frame metadata.');
+        }
+
+        if (this.hasAsciiPrefix(buffer, 'RIFF') && this.hasAsciiPrefix(buffer.subarray(8), 'WAVE')) {
+            return this.signatureMatch('omni-viewer.audioViewer', 'Matched the WAV RIFF signature.');
+        }
+
+        if (this.isAacAdts(buffer)) {
+            return this.signatureMatch('omni-viewer.audioViewer', 'Matched AAC ADTS sync bytes.');
+        }
+
+        if (this.hasAsciiPrefix(buffer, 'RIFF') && this.hasAsciiPrefix(buffer.subarray(8), 'AVI ')) {
+            return this.signatureMatch('omni-viewer.videoViewer', 'Matched the AVI RIFF signature.');
+        }
+
+        if (this.isMp4Family(buffer)) {
+            if (ext === '.m4a') {
+                return this.signatureMatch('omni-viewer.audioViewer', 'Matched an MP4-family container and the .m4a extension.');
+            }
+
+            return this.signatureMatch('omni-viewer.videoViewer', 'Matched an MP4-family container signature.');
+        }
+
+        if (this.matchesBytes(buffer, [0x1A, 0x45, 0xDF, 0xA3])) {
+            if (ext === '.webm' || ext === '.mkv') {
+                return this.signatureMatch('omni-viewer.videoViewer', 'Matched the EBML signature used by WebM/Matroska.');
+            }
+        }
+
+        if (await this.isParquet(filePath, buffer)) {
+            return this.signatureMatch('omni-viewer.parquetViewer', 'Matched the Parquet magic bytes.');
+        }
+
+        if (this.isCompoundFileBinary(buffer)) {
+            if (preferredOfficeViewType) {
+                return this.signatureMatch(
+                    preferredOfficeViewType,
+                    `Matched the Compound File signature and preserved the ${ext} Office viewer.`
+                );
+            }
+
+            const compoundType = this.detectCompoundFileViewType(buffer);
+            if (compoundType) {
+                return this.signatureMatch(compoundType.viewType, compoundType.reason);
+            }
+        }
+
+        if (this.matchesBytes(buffer, [0x50, 0x4B, 0x03, 0x04])) {
+            if (preferredOfficeViewType) {
+                return this.signatureMatch(
+                    preferredOfficeViewType,
+                    `Matched a ZIP-based Office container and preserved the ${ext} Office viewer.`
+                );
+            }
+
+            const zipType = await this.detectZipBasedOfficeViewType(filePath);
+            if (zipType) {
+                return this.signatureMatch(zipType.viewType, zipType.reason);
+            }
+        }
+
+        const textType = this.detectTextBasedViewType(buffer, ext);
+        if (textType) {
+            return textType;
+        }
+
+        return {
+            viewType: fallbackViewType ?? null,
+            reason: fallbackViewType
+                ? 'No strong file signature matched, so the extension fallback was used.'
+                : 'No supported file signature matched.',
+            matchedBySignature: false
+        };
+    }
 
     public static getAudioMimeType(filePath: string): string {
         const ext = path.extname(filePath).toLowerCase();
@@ -127,11 +278,11 @@ export class FileUtils {
         totalColumns: number;
         fileSize: string;
         delimiter: string;
-    }> {
+        }> {
         try {
             const content = await fs.promises.readFile(filePath, 'utf-8');
             const lines = content.split('\n').filter(line => line.trim() !== '');
-            const delimiter = this.getDelimitedFileDelimiter(filePath);
+            const delimiter = this.getDelimitedFileDelimiter(filePath, lines);
             
             if (lines.length === 0) {
                 throw new Error('CSV file is empty');
@@ -161,8 +312,286 @@ export class FileUtils {
         }
     }
 
-    public static getDelimitedFileDelimiter(filePath: string): string {
-        return path.extname(filePath).toLowerCase() === '.tsv' ? '\t' : this.DEFAULT_DELIMITER;
+    public static getDelimitedFileDelimiter(filePath: string, lines: string[] = []): string {
+        if (path.extname(filePath).toLowerCase() === '.tsv') {
+            return '\t';
+        }
+
+        return this.detectDelimiter(lines) ?? this.DEFAULT_DELIMITER;
+    }
+
+    private static detectDelimiter(lines: string[]): string | null {
+        const sampleLines = lines
+            .map(line => line.trim())
+            .filter(line => line.length > 0)
+            .slice(0, 10);
+
+        if (sampleLines.length === 0) {
+            return null;
+        }
+
+        const candidates = [',', ';', '\t', '|'];
+        let bestDelimiter: string | null = null;
+        let bestScore = 0;
+
+        for (const candidate of candidates) {
+            const counts = sampleLines.map(line => this.countDelimiterOccurrences(line, candidate));
+            const positiveCounts = counts.filter(count => count > 0);
+
+            if (positiveCounts.length === 0) {
+                continue;
+            }
+
+            const consistencyScore = positiveCounts.length;
+            const densityScore = positiveCounts.reduce((sum, count) => sum + count, 0);
+            const score = consistencyScore * 100 + densityScore;
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestDelimiter = candidate;
+            }
+        }
+
+        return bestDelimiter;
+    }
+
+    private static countDelimiterOccurrences(line: string, delimiter: string): number {
+        let count = 0;
+        let inQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+
+            if (char === '"') {
+                if (inQuotes && line[i + 1] === '"') {
+                    i++;
+                } else {
+                    inQuotes = !inQuotes;
+                }
+            } else if (char === delimiter && !inQuotes) {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private static signatureMatch(viewType: OmniViewerViewType, reason: string): FileViewerDetectionResult {
+        return { viewType, reason, matchedBySignature: true };
+    }
+
+    private static getOfficeViewTypeForExtension(ext: string): OmniViewerViewType | null {
+        switch (ext) {
+        case '.doc':
+        case '.docx':
+            return 'omni-viewer.wordViewer';
+        case '.xls':
+        case '.xlsx':
+            return 'omni-viewer.excelViewer';
+        case '.ppt':
+        case '.pptx':
+            return 'omni-viewer.pptViewer';
+        default:
+            return null;
+        }
+    }
+
+    private static async readSignatureBuffer(filePath: string): Promise<Buffer> {
+        const handle = await fs.promises.open(filePath, 'r');
+        try {
+            const buffer = Buffer.alloc(this.SIGNATURE_READ_SIZE);
+            const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+            return buffer.subarray(0, bytesRead);
+        } finally {
+            await handle.close();
+        }
+    }
+
+    private static matchesBytes(buffer: Buffer, signature: number[], offset = 0): boolean {
+        if (buffer.length < offset + signature.length) {
+            return false;
+        }
+
+        return signature.every((byte, index) => buffer[offset + index] === byte);
+    }
+
+    private static hasAsciiPrefix(buffer: Buffer, value: string): boolean {
+        if (buffer.length < value.length) {
+            return false;
+        }
+
+        return buffer.subarray(0, value.length).toString('ascii') === value;
+    }
+
+    private static isSvg(buffer: Buffer): boolean {
+        const snippet = buffer.subarray(0, 2048).toString('utf8').trimStart();
+        return snippet.startsWith('<svg') || snippet.startsWith('<?xml') && snippet.includes('<svg');
+    }
+
+    private static isMp3FrameHeader(buffer: Buffer): boolean {
+        return buffer.length >= 2
+            && buffer[0] === 0xFF
+            && (buffer[1] & 0xE0) === 0xE0;
+    }
+
+    private static isAacAdts(buffer: Buffer): boolean {
+        return buffer.length >= 2
+            && buffer[0] === 0xFF
+            && (buffer[1] & 0xF6) === 0xF0;
+    }
+
+    private static isMp4Family(buffer: Buffer): boolean {
+        if (buffer.length < 12) {
+            return false;
+        }
+
+        return buffer.subarray(4, 8).toString('ascii') === 'ftyp';
+    }
+
+    private static async isParquet(filePath: string, headerBuffer: Buffer): Promise<boolean> {
+        if (!this.hasAsciiPrefix(headerBuffer, 'PAR1')) {
+            return false;
+        }
+
+        const stats = await fs.promises.stat(filePath);
+        if (stats.size < 8) {
+            return false;
+        }
+
+        const handle = await fs.promises.open(filePath, 'r');
+        try {
+            const footer = Buffer.alloc(4);
+            await handle.read(footer, 0, footer.length, stats.size - footer.length);
+            return footer.toString('ascii') === 'PAR1';
+        } finally {
+            await handle.close();
+        }
+    }
+
+    private static isCompoundFileBinary(buffer: Buffer): boolean {
+        return this.matchesBytes(buffer, [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]);
+    }
+
+    private static detectCompoundFileViewType(buffer: Buffer): { viewType: OmniViewerViewType; reason: string } | null {
+        const text = buffer.toString('latin1');
+
+        if (text.includes('WordDocument')) {
+            return {
+                viewType: 'omni-viewer.wordViewer',
+                reason: 'Matched the Compound File signature and Word stream metadata.'
+            };
+        }
+
+        if (text.includes('Workbook')) {
+            return {
+                viewType: 'omni-viewer.excelViewer',
+                reason: 'Matched the Compound File signature and Excel workbook metadata.'
+            };
+        }
+
+        if (text.includes('PowerPoint Document')) {
+            return {
+                viewType: 'omni-viewer.pptViewer',
+                reason: 'Matched the Compound File signature and PowerPoint stream metadata.'
+            };
+        }
+
+        if (text.includes('FileHeader') || text.includes('HwpSummaryInformation')) {
+            return {
+                viewType: 'omni-viewer.hwpViewer',
+                reason: 'Matched the Compound File signature and HWP stream metadata.'
+            };
+        }
+
+        return null;
+    }
+
+    private static async detectZipBasedOfficeViewType(filePath: string): Promise<{ viewType: OmniViewerViewType; reason: string } | null> {
+        try {
+            const buffer = await fs.promises.readFile(filePath);
+            const zip = await JSZip.loadAsync(buffer);
+            const names = Object.keys(zip.files);
+
+            if (names.some(name => name.startsWith('word/'))) {
+                return {
+                    viewType: 'omni-viewer.wordViewer',
+                    reason: 'Matched a ZIP container with Word OOXML entries.'
+                };
+            }
+
+            if (names.some(name => name.startsWith('xl/'))) {
+                return {
+                    viewType: 'omni-viewer.excelViewer',
+                    reason: 'Matched a ZIP container with Excel OOXML entries.'
+                };
+            }
+
+            if (names.some(name => name.startsWith('ppt/'))) {
+                return {
+                    viewType: 'omni-viewer.pptViewer',
+                    reason: 'Matched a ZIP container with PowerPoint OOXML entries.'
+                };
+            }
+        } catch (error) {
+            console.warn('Failed to inspect ZIP-based office file:', error);
+        }
+
+        return null;
+    }
+
+    private static detectTextBasedViewType(buffer: Buffer, ext: string): FileViewerDetectionResult | null {
+        const sample = buffer.subarray(0, 16 * 1024).toString('utf8');
+        const lines = sample
+            .split(/\r?\n/)
+            .map(line => line.trim())
+            .filter(Boolean);
+
+        if (lines.length === 0) {
+            return null;
+        }
+
+        if (ext === '.jsonl' || ext === '.ndjson' || ext === '.jsonlines' || this.looksLikeJsonl(lines)) {
+            return {
+                viewType: 'omni-viewer.jsonlViewer',
+                reason: 'Matched line-delimited JSON content.',
+                matchedBySignature: false
+            };
+        }
+
+        if (ext === '.csv' || ext === '.tsv') {
+            return {
+                viewType: 'omni-viewer.csvViewer',
+                reason: 'Used the delimited text extension fallback.',
+                matchedBySignature: false
+            };
+        }
+
+        const delimiter = this.detectDelimiter(lines.slice(0, 10));
+        if (delimiter) {
+            return {
+                viewType: 'omni-viewer.csvViewer',
+                reason: `Detected repeated "${delimiter}" delimiters in text rows.`,
+                matchedBySignature: false
+            };
+        }
+
+        return null;
+    }
+
+    private static looksLikeJsonl(lines: string[]): boolean {
+        if (lines.length < 2) {
+            return false;
+        }
+
+        const sampleLines = lines.slice(0, 10);
+        return sampleLines.every(line => {
+            try {
+                const parsed = JSON.parse(line);
+                return typeof parsed === 'object' && parsed !== null;
+            } catch (error) {
+                return false;
+            }
+        });
     }
 
     private static parseDelimitedLine(line: string, delimiter: string): string[] {
@@ -581,82 +1010,36 @@ export class FileUtils {
             }
 
             const ext = path.extname(filePath).toLowerCase();
-            let docxBuffer: Buffer;
             let sourceFormat: 'docx' | 'doc';
-            let wasConverted = false;
 
             if (ext === '.docx') {
-                docxBuffer = await fs.promises.readFile(filePath);
+                const docxBuffer = await fs.promises.readFile(filePath);
                 sourceFormat = 'docx';
+                const fileSize = await this.getFileSize(filePath);
+                return {
+                    renderer: 'docx-preview',
+                    docxBase64: docxBuffer.toString('base64'),
+                    sourceFormat,
+                    wasConverted: false,
+                    fileSize
+                };
             } else if (ext === '.doc') {
                 sourceFormat = 'doc';
-                try {
-                    const htmlContent = await DocBinaryParser.parseToHtml(filePath);
-                    const fileSize = await this.getFileSize(filePath);
-                    return {
-                        renderer: 'legacy-html',
-                        htmlContent,
-                        sourceFormat,
-                        wasConverted: false,
-                        fileSize
-                    };
-                } catch (standaloneError) {
-                    console.warn('[WORD] Standalone .doc parser failed, trying soffice fallback:', standaloneError);
-                }
-
-                docxBuffer = await this.convertLegacyWordToDocx(filePath);
-                wasConverted = true;
+                const htmlContent = await DocBinaryParser.parseToHtml(filePath);
+                const fileSize = await this.getFileSize(filePath);
+                return {
+                    renderer: 'legacy-html',
+                    htmlContent,
+                    sourceFormat,
+                    wasConverted: false,
+                    fileSize
+                };
             } else {
                 throw new Error(`Unsupported Word format: ${ext || 'unknown'}`);
             }
-
-            const fileSize = await this.getFileSize(filePath);
-            return {
-                renderer: 'docx-preview',
-                docxBase64: docxBuffer.toString('base64'),
-                sourceFormat,
-                wasConverted,
-                fileSize
-            };
         } catch (error) {
             console.error('Error reading Word file:', error);
             throw error;
-        }
-    }
-
-    private static async convertLegacyWordToDocx(filePath: string): Promise<Buffer> {
-        const sofficePath = await this.findSofficePath();
-        if (!sofficePath) {
-            throw new Error(
-                'LibreOffice (soffice) is required to open .doc files. Please install LibreOffice and ensure "soffice" is available in PATH.'
-            );
-        }
-
-        const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'omni-viewer-doc-'));
-        try {
-            await this.runProcess(sofficePath, [
-                '--headless',
-                '--convert-to',
-                'docx',
-                '--outdir',
-                tempDir,
-                filePath
-            ]);
-
-            const expectedDocx = path.join(tempDir, `${path.parse(filePath).name}.docx`);
-            let docxPath = expectedDocx;
-            if (!fs.existsSync(docxPath)) {
-                const convertedFiles = await fs.promises.readdir(tempDir);
-                const anyDocx = convertedFiles.find((name) => name.toLowerCase().endsWith('.docx'));
-                if (!anyDocx) {
-                    throw new Error('.doc conversion succeeded but no .docx output was found.');
-                }
-                docxPath = path.join(tempDir, anyDocx);
-            }
-
-            return await fs.promises.readFile(docxPath);
-        } finally {
-            await fs.promises.rm(tempDir, { recursive: true, force: true });
         }
     }
 
@@ -740,6 +1123,7 @@ export class FileUtils {
                 };
                 fillColor?: string;
                 borderColor?: string;
+                borderWidthPx?: number;
             }>;
         }>;
         pdfBase64?: string;

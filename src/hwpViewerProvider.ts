@@ -29,6 +29,13 @@ export class HwpViewerProvider implements vscode.CustomReadonlyEditorProvider {
         const hwpFileName = path.basename(hwpPath);
 
         try {
+            const detection = await FileUtils.detectViewerType(hwpPath, HwpViewerProvider.viewType);
+            if (detection.viewType && detection.viewType !== HwpViewerProvider.viewType) {
+                await vscode.commands.executeCommand('vscode.openWith', hwpUri, detection.viewType);
+                webviewPanel.dispose();
+                return;
+            }
+
             console.log('[HWP Viewer] Loading file:', hwpPath);
             const hwpContent = await FileUtils.readHwpFile(hwpPath);
             console.log('[HWP Viewer] Content loaded, html length:', hwpContent.html?.length);

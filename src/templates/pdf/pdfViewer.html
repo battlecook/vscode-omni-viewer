@@ -5,7 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PDF Viewer - {{fileName}}</title>
     <link rel="stylesheet" href="css/pdfViewer.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        window.__OMNI_PDFJS_WORKER__ = '{{pdfJsWorkerUri}}';
+    </script>
+    <script src="{{pdfJsScriptUri}}"></script>
 </head>
 <body>
     <div class="container">
@@ -47,6 +50,9 @@
         <div class="modal-content">
             <label>Enter text:</label>
             <input type="text" id="textInput" placeholder="Type and press Enter" maxlength="200">
+            <label class="modal-inline-label">Text size:
+                <input type="number" id="textSizeInModal" min="8" max="96" step="1" value="12">
+            </label>
             <label class="modal-inline-label">Text color:
                 <input type="color" id="textColorInModal" value="#000000">
             </label>
@@ -67,6 +73,18 @@
             <div class="modal-actions">
                 <button type="button" id="signatureConfirm" class="btn primary">Add Signature</button>
                 <button type="button" id="signatureCancel" class="btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="passwordModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <label id="passwordPromptLabel" for="passwordInput">Enter PDF password:</label>
+            <input type="password" id="passwordInput" placeholder="Password" autocomplete="off">
+            <div id="passwordHint" class="modal-hint" style="display: none;"></div>
+            <div class="modal-actions">
+                <button type="button" id="passwordConfirm" class="btn primary">Open PDF</button>
+                <button type="button" id="passwordCancel" class="btn">Cancel</button>
             </div>
         </div>
     </div>

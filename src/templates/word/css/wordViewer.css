@@ -135,13 +135,29 @@ body {
 }
 
 .word-content.legacy-mode {
-    background: var(--vscode-editor-background, #1e1e1e);
-    color: var(--vscode-editor-foreground, #d4d4d4);
+    background: #ffffff;
+    color: #111111;
     padding: 32px 44px;
     min-width: 210mm;
     max-width: 210mm;
     min-height: 297mm;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.word-content.legacy-mode .ov-doc-legacy,
+.word-content.legacy-mode .ov-doc-legacy h1,
+.word-content.legacy-mode .ov-doc-legacy h2,
+.word-content.legacy-mode .ov-doc-legacy p,
+.word-content.legacy-mode .ov-doc-legacy li,
+.word-content.legacy-mode .ov-doc-legacy td,
+.word-content.legacy-mode .ov-doc-legacy th {
+    color: #111111;
+}
+
+.word-content.legacy-mode .ov-doc-legacy {
+    display: block;
+    width: 100%;
+    background: #ffffff;
 }
 
 .word-content.legacy-mode .ov-doc-legacy h1 {
@@ -150,14 +166,162 @@ body {
     line-height: 1.25;
 }
 
+.word-content.legacy-mode .ov-doc-legacy h2 {
+    font-size: 18px;
+    margin: 26px 0 10px 0;
+    line-height: 1.35;
+}
+
 .word-content.legacy-mode .ov-doc-legacy p {
     margin: 0 0 12px 0;
     line-height: 1.6;
     white-space: pre-wrap;
 }
 
+.word-content.legacy-mode .ov-doc-legacy ul,
+.word-content.legacy-mode .ov-doc-legacy ol {
+    margin: 0 0 14px 24px;
+    padding: 0;
+}
+
+.word-content.legacy-mode .ov-doc-legacy li {
+    margin: 0 0 8px 0;
+    line-height: 1.6;
+}
+
+.word-content.legacy-mode .ov-doc-legacy-table {
+    margin: 18px 0;
+    overflow-x: auto;
+}
+
+.word-content.legacy-mode .ov-doc-legacy table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.word-content.legacy-mode .ov-doc-legacy th,
+.word-content.legacy-mode .ov-doc-legacy td {
+    border: 1px solid var(--border-color, #3c3c3c);
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+}
+
+.word-content.legacy-mode .ov-doc-legacy th {
+    background: #f3f4f6;
+    font-weight: 600;
+}
+
+.word-content.legacy-mode .ov-doc-legacy-images {
+    margin-top: 28px;
+}
+
+.word-content.legacy-mode .ov-doc-embedded-sheet {
+    margin-top: 28px;
+}
+
+.word-content.legacy-mode .ov-doc-embedded-sheet-card {
+    border: 1px solid var(--border-color, #3c3c3c);
+    background: #f8fafc;
+    padding: 16px;
+}
+
+.word-content.legacy-mode .ov-doc-embedded-sheet-head h2 {
+    margin: 0 0 12px 0;
+}
+
+.word-content.legacy-mode .ov-doc-embedded-chart {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 140px;
+    gap: 18px;
+    align-items: flex-start;
+    margin: 10px 0 18px;
+}
+
+.word-content.legacy-mode .ov-doc-embedded-chart-meta {
+    grid-column: 1 / -1;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #6b7280;
+}
+
+.word-content.legacy-mode .ov-doc-embedded-chart-frame {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid var(--border-color, #3c3c3c);
+    background: #f8fafc;
+    padding: 10px;
+}
+
+.word-content.legacy-mode .ov-doc-embedded-chart-svg {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.word-content.legacy-mode .ov-doc-embedded-chart-legend {
+    min-width: 140px;
+    font-size: 13px;
+}
+
+.word-content.legacy-mode .ov-doc-embedded-chart-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.word-content.legacy-mode .ov-doc-embedded-chart-swatch {
+    width: 12px;
+    height: 12px;
+    display: inline-block;
+}
+
+.word-content.legacy-mode .ov-doc-embedded-table-wrap {
+    margin-top: 10px;
+    border-top: 1px solid color-mix(in srgb, var(--border-color, #3c3c3c) 70%, transparent);
+    padding-top: 12px;
+}
+
+.word-content.legacy-mode .ov-doc-embedded-table-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #6b7280;
+    margin-bottom: 8px;
+}
+
+.word-content.legacy-mode .ov-doc-legacy-image-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+}
+
+.word-content.legacy-mode .ov-doc-legacy-image {
+    margin: 0;
+    border: 1px solid var(--border-color, #3c3c3c);
+    background: #f8fafc;
+    padding: 10px;
+}
+
+.word-content.legacy-mode .ov-doc-legacy-image img {
+    display: block;
+    width: 100%;
+    max-height: 220px;
+    object-fit: contain;
+    margin-bottom: 8px;
+}
+
+.word-content.legacy-mode .ov-doc-legacy-image figcaption {
+    font-size: 12px;
+    color: #6b7280;
+    word-break: break-word;
+}
+
 .word-content.legacy-mode .ov-doc-legacy-empty {
-    color: var(--vscode-descriptionForeground, #808080);
+    color: #6b7280;
     font-style: italic;
 }
 

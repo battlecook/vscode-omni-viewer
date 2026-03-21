@@ -29,6 +29,13 @@ export class AudioViewerProvider implements vscode.CustomReadonlyEditorProvider 
         const audioFileName = path.basename(audioPath);
 
         try {
+            const detection = await FileUtils.detectViewerType(audioPath, AudioViewerProvider.viewType);
+            if (detection.viewType && detection.viewType !== AudioViewerProvider.viewType) {
+                await vscode.commands.executeCommand('vscode.openWith', audioUri, detection.viewType);
+                webviewPanel.dispose();
+                return;
+            }
+
             const mimeType = FileUtils.getAudioMimeType(audioPath);
             const audioData = await FileUtils.fileToDataUrl(audioPath, mimeType);
             const metadata = await FileUtils.getAudioMetadata(audioPath);

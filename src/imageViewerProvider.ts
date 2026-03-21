@@ -29,6 +29,13 @@ export class ImageViewerProvider implements vscode.CustomReadonlyEditorProvider 
         const imageFileName = path.basename(imagePath);
 
         try {
+            const detection = await FileUtils.detectViewerType(imagePath, ImageViewerProvider.viewType);
+            if (detection.viewType && detection.viewType !== ImageViewerProvider.viewType) {
+                await vscode.commands.executeCommand('vscode.openWith', imageUri, detection.viewType);
+                webviewPanel.dispose();
+                return;
+            }
+
             const mimeType = FileUtils.getImageMimeType(imagePath);
             const imageData = await FileUtils.fileToDataUrl(imagePath, mimeType);
             

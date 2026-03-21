@@ -27,12 +27,19 @@
 
     const textModal = document.getElementById('textModal');
     const textInput = document.getElementById('textInput');
+    const textSizeInput = document.getElementById('textSizeInModal');
     const textConfirm = document.getElementById('textConfirm');
     const textCancel = document.getElementById('textCancel');
     const signatureModal = document.getElementById('signatureModal');
     const signatureCanvasWrap = document.getElementById('signatureCanvasWrap');
     const signatureConfirm = document.getElementById('signatureConfirm');
     const signatureCancelBtn = document.getElementById('signatureCancel');
+    const passwordModal = document.getElementById('passwordModal');
+    const passwordPromptLabel = document.getElementById('passwordPromptLabel');
+    const passwordInput = document.getElementById('passwordInput');
+    const passwordHint = document.getElementById('passwordHint');
+    const passwordConfirm = document.getElementById('passwordConfirm');
+    const passwordCancel = document.getElementById('passwordCancel');
 
     let pdfDocs = [];
     let sourcePdfBase64List = [];
@@ -57,6 +64,7 @@
     let dragEndedAt = 0;
     let signatureCanceledAt = 0;
     let draggedThumbnailIndex = null;
+    let passwordRequestState = null;
 
     function base64ToUint8Array(base64) {
         const binary = atob(base64);
@@ -72,6 +80,12 @@
 
     function getTextColor() {
         return (textColorInput && textColorInput.value) ? textColorInput.value : '#000000';
+    }
+
+    function getTextSize() {
+        const raw = textSizeInput && textSizeInput.value ? Number(textSizeInput.value) : 12;
+        if (!Number.isFinite(raw)) return 12;
+        return Math.max(8, Math.min(96, raw));
     }
 
     function getSignatureColor() {
@@ -346,6 +360,9 @@
     function showTextModal(pageIndex, viewX, viewY) {
         pendingTextPosition = { pageIndex: pageIndex, viewX: viewX, viewY: viewY };
         textInput.value = '';
+        if (textSizeInput) {
+            textSizeInput.value = '12';
+        }
         textModal.style.display = 'flex';
         textInput.focus();
     }
@@ -413,12 +430,134 @@
         signatureModal.style.display = 'flex';
     }
 
+    function trimSignatureCanvas(canvas) {
+        if (!canvas) return null;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return null;
+
+        const width = canvas.width;
+        const height = canvas.height;
+        const imageData = ctx.getImageData(0, 0, width, height);
+        const pixels = imageData.data;
+
+        let minX = width;
+        let minY = height;
+        let maxX = -1;
+        let maxY = -1;
+
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const alpha = pixels[(y * width + x) * 4 + 3];
+                if (alpha === 0) continue;
+                if (x < minX) minX = x;
+                if (y < minY) minY = y;
+                if (x > maxX) maxX = x;
+                if (y > maxY) maxY = y;
+            }
+        }
+
+        if (maxX < minX || maxY < minY) {
+            return null;
+        }
+
+        const padding = 4;
+        const cropX = Math.max(0, minX - padding);
+        const cropY = Math.max(0, minY - padding);
+        const cropWidth = Math.min(width - cropX, (maxX - minX + 1) + padding * 2);
+        const cropHeight = Math.min(height - cropY, (maxY - minY + 1) + padding * 2);
+
+        const trimmedCanvas = document.createElement('canvas');
+        trimmedCanvas.width = cropWidth;
+        trimmedCanvas.height = cropHeight;
+        const trimmedCtx = trimmedCanvas.getContext('2d');
+        trimmedCtx.drawImage(
+            canvas,
+            cropX,
+            cropY,
+            cropWidth,
+            cropHeight,
+            0,
+            0,
+            cropWidth,
+            cropHeight
+        );
+
+        return {
+            base64: trimmedCanvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, ''),
+            width: cropWidth,
+            height: cropHeight
+        };
+    }
+
     function hideSignatureModal() {
         if (signatureModal) signatureModal.style.display = 'none';
         if (signatureCanvasWrap) signatureCanvasWrap.innerHTML = '';
         signatureCanvas = null;
         signaturePadCtx = null;
         pendingSignaturePosition = null;
+    }
+
+    function showPasswordModal(reason, onSubmit, onCancel) {
+        if (!passwordModal || !passwordInput || !passwordHint || !passwordPromptLabel) {
+            throw new Error('Password UI is not available.');
+        }
+
+        passwordRequestState = {
+            onSubmit: onSubmit,
+            onCancel: onCancel
+        };
+
+        const incorrect = reason === 'incorrect';
+        passwordPromptLabel.textContent = incorrect ? 'Incorrect password. Try again:' : 'Enter PDF password:';
+        passwordHint.textContent = incorrect
+            ? 'The password did not match this PDF.'
+            : 'This PDF is password protected.';
+        passwordHint.classList.toggle('error', incorrect);
+        passwordHint.style.display = 'block';
+        passwordInput.value = '';
+        passwordModal.style.display = 'flex';
+        setTimeout(function () {
+            passwordInput.focus();
+            passwordInput.select();
+        }, 0);
+    }
+
+    function hidePasswordModal() {
+        if (!passwordModal || !passwordInput || !passwordHint) return;
+        passwordModal.style.display = 'none';
+        passwordInput.value = '';
+        passwordHint.style.display = 'none';
+        passwordHint.classList.remove('error');
+        passwordRequestState = null;
+    }
+
+    function submitPassword() {
+        if (!passwordRequestState || !passwordInput) return;
+        const password = passwordInput.value;
+        if (!password) {
+            passwordHint.textContent = 'Please enter a password.';
+            passwordHint.classList.add('error');
+            passwordHint.style.display = 'block';
+            passwordInput.focus();
+            return;
+        }
+
+        const submit = passwordRequestState.onSubmit;
+        hidePasswordModal();
+        submit(password);
+    }
+
+    function cancelPasswordPrompt() {
+        if (!passwordRequestState) return;
+        const cancel = passwordRequestState.onCancel;
+        hidePasswordModal();
+        if (typeof cancel === 'function') cancel();
+    }
+
+    function isAbortedPdfLoad(err) {
+        if (!err) return false;
+        const message = err && err.message ? String(err.message) : String(err);
+        return message === 'Loading aborted' || message === 'Worker was destroyed';
     }
 
     function onPageClick(pageIndex, viewX, viewY, e) {
@@ -436,8 +575,26 @@
     async function loadPdfDocumentFromBase64(base64) {
         const pdfjsLib = window['pdfjsLib'];
         if (!pdfjsLib) throw new Error('Failed to load PDF.js.');
+        const workerSrc = window.__OMNI_PDFJS_WORKER__;
+        if (workerSrc && pdfjsLib.GlobalWorkerOptions) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
+        }
         const bytes = base64ToUint8Array(base64);
-        return await pdfjsLib.getDocument({ data: bytes }).promise;
+        const loadingTask = pdfjsLib.getDocument({ data: bytes });
+        loadingTask.onPassword = function (updatePassword, reasonCode) {
+            const responses = pdfjsLib.PasswordResponses || {};
+            const isIncorrect = reasonCode === responses.INCORRECT_PASSWORD;
+            showPasswordModal(
+                isIncorrect ? 'incorrect' : 'required',
+                function (password) {
+                    updatePassword(password);
+                },
+                function () {
+                    loadingTask.destroy();
+                }
+            );
+        };
+        return await loadingTask.promise;
     }
 
     function updatePageInfo() {
@@ -812,7 +969,7 @@
                 pendingTextPosition.viewX,
                 pendingTextPosition.viewY,
                 text,
-                12
+                getTextSize()
             );
             setMode('view');
         }
@@ -827,18 +984,19 @@
 
     signatureConfirm.addEventListener('click', function () {
         if (!pendingSignaturePosition || !signatureCanvas) return;
-        const dataUrl = signatureCanvas.toDataURL('image/png');
-        const base64 = dataUrl.replace(/^data:image\/png;base64,/, '');
-        const w = 320;
-        const h = 140;
+        const trimmed = trimSignatureCanvas(signatureCanvas);
+        if (!trimmed) {
+            postMessage({ command: 'warning', text: 'Please draw a signature first.' });
+            return;
+        }
 
         addSignatureAnnotation(
             pendingSignaturePosition.pageIndex,
-            base64,
+            trimmed.base64,
             pendingSignaturePosition.viewX,
             pendingSignaturePosition.viewY,
-            w,
-            h
+            trimmed.width,
+            trimmed.height
         );
         hideSignatureModal();
         setMode('view');
@@ -859,6 +1017,25 @@
         });
     }
 
+    if (passwordConfirm) {
+        passwordConfirm.addEventListener('click', submitPassword);
+    }
+
+    if (passwordCancel) {
+        passwordCancel.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            cancelPasswordPrompt();
+        });
+    }
+
+    if (passwordInput) {
+        passwordInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') submitPassword();
+            if (e.key === 'Escape') cancelPasswordPrompt();
+        });
+    }
+
     async function initialize() {
         try {
             postMessage({ command: 'resetMergePdfCache' });
@@ -871,7 +1048,11 @@
             renderPagesSync();
         } catch (err) {
             loadingEl.style.display = 'none';
-            errorEl.textContent = 'Failed to load PDF: ' + (err && err.message ? err.message : String(err));
+            if (isAbortedPdfLoad(err)) {
+                errorEl.textContent = 'PDF opening was cancelled.';
+            } else {
+                errorEl.textContent = 'Failed to load PDF: ' + (err && err.message ? err.message : String(err));
+            }
             errorEl.style.display = 'block';
         }
     }
@@ -913,6 +1094,7 @@
                 const mergedName = message.data.fileName ? String(message.data.fileName) : 'selected file';
                 postMessage({ command: 'info', text: mergedName + ' merged into preview. Click Save/Save As to apply.' });
             } catch (err) {
+                if (isAbortedPdfLoad(err)) return;
                 postMessage({
                     command: 'error',
                     text: 'Failed to merge selected PDF: ' + (err && err.message ? err.message : String(err))
