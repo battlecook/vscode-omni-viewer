@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.15.0] - 2026-03-22
+
+### Added
+- **PDF Viewer**
+  - Added support for opening password-protected PDFs with an in-viewer password prompt
+  - Added text annotation font-size control in the text insertion modal
+- **Legacy Word (`.doc`) rendering**
+  - Added native `.doc` engine metadata in the viewer UI so legacy documents clearly indicate when they are rendered without conversion
+  - Added embedded workbook extraction for legacy `.doc` files, including inline table previews and SVG chart rendering for chart-like worksheet data
+- **Regression coverage**
+  - Added targeted tests for file signature detection, delimiter detection, legacy `.doc` parsing, and legacy `.ppt` layout/style extraction
+
+### Changed
+- **Viewer selection**
+  - Switched manual open commands and custom editors to validate file signatures before opening, and automatically reroute mislabeled files to the matching Omni Viewer when possible
+  - Expanded file sniffing to recognize common image, audio, video, PDF, Parquet, Office, CSV, and JSONL content beyond filename extensions
+  - Improved delimited text detection so CSV-style files can automatically use comma, semicolon, tab, or pipe separators while still preserving `.tsv` handling
+- **PDF / PowerPoint asset loading**
+  - Replaced runtime CDN loading of `pdf.js` with packaged `pdfjs-dist` extension assets for both the PDF viewer and PowerPoint viewer
+- **Legacy Word (`.doc`) presentation**
+  - Refined legacy document styling to render with a paper-like light background, richer table/list/image layouts, and clearer embedded chart/table presentation
+
+### Fixed
+- **PDF Viewer**
+  - Fixed environments with restricted network access or blocked CDN requests from failing to load `pdf.js`
+  - Improved signature annotations by trimming empty canvas margins before placement so saved signatures fit more naturally
+  - Improved annotation selection affordances so delete controls appear only on the active annotation and selected items are highlighted more clearly
+- **Legacy PowerPoint (`.ppt`)**
+  - Fixed slide ordering by following `SlideListWithText` persist references instead of relying only on discovery order
+  - Fixed presentation sizing to respect `DocumentAtom` dimensions when available instead of always falling back to a fixed canvas
+  - Fixed title/body/subtitle placement by using `SlideAtom` layout hints and placeholder metadata for multi-column and vertical-title layouts
+  - Fixed missing or weak text extraction by preferring outline text and grouped `OfficeArtClientTextbox` content over flat fallback extraction
+  - Fixed legacy image and shape placement by reading OfficeArt anchors, mapping discovered visual slots, and avoiding duplicate shape/image rendering
+  - Fixed shape styling so slide background/text defaults, fill colors, border colors, and border widths are carried into rendered text boxes and visible non-text shapes
+- **Legacy Word (`.doc`)**
+  - Fixed mojibake-prone ANSI decoding by scoring multiple candidate decoders and preferring more readable Hangul/legacy text output
+  - Fixed paragraph styling loss by carrying bold, alignment, indentation, text color, and safe background/highlight colors into rendered legacy content
+  - Fixed structured table reconstruction by handling legacy table offsets, row metadata propagation, merge information, and empty cells without collapsing layout
+
 ## [0.14.5] - 2026-03-16
 
 ### Changed

@@ -1,6 +1,6 @@
 # VSCode Omni Viewer
 
-A comprehensive audio, image, PSD, video, CSV, Excel, Word, PowerPoint, Parquet and JSONL viewer extension for VSCode and Cursor.
+A comprehensive audio, image, PSD, video, CSV, Excel, Word, PowerPoint, PDF, Parquet, JSONL, and HWP viewer extension for VSCode and Cursor.
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-red)](https://github.com/sponsors/battlecook)
 
@@ -82,6 +82,7 @@ A comprehensive audio, image, PSD, video, CSV, Excel, Word, PowerPoint, Parquet 
 - **Keyboard Shortcuts**: Ctrl+F for search, Ctrl+C for copy
 - **File Information**: Row count, column count, and file size display
 - **Responsive Design**: Works on different screen sizes
+- **Delimiter Detection**: Automatically detects comma, semicolon, tab, and pipe-delimited text formats
 
 ### Supported CSV Formats
 - CSV (Comma-Separated Values)
@@ -108,7 +109,9 @@ A comprehensive audio, image, PSD, video, CSV, Excel, Word, PowerPoint, Parquet 
 
 ### Microsoft Word (DOCX) Viewer
 - **Document View**: Renders `.docx` with `docx-preview` for improved layout fidelity
-- **DOC Support**: Opens `.doc` via standalone legacy HTML fallback (and uses LibreOffice conversion fallback when needed)
+- **DOC Support**: Opens `.doc` via standalone legacy HTML fallback, with LibreOffice conversion fallback only when needed
+- **Native Legacy Rendering**: Preserves more `.doc` paragraph styling, table structure, and readable legacy text decoding
+- **Embedded Workbook Preview**: Shows extracted worksheet tables and simple SVG chart previews when legacy `.doc` files contain embedded workbook data
 - **Zoom Controls**: Zoom in/out and reset (Ctrl+/-, Ctrl+0)
 - **Print**: Print document (Ctrl+P)
 - **File Information**: File name and file size
@@ -120,9 +123,11 @@ A comprehensive audio, image, PSD, video, CSV, Excel, Word, PowerPoint, Parquet 
 
 ## 📽️ PowerPoint Viewer Features
 
-### Microsoft PowerPoint (PPTX) Viewer
-- **Slide View**: Reads `.pptx` files and renders slide content in order
+### Microsoft PowerPoint (PPTX/PPT) Viewer
+- **Slide View**: Reads `.pptx` and legacy `.ppt` files and renders slide content in order
 - **Title + Bullet Extraction**: Displays slide title and bullet text content
+- **Legacy PPT Layout Recovery**: Preserves more title/body/subtitle placement, slide sizing, and discovered shape/image positioning for `.ppt`
+- **Packaged PDF.js Rendering**: Uses bundled `pdf.js` assets for environments where external CDN access is blocked
 - **Slide Jump**: Jump to any slide from a dropdown
 - **Zoom Controls**: Zoom in/out and reset (Ctrl+/-, Ctrl+0)
 - **File Information**: File name, file size, and slide count
@@ -138,12 +143,23 @@ A comprehensive audio, image, PSD, video, CSV, Excel, Word, PowerPoint, Parquet 
 - **Page View**: Page-by-page rendering with thumbnail sidebar
 - **Zoom Controls**: Zoom in/out and reset
 - **Annotations**: Add text/signature, select, move, and delete annotations
+- **Password-Protected PDFs**: Open encrypted PDFs with an in-viewer password prompt
+- **Text Size Control**: Choose annotation font size when inserting text
 - **Page Editing**: Reorder pages (drag & drop) and delete pages
 - **Merge PDF**: Merge another PDF into the current document
 - **Save Flows**: Save and Save As with state synchronization after save
 
 ### Supported PDF Formats
 - PDF
+
+## 🇰🇷 HWP Viewer Features
+
+### Hangul Word Processor (HWP) Viewer
+- **Document View**: Opens `.hwp` files directly inside Omni Viewer
+- **Integrated Routing**: Works with the same signature-based viewer detection flow used across the extension
+
+### Supported HWP Formats
+- HWP
 
 ## 📄 JSONL Viewer Features
 
@@ -177,6 +193,11 @@ A comprehensive audio, image, PSD, video, CSV, Excel, Word, PowerPoint, Parquet 
 
 ### Supported Parquet Formats
 - Parquet
+
+## 🧭 Smart File Detection
+
+- **Signature-Based Routing**: Detects common file signatures before opening and can reroute mislabeled files to the matching Omni Viewer
+- **Broader Format Sniffing**: Recognizes common PDF, image, audio, video, Parquet, Office, CSV-style, and JSONL content beyond filename extensions
 
 ## 🚀 Installation and Usage
 
@@ -219,6 +240,8 @@ Omni Viewer is also available on web and mobile platforms:
 Omni Viewer does **not** currently enable this share upload flow in the released extension.  
 The following policy describes the planned behavior for a future share feature release.
 
+Open VSX listing privacy details: [open-vsx-listing-privacy.md](open-vsx-listing-privacy.md)
+
 - **What data will be uploaded**
   - The file selected by the user for sharing (single file)
   - File metadata such as filename, content type, file size, file type, and optional viewer metadata (for example selected region/range)
@@ -226,9 +249,9 @@ The following policy describes the planned behavior for a future share feature r
 - **Purpose**
   - Create a temporary share link and allow limited-time download/view access
 - **Planned storage location**
-  - GCP Cloud Run (API)
-  - GCP Cloud Storage (file object)
-  - Firestore (share metadata)
+  - Temporary server-side processing
+  - Cloud storage for shared files
+  - Database storage for share metadata
 - **Planned retention / expiration**
   - Default share link lifetime: **5 minutes**
   - After expiration, share access will be denied (`410`)
