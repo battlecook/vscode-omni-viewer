@@ -15,6 +15,17 @@ function createOfficeArtProperty(opid: number, value: number): Buffer {
     return property;
 }
 
+function createBsePayload(offset: number, size: number, type = 5): Buffer {
+    const payload = Buffer.alloc(36);
+    payload.writeUInt8(type, 0);
+    payload.writeUInt8(type, 1);
+    payload.writeUInt16LE(0x00ff, 18);
+    payload.writeUInt32LE(size, 20);
+    payload.writeUInt32LE(1, 24);
+    payload.writeUInt32LE(offset, 28);
+    return payload;
+}
+
 describe('PptBinaryParser incremental primitives', () => {
     it('extracts presentation size from a DocumentAtom record', () => {
         const documentAtomPayload = Buffer.alloc(8);
@@ -28,11 +39,13 @@ describe('PptBinaryParser incremental primitives', () => {
         );
 
         const records = (PptBinaryParser as any).parseRecords(documentContainer, 0, documentContainer.length);
-        const size = (PptBinaryParser as any).extractPresentationSize(records);
+        const size = (PptBinaryParser as any).extractPresentationMetrics(records);
 
         expect(size).toEqual({
             widthPx: 960,
-            heightPx: 720
+            heightPx: 720,
+            rawWidth: 720,
+            rawHeight: 540
         });
     });
 
@@ -48,9 +61,31 @@ describe('PptBinaryParser incremental primitives', () => {
         );
 
         const records = (PptBinaryParser as any).parseRecords(documentContainer, 0, documentContainer.length);
-        const size = (PptBinaryParser as any).extractPresentationSize(records);
+        const size = (PptBinaryParser as any).extractPresentationMetrics(records);
 
         expect(size).toBeNull();
+    });
+
+    it('scales legacy master-unit slide geometry down to pixel-sized slide dimensions', () => {
+        const documentAtomPayload = Buffer.alloc(8);
+        documentAtomPayload.writeUInt32LE(5760, 0);
+        documentAtomPayload.writeUInt32LE(4320, 4);
+
+        const documentContainer = createRecord(
+            1000,
+            createRecord(1001, documentAtomPayload),
+            0x0f
+        );
+
+        const records = (PptBinaryParser as any).parseRecords(documentContainer, 0, documentContainer.length);
+        const metrics = (PptBinaryParser as any).extractPresentationMetrics(records);
+
+        expect(metrics).toEqual({
+            widthPx: 960,
+            heightPx: 720,
+            rawWidth: 5760,
+            rawHeight: 4320
+        });
     });
 
     it('orders slide containers using SlideListWithText persist references', () => {
@@ -172,6 +207,8 @@ describe('PptBinaryParser incremental primitives', () => {
                     { text: 'Revenue\rGrowth', textType: 1 }
                 ]]
             ]),
+            null,
+            null,
             960,
             720
         );
@@ -236,7 +273,7 @@ describe('PptBinaryParser incremental primitives', () => {
         );
 
         const records = (PptBinaryParser as any).parseRecords(slideContainer, 0, slideContainer.length);
-        const slides = (PptBinaryParser as any).buildSlides(records, [], new Map(), 960, 720);
+        const slides = (PptBinaryParser as any).buildSlides(records, [], new Map(), null, null, 960, 720);
 
         expect(slides).toHaveLength(1);
         expect(slides[0].elements).toHaveLength(2);
@@ -282,7 +319,7 @@ describe('PptBinaryParser incremental primitives', () => {
         );
 
         const records = (PptBinaryParser as any).parseRecords(slideContainer, 0, slideContainer.length);
-        const slides = (PptBinaryParser as any).buildSlides(records, [], new Map(), 960, 720);
+        const slides = (PptBinaryParser as any).buildSlides(records, [], new Map(), null, null, 960, 720);
 
         expect(slides[0].backgroundColor).toBe('#112233');
         expect(slides[0].elements[0].paragraphs).toEqual([
@@ -316,7 +353,7 @@ describe('PptBinaryParser incremental primitives', () => {
         );
 
         const records = (PptBinaryParser as any).parseRecords(slideContainer, 0, slideContainer.length);
-        const slides = (PptBinaryParser as any).buildSlides(records, [], new Map(), masterColorScheme, 960, 720);
+        const slides = (PptBinaryParser as any).buildSlides(records, [], new Map(), masterColorScheme, null, 960, 720);
 
         expect(slides[0].backgroundColor).toBe('#010203');
         expect(slides[0].elements[0].paragraphs).toEqual([
@@ -352,7 +389,7 @@ describe('PptBinaryParser incremental primitives', () => {
         );
 
         const records = (PptBinaryParser as any).parseRecords(slideContainer, 0, slideContainer.length);
-        const slides = (PptBinaryParser as any).buildSlides(records, [], new Map(), null, 960, 720);
+        const slides = (PptBinaryParser as any).buildSlides(records, [], new Map(), null, null, 960, 720);
 
         expect(slides[0].elements[1].x).toBeLessThan(slides[0].elements[2].x);
         expect(slides[0].elements[1].y).toBe(slides[0].elements[2].y);
@@ -384,7 +421,7 @@ describe('PptBinaryParser incremental primitives', () => {
         );
 
         const records = (PptBinaryParser as any).parseRecords(slideContainer, 0, slideContainer.length);
-        const slides = (PptBinaryParser as any).buildSlides(records, [], new Map(), null, 960, 720);
+        const slides = (PptBinaryParser as any).buildSlides(records, [], new Map(), null, null, 960, 720);
 
         expect(slides[0].elements[0].x).toBeGreaterThan(slides[0].elements[1].x);
         expect(slides[0].elements[0].width).toBeLessThan(slides[0].elements[1].width);
@@ -419,6 +456,7 @@ describe('PptBinaryParser incremental primitives', () => {
             [slideRecord],
             [],
             new Map([[1, blocks]]),
+            null,
             null,
             960,
             720
@@ -549,7 +587,7 @@ describe('PptBinaryParser incremental primitives', () => {
         );
 
         const records = (PptBinaryParser as any).parseRecords(slideContainer, 0, slideContainer.length);
-        const slides = (PptBinaryParser as any).buildSlides(records, [], new Map(), null, 960, 720);
+        const slides = (PptBinaryParser as any).buildSlides(records, [], new Map(), null, null, 960, 720);
 
         expect(slides).toHaveLength(1);
         expect(slides[0].elements).toHaveLength(2);
@@ -614,7 +652,7 @@ describe('PptBinaryParser incremental primitives', () => {
         );
 
         const records = (PptBinaryParser as any).parseRecords(slideContainer, 0, slideContainer.length);
-        const slides = (PptBinaryParser as any).buildSlides(records, [], new Map(), null, 960, 720);
+        const slides = (PptBinaryParser as any).buildSlides(records, [], new Map(), null, null, 960, 720);
 
         expect(slides[0].elements[0].paragraphs).toEqual([
             { text: 'Overview', level: 0, bullet: false, color: undefined }
@@ -670,11 +708,63 @@ describe('PptBinaryParser incremental primitives', () => {
             height: 120
         });
 
-        const slides = (PptBinaryParser as any).buildSlides(records, [], new Map(), null, 960, 720);
+        const slides = (PptBinaryParser as any).buildSlides(
+            records,
+            [],
+            new Map(),
+            null,
+            { widthPx: 960, heightPx: 720, rawWidth: 960, rawHeight: 720 },
+            960,
+            720
+        );
         expect(slides[0].elements[0].x).toBe(120);
         expect(slides[0].elements[0].y).toBe(140);
         expect(slides[0].elements[0].width).toBe(400);
         expect(slides[0].elements[0].height).toBe(120);
+    });
+
+    it('scales anchored bounds when legacy slide coordinates use master units', () => {
+        const titleHeader = Buffer.alloc(4);
+        titleHeader.writeUInt32LE(0, 0);
+
+        const anchor = Buffer.alloc(16);
+        anchor.writeInt32LE(1710, 0);
+        anchor.writeInt32LE(2364, 4);
+        anchor.writeInt32LE(3378, 8);
+        anchor.writeInt32LE(2604, 12);
+
+        const spContainer = createRecord(
+            0xf004,
+            Buffer.concat([
+                createRecord(0xf010, anchor),
+                createRecord(
+                    0xf00d,
+                    Buffer.concat([
+                        createRecord(3999, titleHeader),
+                        createRecord(4000, Buffer.from('Scaled Title', 'utf16le'))
+                    ]),
+                    0x0f
+                )
+            ]),
+            0x0f
+        );
+
+        const slideContainer = createRecord(1006, spContainer, 0x0f, 111);
+        const records = (PptBinaryParser as any).parseRecords(slideContainer, 0, slideContainer.length);
+        const slides = (PptBinaryParser as any).buildSlides(
+            records,
+            [],
+            new Map(),
+            null,
+            { widthPx: 960, heightPx: 720, rawWidth: 5760, rawHeight: 4320 },
+            960,
+            720
+        );
+
+        expect(slides[0].elements[0].x).toBe(285);
+        expect(slides[0].elements[0].y).toBe(394);
+        expect(slides[0].elements[0].width).toBe(278);
+        expect(slides[0].elements[0].height).toBe(72);
     });
 
     it('uses non-text OfficeArt shape bounds to place legacy pictures', () => {
@@ -710,6 +800,7 @@ describe('PptBinaryParser incremental primitives', () => {
             [{ mime: 'image/png', base64: 'ZmFrZQ==' }],
             new Map(),
             null,
+            null,
             960,
             720
         );
@@ -739,6 +830,7 @@ describe('PptBinaryParser incremental primitives', () => {
             records,
             [{ mime: 'image/png', base64: 'ZmFrZQ==' }],
             new Map(),
+            null,
             null,
             960,
             720
@@ -791,6 +883,7 @@ describe('PptBinaryParser incremental primitives', () => {
                 { mime: 'image/jpeg', base64: 'cmlnaHQ=' }
             ],
             new Map(),
+            null,
             null,
             960,
             720
@@ -858,7 +951,7 @@ describe('PptBinaryParser incremental primitives', () => {
         );
 
         const records = (PptBinaryParser as any).parseRecords(slideContainer, 0, slideContainer.length);
-        const slides = (PptBinaryParser as any).buildSlides(records, [], new Map(), null, 960, 720);
+        const slides = (PptBinaryParser as any).buildSlides(records, [], new Map(), null, null, 960, 720);
 
         expect(slides[0].elements[0].fillColor).toBe('#996633');
         expect(slides[0].elements[0].borderColor).toBe('#4488cc');
@@ -901,7 +994,7 @@ describe('PptBinaryParser incremental primitives', () => {
 
         const slideContainer = createRecord(1006, spContainer, 0x0f, 107);
         const records = (PptBinaryParser as any).parseRecords(slideContainer, 0, slideContainer.length);
-        const slides = (PptBinaryParser as any).buildSlides(records, [], new Map(), null, 960, 720);
+        const slides = (PptBinaryParser as any).buildSlides(records, [], new Map(), null, null, 960, 720);
 
         expect(slides[0].elements[0].fillColor).toBeUndefined();
         expect(slides[0].elements[0].borderColor).toBe('#4488cc');
@@ -932,7 +1025,7 @@ describe('PptBinaryParser incremental primitives', () => {
 
         const slideContainer = createRecord(1006, shapeSlot, 0x0f, 108);
         const records = (PptBinaryParser as any).parseRecords(slideContainer, 0, slideContainer.length);
-        const slides = (PptBinaryParser as any).buildSlides(records, [], new Map(), null, 960, 720);
+        const slides = (PptBinaryParser as any).buildSlides(records, [], new Map(), null, null, 960, 720);
 
         const shape = slides[0].elements.find((element: any) => element.type === 'shape');
         expect(shape.fillColor).toBe('#aaeeff');
@@ -969,7 +1062,7 @@ describe('PptBinaryParser incremental primitives', () => {
         );
 
         const records = (PptBinaryParser as any).parseRecords(slideContainer, 0, slideContainer.length);
-        const slides = (PptBinaryParser as any).buildSlides(records, [], new Map(), null, 960, 720);
+        const slides = (PptBinaryParser as any).buildSlides(records, [], new Map(), null, null, 960, 720);
 
         const shape = slides[0].elements.find((element: any) => element.type === 'shape');
         expect(shape).toEqual({
@@ -1025,11 +1118,123 @@ describe('PptBinaryParser incremental primitives', () => {
             [{ mime: 'image/png', base64: 'ZmFrZQ==' }],
             new Map(),
             null,
+            null,
             960,
             720
         );
 
         expect(slides[0].elements.filter((element: any) => element.type === 'image')).toHaveLength(1);
         expect(slides[0].elements.filter((element: any) => element.type === 'shape')).toHaveLength(0);
+    });
+
+    it('decodes Korean TextBytesAtom payloads using legacy byte encodings such as CP949/EUC-KR', () => {
+        const koreanBytes = Buffer.from('c0afbec620bcf6c7d0', 'hex');
+        const text = (PptBinaryParser as any).decodeTextAtom({
+            recType: 4008,
+            payload: koreanBytes
+        });
+
+        expect(text).toBe('유아 수학');
+    });
+
+    it('does not classify readable Korean text as noise', () => {
+        expect((PptBinaryParser as any).isNoiseText('활동자료')).toBe(false);
+    });
+
+    it('uses decoded Korean byte text when building slides from TextBytesAtom records', () => {
+        const bodyHeader = Buffer.alloc(4);
+        bodyHeader.writeUInt32LE(1, 0);
+
+        const slideContainer = createRecord(
+            1006,
+            Buffer.concat([
+                createRecord(3999, bodyHeader),
+                createRecord(4008, Buffer.from('c8b0b5bfc0dab7e1', 'hex'))
+            ]),
+            0x0f,
+            110
+        );
+
+        const records = (PptBinaryParser as any).parseRecords(slideContainer, 0, slideContainer.length);
+        const blocks = (PptBinaryParser as any).extractTypedTextBlocksFromRecord(records[0]);
+        expect(blocks).toEqual([
+            { text: '활동자료', textType: 1 }
+        ]);
+
+        const slides = (PptBinaryParser as any).buildSlides([records[0]], [], new Map(), null, null, 960, 720);
+
+        expect(slides[0].elements[0].paragraphs).toEqual([
+            { text: '활동자료', level: 0, bullet: false, color: undefined }
+        ]);
+    });
+
+    it('extracts picture assets from BStore entries using delayed Pictures offsets', () => {
+        const png = Buffer.from(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aK9cAAAAASUVORK5CYII=',
+            'base64'
+        );
+        const jpeg = Buffer.from(
+            '/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAkGBxAQEBUQEBAVFRUVFRUVFRUVFRUVFRUVFRUWFhUVFRUYHSggGBolGxUVITEhJSkrLi4uFx8zODMsNygtLisBCgoKDg0OGxAQGysmICYtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLf/AABEIAAEAAgMBIgACEQEDEQH/xAAXAAEBAQEAAAAAAAAAAAAAAAAAAQID/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEAMQAAAByA//xAAVEAEBAAAAAAAAAAAAAAAAAAAAEf/aAAgBAQABBQL/xAAVEQEBAAAAAAAAAAAAAAAAAAABEP/aAAgBAwEBPwF//8QAFBEBAAAAAAAAAAAAAAAAAAAAEP/aAAgBAgEBPwF//8QAFBABAAAAAAAAAAAAAAAAAAAAEP/aAAgBAQAGPwJ//8QAFBABAAAAAAAAAAAAAAAAAAAAEP/aAAgBAQABPyF//9k=',
+            'base64'
+        );
+        const pngEntryHeader = Buffer.alloc(25);
+        const jpegEntryHeader = Buffer.alloc(25);
+        const picturesStream = Buffer.concat([pngEntryHeader, png, jpegEntryHeader, jpeg]);
+
+        const byId = (PptBinaryParser as any).extractPicturesByBlipId([
+            { recType: 0xf007, payload: createBsePayload(0, png.length, 6) },
+            { recType: 0xf007, payload: createBsePayload(25 + png.length, jpeg.length, 5) }
+        ], picturesStream);
+
+        expect(byId.get(1)).toEqual({
+            mime: 'image/png',
+            base64: png.toString('base64')
+        });
+        expect(byId.get(2)).toEqual({
+            mime: 'image/jpeg',
+            base64: jpeg.toString('base64')
+        });
+    });
+
+    it('uses shape blip references before sequential image fallback when placing pictures', () => {
+        const anchor = Buffer.alloc(8);
+        anchor.writeInt16LE(100, 0);
+        anchor.writeInt16LE(100, 2);
+        anchor.writeInt16LE(400, 4);
+        anchor.writeInt16LE(300, 6);
+
+        const pictureSlot = createRecord(
+            0xf004,
+            Buffer.concat([
+                createRecord(0xf010, anchor),
+                createRecord(0xf00b, createOfficeArtProperty(0x4186, 2), 0x03, 1)
+            ]),
+            0x0f
+        );
+
+        const slideContainer = createRecord(
+            1006,
+            pictureSlot,
+            0x0f,
+            120
+        );
+
+        const records = (PptBinaryParser as any).parseRecords(slideContainer, 0, slideContainer.length);
+        const slides = (PptBinaryParser as any).buildSlides(
+            records,
+            [{ mime: 'image/png', base64: 'c2VxdWVudGlhbA==' }],
+            new Map(),
+            null,
+            null,
+            960,
+            720,
+            new Map([[2, { mime: 'image/jpeg', base64: 'cmVmZXJlbmNlZA==' }]])
+        );
+
+        expect(slides[0].elements.filter((element: any) => element.type === 'image')).toEqual([
+            expect.objectContaining({
+                src: 'data:image/jpeg;base64,cmVmZXJlbmNlZA=='
+            })
+        ]);
     });
 });

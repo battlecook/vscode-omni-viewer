@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.16.0] - 2026-03-23
+
+### Added
+- **HWP / HWPX Viewer**
+  - Added `HWPX` package detection and viewer routing alongside existing legacy `HWP` support
+  - Added a structured HWP layout document parser that models paged content, headers/footers, paragraphs, tables, images, lines, and text boxes
+  - Added a dedicated HWP webview layout renderer with page frames, page numbers, zoomable paged preview, and print-ready layout blocks
+- **Legacy PowerPoint (`.ppt`) regression coverage**
+  - Added tests for master-unit slide scaling, Korean byte-text decoding, delayed picture extraction, and shape-linked picture placement
+
+### Changed
+- **HWP / HWPX rendering pipeline**
+  - Replaced the older direct HTML conversion path with a document-layout payload and client-side renderer so HWP-family files can preserve page structure and positioned objects more faithfully
+  - Updated the HWP viewer UI and loading states to reflect `HWP/HWPX` support instead of only legacy `.hwp`
+- **Legacy PowerPoint (`.ppt`) media presentation**
+  - Adjusted rendered slide images to use centered cover fitting for more natural visual framing inside discovered image slots
+
+### Fixed
+- **HWP / HWPX Viewer**
+  - Fixed `.hwpx` files not being recognized as HWP documents even though they are ZIP-based package documents
+  - Fixed HWP-family documents losing page-level structure by carrying section size, padding, header/footer text, and page pagination into the rendered view
+  - Fixed embedded HWP/HWPX objects such as tables, images, connector lines, and shaped text boxes being dropped or flattened into plain text
+  - Fixed positioned HWP/HWPX objects by preserving inline vs absolute placement and anchor scope information for page, paragraph, cell, and character-relative content
+- **Legacy PowerPoint (`.ppt`)**
+  - Fixed legacy decks that store slide geometry in PowerPoint master units by scaling slide and anchored object coordinates back to pixel-sized slide dimensions
+  - Fixed Korean `TextBytesAtom` text decoding by supporting legacy byte encodings such as CP949/EUC-KR and avoiding false noise classification for readable Hangul text
+  - Fixed picture extraction and placement by reading delayed `Pictures` offsets from BStore entries and preferring shape-linked blip references before sequential image fallback
+
 ## [0.15.0] - 2026-03-22
 
 ### Added

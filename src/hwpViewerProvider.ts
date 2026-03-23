@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { FileUtils } from './utils/fileUtils';
+import { HwpDocumentParser } from './utils/hwpDocumentParser';
 import { TemplateUtils } from './utils/templateUtils';
 import { MessageHandler } from './utils/messageHandler';
 
@@ -37,14 +38,16 @@ export class HwpViewerProvider implements vscode.CustomReadonlyEditorProvider {
             }
 
             console.log('[HWP Viewer] Loading file:', hwpPath);
-            const hwpContent = await FileUtils.readHwpFile(hwpPath);
-            console.log('[HWP Viewer] Content loaded, html length:', hwpContent.html?.length);
-            console.log('[HWP Viewer] Content type:', typeof hwpContent.html);
+            const hwpDocument = await HwpDocumentParser.parseFile(hwpPath);
+            console.log('[HWP Viewer] Document parsed, pages:', hwpDocument.pages.length);
+            console.log('[HWP Viewer] Source format:', hwpDocument.format);
 
             const html = await TemplateUtils.loadTemplate(this.context, 'hwp/hwpViewer.html', {
                 fileName: hwpFileName,
-                hwpContent: hwpContent.html || '',
-                fileSize: hwpContent.fileSize || ''
+                hwpPayload: JSON.stringify({
+                    document: hwpDocument
+                }),
+                fileSize: hwpDocument.fileSize || ''
             });
 
             console.log('[HWP Viewer] Template loaded, length:', html?.length);

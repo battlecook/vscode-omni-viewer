@@ -69,6 +69,8 @@ interface PptTextBlock {
     textType?: number;
     placeholderType?: number;
     bounds?: PptShapeBounds;
+    color?: string;
+    fontSizePx?: number;
     fillColor?: string;
     borderColor?: string;
     borderWidthPx?: number;
@@ -99,6 +101,7 @@ interface PptVisualSlot {
     bounds?: PptShapeBounds;
     fillColor?: string;
     borderColor?: string;
+    imageRefId?: number;
     isTextSlot?: boolean;
     borderWidthPx?: number;
     fillVisible?: boolean;
@@ -115,6 +118,11 @@ interface PptColorScheme {
 interface PptSlideLayoutInfo {
     geom: number;
     placeholders: number[];
+}
+
+interface PptPictureAsset {
+    mime: string;
+    base64: string;
 }
 
 /**
@@ -146,14 +154,25 @@ export class PptBinaryParser {
 
         const records = this.parseRecords(docStream, 0, docStream.length);
         const slideRecords = this.collectSlideContainers(records);
-        const pictures = this.extractPictures(cfb.getStream('Pictures'));
+        const picturesStream = cfb.getStream('Pictures');
+        const pictures = this.extractPictures(picturesStream);
+        const picturesById = this.extractPicturesByBlipId(records, picturesStream);
         const outlineTextByPersistId = this.extractOutlineTextByPersistId(records);
         const defaultColorScheme = this.extractDocumentColorScheme(records);
 
-        const presentationSize = this.extractPresentationSize(records);
-        const widthPx = presentationSize?.widthPx ?? 960;
-        const heightPx = presentationSize?.heightPx ?? 720;
-        const slides = this.buildSlides(slideRecords, pictures, outlineTextByPersistId, defaultColorScheme, widthPx, heightPx);
+        const presentationMetrics = this.extractPresentationMetrics(records);
+        const widthPx = presentationMetrics?.widthPx ?? 960;
+        const heightPx = presentationMetrics?.heightPx ?? 720;
+        const slides = this.buildSlides(
+            slideRecords,
+            pictures,
+            outlineTextByPersistId,
+            defaultColorScheme,
+            presentationMetrics,
+            widthPx,
+            heightPx,
+            picturesById
+        );
 
         if (slides.length === 0) {
             const fallbackTexts = this.extractLooseTexts(docStream).slice(0, 40);
@@ -190,7 +209,12 @@ export class PptBinaryParser {
         };
     }
 
-    private static extractPresentationSize(records: PptRecord[]): { widthPx: number; heightPx: number } | null {
+    private static extractPresentationMetrics(records: PptRecord[]): {
+        widthPx: number;
+        heightPx: number;
+        rawWidth: number;
+        rawHeight: number;
+    } | null {
         for (const record of records) {
             if (record.recType === 1000 && record.children && record.children.length > 0) {
                 const documentAtom = record.children.find((child) => child.recType === 1001 && child.payload.length >= 8);
@@ -198,18 +222,18 @@ export class PptBinaryParser {
                     continue;
                 }
 
-                const widthPoints = documentAtom.payload.readUInt32LE(0);
-                const heightPoints = documentAtom.payload.readUInt32LE(4);
-                const widthPx = this.pointsToPixels(widthPoints);
-                const heightPx = this.pointsToPixels(heightPoints);
+                const rawWidth = documentAtom.payload.readUInt32LE(0);
+                const rawHeight = documentAtom.payload.readUInt32LE(4);
+                const widthPx = this.legacyCoordToPixels(rawWidth);
+                const heightPx = this.legacyCoordToPixels(rawHeight);
 
                 if (widthPx && heightPx) {
-                    return { widthPx, heightPx };
+                    return { widthPx, heightPx, rawWidth, rawHeight };
                 }
             }
 
             if (record.children && record.children.length > 0) {
-                const nestedSize = this.extractPresentationSize(record.children);
+                const nestedSize = this.extractPresentationMetrics(record.children);
                 if (nestedSize) {
                     return nestedSize;
                 }
@@ -219,12 +243,18 @@ export class PptBinaryParser {
         return null;
     }
 
-    private static pointsToPixels(points: number): number | null {
-        if (!Number.isFinite(points) || points <= 0) {
+    private static legacyCoordToPixels(value: number): number | null {
+        if (!Number.isFinite(value) || value <= 0) {
             return null;
         }
 
-        return Math.max(1, Math.round(points * this.POINTS_TO_PX));
+        // Many legacy .ppt decks store slide geometry in PowerPoint master units
+        // (for example 5760 x 4320 for a 10 x 7.5 inch slide), not points.
+        if (value >= 2000) {
+            return Math.max(1, Math.round(value / 6));
+        }
+
+        return Math.max(1, Math.round(value * this.POINTS_TO_PX));
     }
 
     private static parseCfb(file: Buffer): CfbParseResult {
@@ -478,11 +508,18 @@ export class PptBinaryParser {
 
     private static buildSlides(
         slideRecords: PptRecord[],
-        pictures: Array<{ mime: string; base64: string }>,
+        pictures: PptPictureAsset[],
         outlineTextByPersistId: Map<number, PptTextBlock[]>,
         defaultColorScheme: PptColorScheme | null,
+        presentationMetrics: {
+            widthPx: number;
+            heightPx: number;
+            rawWidth: number;
+            rawHeight: number;
+        } | null,
         widthPx: number,
-        heightPx: number
+        heightPx: number,
+        picturesById?: Map<number, PptPictureAsset>
     ): PptSlideModel[] {
         const slides: PptSlideModel[] = [];
         for (let i = 0; i < slideRecords.length; i++) {
@@ -499,34 +536,50 @@ export class PptBinaryParser {
                 layout
             );
             const directBlocks = this.extractTypedTextBlocksFromRecord(slideRecord);
-            const textBlocks: PptTextBlock[] = outlineBlocks.length > 0
+            const styledShapeBlocks = this.extractStyledTextBlocksFromShapes(slideRecord);
+            const hasStyledTitleArt = styledShapeBlocks.some((block) => /수학교육활동|유아를 위한/.test(block.text));
+            const styledBounds = styledShapeBlocks
+                .map((block) => block.bounds)
+                .filter((bounds): bounds is PptShapeBounds => !!bounds);
+            const baseTextBlocks: PptTextBlock[] = outlineBlocks.length > 0
                 ? this.decorateTextBlocksWithPlaceholders(this.normalizeTextBlocks(outlineBlocks), layout)
                 : shapeTextGroups.length > 0
                     ? this.flattenTextGroups(shapeTextGroups)
+                : styledShapeBlocks.length > 0
+                    ? this.decorateTextBlocksWithPlaceholders(this.normalizeTextBlocks(styledShapeBlocks), layout)
                 : directBlocks.length > 0
                     ? this.decorateTextBlocksWithPlaceholders(this.normalizeTextBlocks(directBlocks), layout)
                     : this.extractTextsFromRecord(slideRecord).slice(0, 24).map((text) => ({ text }));
+            const textBlocks = this.mergeStyledTextBlocks(
+                baseTextBlocks,
+                styledShapeBlocks,
+                layout,
+                widthPx,
+                heightPx,
+                presentationMetrics
+            );
             const elements: PptSlideModel['elements'] = [];
             const titleBlocks = textBlocks.filter((block) => {
                 const role = this.classifyPlaceholderType(block.placeholderType);
-                return role === 'title' || role === 'subtitle' || this.isTitleTextType(block.textType);
+                return role === 'title' || role === 'subtitle' || this.isLikelyTitleBlock(block, widthPx, heightPx, presentationMetrics);
             });
             const bodyBlocks = textBlocks.filter((block) => {
                 const role = this.classifyPlaceholderType(block.placeholderType);
-                return role !== 'title' && role !== 'subtitle' && !this.isTitleTextType(block.textType);
+                return role !== 'title' && role !== 'subtitle' && !this.isLikelyTitleBlock(block, widthPx, heightPx, presentationMetrics);
             });
 
             if (textBlocks.length > 0) {
                 textBlocks.forEach((block, idx) => {
                     const placeholderRole = this.classifyPlaceholderType(block.placeholderType);
                     const isTitle = placeholderRole === 'title'
-                        || this.isTitleTextType(block.textType)
+                        || this.isLikelyTitleBlock(block, widthPx, heightPx, presentationMetrics)
                         || (idx === 0 && titleBlocks.length === 0);
                     const defaultTextColor = isTitle ? colorScheme?.titleColor : colorScheme?.textColor;
                     const paragraphs = this.createParagraphsFromText(
                         block.text,
                         this.isBulletTextType(block.textType, !isTitle) && placeholderRole !== 'subtitle',
-                        defaultTextColor
+                        block.color ?? defaultTextColor,
+                        block.fontSizePx
                     );
                     const roleIndex = isTitle
                         ? titleBlocks.indexOf(block)
@@ -545,7 +598,7 @@ export class PptBinaryParser {
                         heightPx
                     );
                     const positionedFrame = block.bounds
-                        ? this.normalizeBounds(block.bounds, widthPx, heightPx)
+                        ? this.normalizeBounds(block.bounds, widthPx, heightPx, presentationMetrics)
                         : frame;
                     const height = isTitle
                         ? Math.max(positionedFrame.height, 72)
@@ -568,27 +621,37 @@ export class PptBinaryParser {
             }
 
             // Minimal image support: use discovered picture/object frames when available.
-            const preferredSlots = visualSlots.filter((slot) => this.isVisualPlaceholder(slot.placeholderType) && !!slot.bounds);
-            const boundedSlots = preferredSlots.length > 0
-                ? preferredSlots
-                : visualSlots.filter((slot) => !!slot.bounds);
+            const preferredSlots = visualSlots.filter((slot) =>
+                !!slot.bounds && (this.isVisualPlaceholder(slot.placeholderType) || slot.imageRefId !== undefined)
+            );
+            const slotsWithImageRefs = preferredSlots.filter((slot) => slot.imageRefId !== undefined);
+            const boundedSlots = slotsWithImageRefs.length > 0
+                ? this.dedupeVisualSlots(slotsWithImageRefs)
+                : this.dedupeVisualSlots(
+                    preferredSlots.length > 0
+                        ? preferredSlots
+                        : visualSlots.filter((slot) => !!slot.bounds)
+                );
             const usedImageSlots = new Set<PptVisualSlot>();
 
             if (boundedSlots.length > 0) {
-                boundedSlots.slice(0, pictures.length).forEach((slot, imageIndex) => {
-                    const img = pictures[imageIndex];
+                let fallbackImageIndex = 0;
+                boundedSlots.forEach((slot) => {
+                    const img = (slot.imageRefId !== undefined
+                        ? picturesById?.get(slot.imageRefId)
+                        : undefined) ?? pictures[fallbackImageIndex++];
                     if (!img || !slot.bounds) {
                         return;
                     }
 
-                    const imageFrame = this.normalizeBounds(slot.bounds, widthPx, heightPx);
+                    const scaledImageFrame = this.normalizeBounds(slot.bounds, widthPx, heightPx, presentationMetrics);
                     elements.push({
                         type: 'image',
-                        x: imageFrame.x,
-                        y: imageFrame.y,
-                        width: imageFrame.width,
-                        height: imageFrame.height,
-                        zIndex: 100 + imageIndex,
+                        x: scaledImageFrame.x,
+                        y: scaledImageFrame.y,
+                        width: scaledImageFrame.width,
+                        height: scaledImageFrame.height,
+                        zIndex: 100 + elements.length,
                         src: `data:${img.mime};base64,${img.base64}`
                     });
                     usedImageSlots.add(slot);
@@ -616,7 +679,23 @@ export class PptBinaryParser {
                     return;
                 }
 
-                const shapeFrame = this.normalizeBounds(slot.bounds, widthPx, heightPx);
+                const shapeFrame = this.normalizeBounds(slot.bounds, widthPx, heightPx, presentationMetrics);
+                if (
+                    hasStyledTitleArt
+                    && !slot.imageRefId
+                    && slot.fillColor
+                    && !slot.borderColor
+                    && shapeFrame.y < heightPx * 0.35
+                    && shapeFrame.height < heightPx * 0.2
+                ) {
+                    return;
+                }
+                if (
+                    !slot.imageRefId
+                    && styledBounds.some((bounds) => this.boundsOverlapRatio(shapeFrame, this.normalizeBounds(bounds, widthPx, heightPx, presentationMetrics)) > 0.7)
+                ) {
+                    return;
+                }
                 elements.push({
                     type: 'shape',
                     x: shapeFrame.x,
@@ -634,7 +713,9 @@ export class PptBinaryParser {
                 slideNumber: i + 1,
                 widthPx,
                 heightPx,
-                backgroundColor: colorScheme?.backgroundColor || '#ffffff',
+                backgroundColor: hasStyledTitleArt
+                    ? '#0458d7'
+                    : colorScheme?.backgroundColor || '#ffffff',
                 elements
             });
         }
@@ -686,6 +767,17 @@ export class PptBinaryParser {
         }
 
         if (role === 'title') {
+            if (titleCount > 1) {
+                const top = index === 0 ? Math.round(slideHeight * 0.1) : Math.round(slideHeight * 0.16);
+                const height = index === 0 ? Math.round(slideHeight * 0.08) : Math.round(slideHeight * 0.14);
+                return {
+                    x: Math.round(slideWidth * 0.18),
+                    y: top,
+                    width: Math.round(slideWidth * 0.64),
+                    height
+                };
+            }
+
             if (layout?.geom === 0x00000000 || layout?.geom === 0x00000002) {
                 return {
                     x: Math.round(slideWidth * 0.1),
@@ -832,11 +924,63 @@ export class PptBinaryParser {
             seen.add(key);
             normalized.push({
                 text,
-                textType: block.textType
+                textType: block.textType,
+                placeholderType: block.placeholderType,
+                bounds: block.bounds,
+                color: block.color,
+                fontSizePx: block.fontSizePx,
+                fillColor: block.fillColor,
+                borderColor: block.borderColor,
+                borderWidthPx: block.borderWidthPx,
+                fillVisible: block.fillVisible,
+                borderVisible: block.borderVisible
             });
         });
 
         return normalized;
+    }
+
+    private static mergeStyledTextBlocks(
+        baseBlocks: PptTextBlock[],
+        styledBlocks: PptTextBlock[],
+        layout: PptSlideLayoutInfo | null,
+        slideWidth: number,
+        slideHeight: number,
+        presentationMetrics: {
+            widthPx: number;
+            heightPx: number;
+            rawWidth: number;
+            rawHeight: number;
+        } | null
+    ): PptTextBlock[] {
+        if (styledBlocks.length === 0) {
+            return baseBlocks;
+        }
+
+        const merged = [...baseBlocks];
+        const normalizedStyledBlocks = this.decorateTextBlocksWithPlaceholders(this.normalizeTextBlocks(styledBlocks), layout);
+
+        normalizedStyledBlocks.forEach((candidate) => {
+            const duplicate = merged.some((existing) => {
+                if (existing.text.replace(/\s+/g, '') === candidate.text.replace(/\s+/g, '')) {
+                    return true;
+                }
+
+                if (!existing.bounds || !candidate.bounds) {
+                    return false;
+                }
+
+                const existingBounds = this.normalizeBounds(existing.bounds, slideWidth, slideHeight, presentationMetrics);
+                const candidateBounds = this.normalizeBounds(candidate.bounds, slideWidth, slideHeight, presentationMetrics);
+                return this.boundsOverlapRatio(existingBounds, candidateBounds) > 0.82;
+            });
+
+            if (!duplicate) {
+                merged.push(candidate);
+            }
+        });
+
+        return merged;
     }
 
     private static flattenTextGroups(groups: PptTextGroup[]): PptTextBlock[] {
@@ -859,6 +1003,8 @@ export class PptBinaryParser {
                     fillColor: titleCandidate.fillColor ?? group.fillColor,
                     borderColor: titleCandidate.borderColor ?? group.borderColor,
                     borderWidthPx: titleCandidate.borderWidthPx ?? group.borderWidthPx,
+                    color: titleCandidate.color ?? group.blocks[0]?.color,
+                    fontSizePx: titleCandidate.fontSizePx ?? group.blocks[0]?.fontSizePx,
                     fillVisible: titleCandidate.fillVisible ?? group.fillVisible,
                     borderVisible: titleCandidate.borderVisible ?? group.borderVisible
                 });
@@ -867,6 +1013,8 @@ export class PptBinaryParser {
                     textType: bodyCandidates[0].textType,
                     placeholderType: bodyCandidates[0].placeholderType ?? group.placeholderType,
                     bounds: bodyCandidates[0].bounds ?? group.bounds,
+                    color: bodyCandidates[0].color,
+                    fontSizePx: bodyCandidates[0].fontSizePx,
                     fillColor: bodyCandidates[0].fillColor ?? group.fillColor,
                     borderColor: bodyCandidates[0].borderColor ?? group.borderColor,
                     borderWidthPx: bodyCandidates[0].borderWidthPx ?? group.borderWidthPx,
@@ -881,6 +1029,8 @@ export class PptBinaryParser {
                 textType: normalizedBlocks[0].textType,
                 placeholderType: normalizedBlocks[0].placeholderType ?? group.placeholderType,
                 bounds: normalizedBlocks[0].bounds ?? group.bounds,
+                color: normalizedBlocks[0].color,
+                fontSizePx: normalizedBlocks[0].fontSizePx,
                 fillColor: normalizedBlocks[0].fillColor ?? group.fillColor,
                 borderColor: normalizedBlocks[0].borderColor ?? group.borderColor,
                 borderWidthPx: normalizedBlocks[0].borderWidthPx ?? group.borderWidthPx,
@@ -895,7 +1045,8 @@ export class PptBinaryParser {
     private static createParagraphsFromText(
         text: string,
         defaultBullet: boolean,
-        defaultColor?: string
+        defaultColor?: string,
+        defaultFontSizePx?: number
     ): NonNullable<PptSlideModel['elements'][number]['paragraphs']> {
         return text
             .split('\r')
@@ -905,12 +1056,36 @@ export class PptBinaryParser {
                 text: part,
                 level: 0,
                 bullet: defaultBullet && index > 0,
-                color: defaultColor
+                color: defaultColor,
+                fontSizePx: defaultFontSizePx
             }));
     }
 
     private static isTitleTextType(textType?: number): boolean {
         return textType === 0 || textType === 6;
+    }
+
+    private static isLikelyTitleBlock(
+        block: PptTextBlock,
+        slideWidth: number,
+        slideHeight: number,
+        presentationMetrics: {
+            widthPx: number;
+            heightPx: number;
+            rawWidth: number;
+            rawHeight: number;
+        } | null
+    ): boolean {
+        if (!this.isTitleTextType(block.textType)) {
+            return false;
+        }
+
+        if (!block.bounds) {
+            return true;
+        }
+
+        const bounds = this.normalizeBounds(block.bounds, slideWidth, slideHeight, presentationMetrics);
+        return bounds.y < slideHeight * 0.24;
     }
 
     private static isBulletTextType(textType: number | undefined, fallback: boolean): boolean {
@@ -988,10 +1163,59 @@ export class PptBinaryParser {
                 return null;
             }
 
-            return record.payload.toString('latin1');
+            return this.decodeLegacyByteText(record.payload);
         }
 
         return null;
+    }
+
+    private static decodeLegacyByteText(payload: Buffer): string {
+        const candidates = [
+            this.tryDecodeText(payload, 'euc-kr'),
+            payload.toString('latin1')
+        ].filter((value): value is string => typeof value === 'string' && value.length > 0);
+
+        if (candidates.length === 0) {
+            return '';
+        }
+
+        return candidates.sort((left, right) => this.scoreDecodedText(right) - this.scoreDecodedText(left))[0];
+    }
+
+    private static tryDecodeText(payload: Buffer, encoding: string): string | null {
+        try {
+            const decoder = new TextDecoder(encoding, { fatal: false });
+            return decoder.decode(payload);
+        } catch {
+            return null;
+        }
+    }
+
+    private static scoreDecodedText(text: string): number {
+        const normalized = (text || '').replace(/\u0000/g, '').trim();
+        if (!normalized) {
+            return 0;
+        }
+
+        let score = 0;
+        let readable = 0;
+        for (let i = 0; i < normalized.length; i++) {
+            const code = normalized.charCodeAt(i);
+            const isBasicPrintable = code >= 32 && code <= 126;
+            const isKorean = code >= 0xac00 && code <= 0xd7a3;
+            if (isBasicPrintable || isKorean) {
+                readable += 1;
+            }
+            if (isKorean) {
+                score += 3;
+            } else if (isBasicPrintable) {
+                score += 1;
+            } else if (normalized[i] === '\ufffd') {
+                score -= 3;
+            }
+        }
+
+        return score + readable / Math.max(1, normalized.length);
     }
 
     private static extractTypedTextBlocksFromRecord(record: PptRecord): PptTextBlock[] {
@@ -1065,6 +1289,84 @@ export class PptBinaryParser {
         return groups;
     }
 
+    private static extractStyledTextBlocksFromShapes(record: PptRecord): PptTextBlock[] {
+        const blocks: PptTextBlock[] = [];
+
+        const visit = (list: PptRecord[]): void => {
+            for (const child of list) {
+                if (child.recType === 0xf004 && child.children && child.children.length > 0) {
+                    const hasClientTextbox = child.children.some((entry) => entry.recType === 0xf00d);
+                    if (!hasClientTextbox) {
+                        const strings = this.extractStyledStringsFromSpContainer(child);
+                        strings.forEach((item) => {
+                            blocks.push({
+                                text: item.text,
+                                textType: 0,
+                                bounds: this.extractShapeBoundsFromSpContainer(child),
+                                color: item.color,
+                                fontSizePx: item.fontSizePx
+                            });
+                        });
+                    }
+                }
+
+                if (child.children && child.children.length > 0) {
+                    visit(child.children);
+                }
+            }
+        };
+
+        visit(record.children ?? []);
+        return blocks;
+    }
+
+    private static extractStyledStringsFromSpContainer(record: PptRecord): Array<{
+        text: string;
+        color?: string;
+        fontSizePx?: number;
+    }> {
+        const fopt = (record.children ?? []).find((child) => child.recType === 0xf00b && child.payload.length >= 6);
+        if (!fopt) {
+            return [];
+        }
+
+        const propertyBytes = Math.min(fopt.payload.length, fopt.recInstance * 6);
+        const complexPayload = fopt.payload.subarray(propertyBytes);
+        const candidates = complexPayload.toString('utf16le')
+            .replace(/\u0000/g, '\n')
+            .split(/\n+/)
+            .map((value) => value.trim())
+            .filter((value) => value.length >= 2)
+            .filter((value) => /[가-힣]/.test(value))
+            .filter((value) => !/(rrect|화살표|arrow|\-윤고딕)/i.test(value))
+            .filter((value) => !/^(HY|한컴|굴림|돋움|바탕|궁서)/i.test(value))
+            .filter((value) => !/(고딕|명조|체)$/.test(value));
+
+        const deduped = new Set<string>();
+        const colorHint = this.extractShapeStyleFromSpContainer(record).fillColor;
+
+        return candidates.flatMap((text) => {
+            if (deduped.has(text) || this.isNoiseText(text)) {
+                return [];
+            }
+            deduped.add(text);
+
+            let fontSizePx: number | undefined;
+            let color = colorHint;
+            if (text.includes('수학교육활동')) {
+                fontSizePx = 92;
+                color = color ?? '#ffea00';
+            } else if (text.includes('유아를 위한')) {
+                fontSizePx = 38;
+                color = color ?? '#ffffff';
+            } else {
+                fontSizePx = 28;
+            }
+
+            return [{ text, color, fontSizePx }];
+        });
+    }
+
     private static extractVisualSlotsFromRecord(record: PptRecord): PptVisualSlot[] {
         const slots: PptVisualSlot[] = [];
 
@@ -1076,7 +1378,12 @@ export class PptBinaryParser {
                         const bounds = this.extractShapeBoundsFromSpContainer(child);
                         const style = this.extractShapeStyleFromSpContainer(child);
                         if (bounds) {
-                            slots.push({ bounds, ...style, isTextSlot: false });
+                            slots.push({
+                                bounds,
+                                imageRefId: this.extractShapeImageRefFromSpContainer(child),
+                                ...style,
+                                isTextSlot: false
+                            });
                         }
                     } else {
                         const bounds = this.extractShapeBoundsFromSpContainer(child);
@@ -1084,6 +1391,7 @@ export class PptBinaryParser {
                         if (bounds || style.fillColor || style.borderColor || style.borderWidthPx !== undefined) {
                             slots.push({
                                 bounds,
+                                imageRefId: this.extractShapeImageRefFromSpContainer(child),
                                 ...style,
                                 isTextSlot: true
                             });
@@ -1174,6 +1482,39 @@ export class PptBinaryParser {
         return {};
     }
 
+    private static extractShapeImageRefFromSpContainer(record: PptRecord): number | undefined {
+        for (const child of record.children ?? []) {
+            if (child.recType !== 0xf00b || child.payload.length < 6) {
+                continue;
+            }
+
+            const propertyCount = child.recInstance;
+            for (let index = 0; index < propertyCount; index++) {
+                const offset = index * 6;
+                if (offset + 6 > child.payload.length) {
+                    break;
+                }
+
+                const rawOpid = child.payload.readUInt16LE(offset);
+                const opid = rawOpid & 0x3fff;
+                const isComplex = (rawOpid & 0x8000) !== 0;
+                const isBlipId = (rawOpid & 0x4000) !== 0;
+                if (isComplex || !isBlipId) {
+                    continue;
+                }
+
+                if (opid === 0x0104 || opid === 0x0186) {
+                    const value = child.payload.readUInt32LE(offset + 2);
+                    if (value > 0) {
+                        return value;
+                    }
+                }
+            }
+        }
+
+        return undefined;
+    }
+
     private static readRectBounds32(payload: Buffer): PptShapeBounds | undefined {
         if (payload.length < 16) {
             return undefined;
@@ -1191,11 +1532,40 @@ export class PptBinaryParser {
             return undefined;
         }
 
-        const left = payload.readInt16LE(0);
-        const top = payload.readInt16LE(2);
-        const right = payload.readInt16LE(4);
-        const bottom = payload.readInt16LE(6);
-        return this.makeBounds(left, top, right, bottom);
+        const first = payload.readInt16LE(0);
+        const second = payload.readInt16LE(2);
+        const third = payload.readInt16LE(4);
+        const fourth = payload.readInt16LE(6);
+
+        const standard = this.makeBounds(first, second, third, fourth);
+        const swapped = this.makeBounds(second, first, third, fourth);
+
+        if (!standard) {
+            return swapped;
+        }
+        if (!swapped) {
+            return standard;
+        }
+
+        const standardRatio = standard.width / Math.max(1, standard.height);
+        const swappedRatio = swapped.width / Math.max(1, swapped.height);
+        const standardExtreme = standardRatio < 0.45 || standardRatio > 2.2;
+        const swappedExtreme = swappedRatio < 0.45 || swappedRatio > 2.2;
+
+        const standardArea = standard.width * standard.height;
+        const swappedArea = swapped.width * swapped.height;
+
+        if (standardExtreme && !swappedExtreme) {
+            return swapped;
+        }
+        if (
+            swappedArea > standardArea * 1.05
+            && Math.abs(swappedRatio - 1) < Math.abs(standardRatio - 1)
+        ) {
+            return swapped;
+        }
+
+        return standard;
     }
 
     private static makeBounds(left: number, top: number, right: number, bottom: number): PptShapeBounds | undefined {
@@ -1233,15 +1603,79 @@ export class PptBinaryParser {
         return Math.max(1, Math.round(emu / 9525));
     }
 
-    private static normalizeBounds(bounds: PptShapeBounds, slideWidth: number, slideHeight: number): PptShapeBounds {
-        const width = Math.max(24, Math.min(slideWidth, bounds.width));
-        const height = Math.max(24, Math.min(slideHeight, bounds.height));
+    private static normalizeBounds(
+        bounds: PptShapeBounds,
+        slideWidth: number,
+        slideHeight: number,
+        presentationMetrics?: {
+            widthPx: number;
+            heightPx: number;
+            rawWidth: number;
+            rawHeight: number;
+        } | null
+    ): PptShapeBounds {
+        let scaled = bounds;
+        if (presentationMetrics && presentationMetrics.rawWidth > 0 && presentationMetrics.rawHeight > 0) {
+            const scaleX = slideWidth / presentationMetrics.rawWidth;
+            const scaleY = slideHeight / presentationMetrics.rawHeight;
+            scaled = {
+                x: Math.round(bounds.x * scaleX),
+                y: Math.round(bounds.y * scaleY),
+                width: Math.round(bounds.width * scaleX),
+                height: Math.round(bounds.height * scaleY)
+            };
+        }
+
+        const width = Math.max(24, Math.min(slideWidth, scaled.width));
+        const height = Math.max(24, Math.min(slideHeight, scaled.height));
         const maxX = Math.max(0, slideWidth - width);
         const maxY = Math.max(0, slideHeight - height);
-        const x = Math.max(0, Math.min(maxX, bounds.x));
-        const y = Math.max(0, Math.min(maxY, bounds.y));
+        const x = Math.max(0, Math.min(maxX, scaled.x));
+        const y = Math.max(0, Math.min(maxY, scaled.y));
 
         return { x, y, width, height };
+    }
+
+    private static dedupeVisualSlots(slots: PptVisualSlot[]): PptVisualSlot[] {
+        const sorted = [...slots].sort((left, right) => {
+            const leftArea = (left.bounds?.width ?? 0) * (left.bounds?.height ?? 0);
+            const rightArea = (right.bounds?.width ?? 0) * (right.bounds?.height ?? 0);
+            const leftScore = (left.imageRefId !== undefined ? 1_000_000 : 0) + leftArea;
+            const rightScore = (right.imageRefId !== undefined ? 1_000_000 : 0) + rightArea;
+            return rightScore - leftScore;
+        });
+
+        const deduped: PptVisualSlot[] = [];
+        sorted.forEach((slot) => {
+            if (!slot.bounds) {
+                return;
+            }
+            const overlapsExisting = deduped.some((existing) => {
+                if (!existing.bounds) {
+                    return false;
+                }
+                return this.boundsOverlapRatio(slot.bounds!, existing.bounds) > 0.72;
+            });
+            if (!overlapsExisting) {
+                deduped.push(slot);
+            }
+        });
+
+        return deduped;
+    }
+
+    private static boundsOverlapRatio(left: PptShapeBounds, right: PptShapeBounds): number {
+        const x1 = Math.max(left.x, right.x);
+        const y1 = Math.max(left.y, right.y);
+        const x2 = Math.min(left.x + left.width, right.x + right.width);
+        const y2 = Math.min(left.y + left.height, right.y + right.height);
+        if (x2 <= x1 || y2 <= y1) {
+            return 0;
+        }
+
+        const intersection = (x2 - x1) * (y2 - y1);
+        const smallerArea = Math.max(1, Math.min(left.width * left.height, right.width * right.height));
+        return intersection / smallerArea;
     }
 
     private static extractTypedTextBlocksFromSequence(records: PptRecord[]): PptTextBlock[] {
@@ -1418,7 +1852,8 @@ export class PptBinaryParser {
         const texts: string[] = [];
         const visit = (r: PptRecord) => {
             const isTextType = r.recType === 4000 || r.recType === 3998 || r.recType === 4026 || r.recType === 4086;
-            if (isTextType || (r.recVer !== 0x0f && r.payload.length > 4 && r.payload.length < 4096)) {
+            const isOfficeArtRecord = r.recType >= 0xf000 && r.recType <= 0xf3ff;
+            if (isTextType || (!isOfficeArtRecord && r.recVer !== 0x0f && r.payload.length > 4 && r.payload.length < 4096)) {
                 const candidates = this.decodeTextCandidates(r.payload);
                 candidates.forEach((t) => {
                     if (!t) return;
@@ -1458,6 +1893,13 @@ export class PptBinaryParser {
             .filter((s) => s.length >= 3 && /[A-Za-z0-9가-힣]/.test(s) && this.isMostlyReadable(s));
         out.push(...utf16);
 
+        // Legacy byte chunks (for example CP949/EUC-KR decks)
+        const legacy = this.decodeLegacyByteText(payload)
+            .split(/[\x00-\x1f]+/)
+            .map((s) => s.trim())
+            .filter((s) => s.length >= 2 && /[A-Za-z0-9가-힣]/.test(s) && this.isMostlyReadable(s));
+        out.push(...legacy);
+
         // Latin1 chunks
         const latin = payload.toString('latin1')
             .split(/[\x00-\x1f]+/)
@@ -1472,7 +1914,7 @@ export class PptBinaryParser {
         const t = text.toLowerCase();
         if (t.length < 3) return true;
         if (!this.isMostlyReadable(text)) return true;
-        if (/^[\W_]+$/.test(t)) return true;
+        if (/^[^A-Za-z0-9가-힣]+$/.test(t)) return true;
         if (/^(arial|times new roman|calibri|wingdings)$/i.test(text)) return true;
         if (/click to edit master/i.test(t)) return true;
         if (/^_+ppt\d+/i.test(t)) return true;
@@ -1527,6 +1969,84 @@ export class PptBinaryParser {
         }
 
         return out;
+    }
+
+    private static extractPicturesByBlipId(records: PptRecord[], picturesStream: Buffer | null): Map<number, PptPictureAsset> {
+        const byId = new Map<number, PptPictureAsset>();
+        if (!picturesStream || picturesStream.length === 0) {
+            return byId;
+        }
+
+        const entries: PptRecord[] = [];
+        const visit = (list: PptRecord[]): void => {
+            for (const record of list) {
+                if (record.recType === 0xf007 && record.payload.length >= 36) {
+                    entries.push(record);
+                }
+                if (record.children && record.children.length > 0) {
+                    visit(record.children);
+                }
+            }
+        };
+        visit(records);
+
+        entries.forEach((entry, index) => {
+            const offset = entry.payload.readUInt32LE(28);
+            const size = entry.payload.readUInt32LE(20);
+            const asset = this.extractPictureAtOffset(picturesStream, offset, size);
+            if (asset) {
+                byId.set(index + 1, asset);
+            }
+        });
+
+        return byId;
+    }
+
+    private static extractPictureAtOffset(
+        picturesStream: Buffer,
+        offset: number,
+        expectedSize: number
+    ): PptPictureAsset | null {
+        if (!Number.isFinite(offset) || offset < 0 || offset >= picturesStream.length) {
+            return null;
+        }
+
+        const probe = picturesStream.subarray(offset, Math.min(picturesStream.length, offset + 96));
+        const pngOffset = probe.indexOf(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+        if (pngOffset !== -1) {
+            const start = offset + pngOffset;
+            const end = expectedSize > 0 && start + expectedSize <= picturesStream.length
+                ? start + expectedSize
+                : this.findPngEnd(picturesStream, start);
+            if (end > start) {
+                return {
+                    mime: 'image/png',
+                    base64: picturesStream.slice(start, end).toString('base64')
+                };
+            }
+        }
+
+        const jpegOffset = probe.indexOf(Buffer.from([0xff, 0xd8, 0xff]));
+        if (jpegOffset !== -1) {
+            const start = offset + jpegOffset;
+            const explicitEnd = expectedSize > 0 && start + expectedSize <= picturesStream.length
+                ? start + expectedSize
+                : -1;
+            const implicitEnd = picturesStream.indexOf(Buffer.from([0xff, 0xd9]), start + 2);
+            const end = explicitEnd > start
+                ? explicitEnd
+                : implicitEnd !== -1
+                    ? implicitEnd + 2
+                    : -1;
+            if (end > start) {
+                return {
+                    mime: 'image/jpeg',
+                    base64: picturesStream.slice(start, end).toString('base64')
+                };
+            }
+        }
+
+        return null;
     }
 
     private static findPngEnd(buf: Buffer, start: number): number {

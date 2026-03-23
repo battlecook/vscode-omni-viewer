@@ -27,17 +27,20 @@
 
         <div class="document-container" id="documentContainer">
             <div id="loading" class="loading">
-                <div>HWP 파일을 불러오는 중...</div>
+                <div>HWP/HWPX 파일을 불러오는 중...</div>
             </div>
             
             <div id="error" class="error" style="display: none;"></div>
             
             <div id="hwpContent" class="hwp-content">
-                {{hwpContent}}
+                <div id="hwpViewport" class="hwp-viewport"></div>
             </div>
         </div>
     </div>
 
+    <script>
+        window.__HWP_VIEWER_DATA__ = {{hwpPayload}};
+    </script>
     <script src="js/hwpViewer.js"></script>
 </body>
 </html>

@@ -121,38 +121,229 @@ body {
 }
 
 .hwp-content {
-    background: white;
-    color: black;
-    padding: 40px 60px;
-    min-width: 210mm;
-    max-width: 210mm;
-    min-height: 297mm;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    display: inline-flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-width: fit-content;
+    min-height: 100%;
     transform-origin: top center;
     transition: transform 0.2s ease;
 }
 
-/* HWP 문서 내부 스타일 */
-.hwp-content p {
-    margin: 0 0 1em 0;
-    line-height: 1.6;
+.hwp-viewport {
+    display: inline-block;
+    min-width: 210mm;
+    min-height: 297mm;
 }
 
-.hwp-content table {
-    border-collapse: collapse;
+.layout-warning-box {
+    max-width: 760pt;
+    margin: 0 auto 16px auto;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: #fff2cc;
+    color: #5f4700;
+    border: 1px solid #e3c15c;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.layout-page {
+    position: relative;
+    margin: 0 auto 20px auto;
+    background: white;
+    color: black;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+    overflow: hidden;
+    break-after: page;
+}
+
+.layout-page-header,
+.layout-page-footer {
+    position: absolute;
+    left: 18pt;
+    right: 18pt;
+    font-size: 8.5pt;
+    color: #6b6b6b;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.layout-page-header {
+    top: 10pt;
+    padding-bottom: 6pt;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.layout-page-footer {
+    bottom: 10pt;
+    padding-top: 6pt;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.layout-page-number {
+    position: absolute;
+    right: 18pt;
+    bottom: 14pt;
+    font-size: 9pt;
+    color: #666;
+}
+
+.layout-paragraph {
+    margin: 0 0 10pt 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    text-wrap: pretty;
+    font-size: 11pt;
+}
+
+.layout-paragraph:last-child {
+    margin-bottom: 0;
+}
+
+.layout-paragraph span {
+    white-space: pre-wrap;
+}
+
+.layout-table-block {
+    overflow-x: auto;
+}
+
+.layout-table {
     width: 100%;
-    margin: 1em 0;
+    border-collapse: collapse;
+    background: white;
 }
 
-.hwp-content table td,
-.hwp-content table th {
-    border: 1px solid #333;
-    padding: 8px;
+.layout-table-cell {
+    border: 1px solid #9e9e9e;
+    padding: 6pt 8pt;
+    vertical-align: top;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 10pt;
+    line-height: 1.5;
 }
 
-.hwp-content img {
+.layout-image-block {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+}
+
+.layout-image-block-absolute {
+    position: absolute;
+    justify-content: flex-start;
+    align-items: flex-start;
+    max-width: calc(100% - 24pt);
+}
+
+.layout-image {
+    display: block;
     max-width: 100%;
     height: auto;
+    object-fit: contain;
+    border-radius: 4px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.layout-image-placeholder {
+    width: min(260pt, 100%);
+    min-height: 90pt;
+    border: 1px dashed #a0a0a0;
+    background: #f3f3f3;
+    color: #666;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 12pt;
+    font-size: 10pt;
+}
+
+.layout-line-block {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-height: 8pt;
+    overflow: visible;
+}
+
+.layout-line-block-absolute {
+    position: absolute;
+}
+
+.layout-line-svg {
+    display: block;
+    overflow: visible;
+}
+
+.layout-line-stroke {
+    vector-effect: non-scaling-stroke;
+}
+
+.layout-textbox-block {
+    position: relative;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border: 1px solid rgba(0, 0, 0, 0.18);
+    background: rgba(255, 255, 255, 0.92);
+    padding: 8pt 10pt;
+    line-height: 1.5;
+    font-size: 10.5pt;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+}
+
+.layout-textbox-content {
+    position: relative;
+    z-index: 1;
+}
+
+.layout-textbox-shape-rounded {
+    border-radius: 16pt;
+}
+
+.layout-textbox-shape-ellipse {
+    border-radius: 999px;
+}
+
+.layout-textbox-shape-diamond {
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+}
+
+.layout-textbox-shape-diamond .layout-textbox-content {
+    padding: 10% 12%;
+}
+
+.layout-textbox-marker {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    color: inherit;
+    font-size: 11pt;
+    line-height: 1;
+    opacity: 0.85;
+    z-index: 2;
+}
+
+.layout-textbox-marker-start {
+    left: 4pt;
+}
+
+.layout-textbox-marker-end {
+    right: 4pt;
+}
+
+.layout-textbox-block-absolute {
+    position: absolute;
+    max-width: calc(100% - 24pt);
+}
+
+.layout-page[data-format="hwpx"] .layout-paragraph,
+.hwp-viewport[data-format="hwpx"] .layout-paragraph {
+    letter-spacing: 0.01em;
 }
 
 /* 인쇄 스타일 */
@@ -175,8 +366,12 @@ body {
         box-shadow: none;
         padding: 0;
         min-width: auto;
-        max-width: 100%;
         min-height: auto;
         transform: none !important;
+    }
+
+    .hwp-viewport {
+        min-width: auto;
+        min-height: auto;
     }
 }

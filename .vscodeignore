@@ -3,6 +3,8 @@
 node_modules/**
 !node_modules/ag-psd/
 !node_modules/ag-psd/**
+!node_modules/pdfjs-dist/
+!node_modules/pdfjs-dist/**
 .git/**
 .gitignore
 README.md
