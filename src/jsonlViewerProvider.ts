@@ -5,7 +5,7 @@ import { TemplateUtils } from './utils/templateUtils';
 import { MessageHandler } from './utils/messageHandler';
 import { configureWebview, createReadonlyDocument, renderErrorHtml, rerouteIfNeeded } from './viewerProviderUtils';
 
-export class JsonlViewerProvider implements vscode.CustomEditorProvider {
+export class JsonlViewerProvider implements vscode.CustomReadonlyEditorProvider {
     public static readonly viewType = 'omni-viewer.jsonlViewer';
 
     constructor(private readonly context: vscode.ExtensionContext) {}

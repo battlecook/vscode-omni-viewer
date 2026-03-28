@@ -18,7 +18,7 @@ export interface ViewerRegistration {
     command: string;
     missingMessage: string;
     retainContextWhenHidden: boolean;
-    createProvider: (context: vscode.ExtensionContext) => vscode.CustomEditorProvider;
+    createProvider: (context: vscode.ExtensionContext) => vscode.CustomReadonlyEditorProvider;
 }
 
 export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
