@@ -447,9 +447,10 @@ export class PptBinaryParser {
                             placedTextFrames
                         )
                         : frame;
+                    const contentHeight = paragraphs.length * 40;
                     const height = isTitle
-                        ? Math.max(positionedFrame.height, 72)
-                        : Math.max(Math.min(positionedFrame.height, Math.max(36, paragraphs.length * 40)), 36);
+                        ? Math.max(positionedFrame.height, 72, contentHeight)
+                        : Math.max(Math.min(positionedFrame.height, Math.max(36, contentHeight)), 36);
 
                     elements.push({
                         type: 'text',
@@ -633,6 +634,7 @@ export class PptBinaryParser {
             });
 
             this.applyPanelBackgroundShape(elements, visualSlots, widthPx, heightPx, presentationMetrics);
+            this.resolveTextImageOverlaps(elements, widthPx, heightPx);
 
             if (isDialoguePhotoSlide) {
                 this.applyDialoguePhotoLayout(elements, widthPx, heightPx);
@@ -3010,6 +3012,49 @@ export class PptBinaryParser {
 
                 const nextBottom = slideHeight - next.height - 24;
                 next.y = Math.min(nextBottom, current.y + current.height + 12);
+            }
+        }
+    }
+
+    private static resolveTextImageOverlaps(elements: PptSlideModel['elements'], slideWidth: number, slideHeight: number): void {
+        const textElements = elements.filter((el) => el.type === 'text');
+        const imageElements = elements.filter((el) => el.type === 'image');
+        if (textElements.length === 0 || imageElements.length === 0) {
+            return;
+        }
+
+        for (const text of textElements) {
+            for (const image of imageElements) {
+                if (!this.boundsIntersect(text, image)) {
+                    continue;
+                }
+
+                const textBottom = text.y + text.height;
+                const imageBottom = image.y + image.height;
+                const overlapTop = Math.max(text.y, image.y);
+                const overlapBottom = Math.min(textBottom, imageBottom);
+                const overlapHeight = overlapBottom - overlapTop;
+
+                if (overlapHeight <= 0) {
+                    continue;
+                }
+
+                const textArea = text.width * text.height;
+                const imageArea = image.width * image.height;
+
+                if (textArea >= imageArea) {
+                    // Text is larger: move image below text
+                    image.y = text.y + text.height + 12;
+                    if (image.y + image.height > slideHeight) {
+                        image.height = Math.max(60, slideHeight - image.y - 12);
+                    }
+                } else {
+                    // Image is larger: move text below image
+                    text.y = image.y + image.height + 12;
+                    if (text.y + text.height > slideHeight) {
+                        text.height = Math.max(36, slideHeight - text.y - 12);
+                    }
+                }
             }
         }
     }

@@ -1,6 +1,5 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { parquetMetadataAsync, parquetReadObjects, parquetSchema } from 'hyparquet';
 import * as XLSX from 'xlsx';
 import { getFileSize } from './media';
 
@@ -121,6 +120,8 @@ export async function readParquetFile(filePath: string): Promise<{
         },
         byteLength: arrayBuffer.byteLength
     };
+
+    const { parquetMetadataAsync, parquetReadObjects, parquetSchema } = await import('hyparquet');
 
     let schema: any = null;
     let metadata: any = null;

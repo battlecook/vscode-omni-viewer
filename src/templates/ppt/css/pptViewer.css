@@ -138,6 +138,10 @@ body {
     overflow: hidden;
 }
 
+.shape-box:has(.text-shape) {
+    overflow: visible;
+}
+
 .text-shape {
     color: #111;
     white-space: pre-wrap;
