@@ -138,6 +138,9 @@
     function createTextShape(element, fallbackColor) {
         const box = document.createElement('div');
         box.className = `shape-box text-shape ${element.isTitle ? 'title-shape' : ''}`.trim();
+        if (element.textStylePreset) {
+            box.dataset.textPreset = element.textStylePreset;
+        }
         box.style.left = `${element.x}px`;
         box.style.top = `${element.y}px`;
         box.style.width = `${element.width}px`;
@@ -162,8 +165,21 @@
             const fontSize = paragraph.fontSizePx || inferredSize;
             p.style.fontSize = `${fontSize}px`;
             p.style.lineHeight = `${Math.max(18, Math.round(fontSize * 1.18))}px`;
+            if (element.textStylePreset === 'cover-subtitle') {
+                p.style.fontFamily = "'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif";
+                p.style.fontWeight = '300';
+                p.style.letterSpacing = '-1px';
+                p.style.lineHeight = `${Math.max(20, Math.round(fontSize * 1.02))}px`;
+            }
+            if (element.textStylePreset === 'cover-title') {
+                p.style.fontFamily = "'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif";
+                p.style.fontWeight = '400';
+                p.style.letterSpacing = '-2px';
+                p.style.lineHeight = `${Math.max(24, Math.round(fontSize * 0.98))}px`;
+            }
 
             if (paragraph.bold) p.style.fontWeight = '700';
+            else if (element.textStylePreset === 'cover-subtitle') p.style.fontWeight = '300';
             else p.style.fontWeight = '400';
             if (paragraph.italic) p.style.fontStyle = 'italic';
             const inferredTitleColor = (element.isTitle && !paragraph.color) ? '#8e8f92' : undefined;

@@ -168,6 +168,32 @@ describe('DocBinaryParser encoding selection', () => {
         expect(parser.splitStructuredTableRow({ text: 'left\t\t' }, 3)).toEqual(['left', '', '']);
     });
 
+    it('removes field code noise from paragraph normalization', () => {
+        const parser = DocBinaryParser as unknown as {
+            normalizeParagraphText(raw: string, preserveTabs?: boolean): string;
+        };
+
+        const normalized = parser.normalizeParagraphText('HYPERLINK "https://example.com" Mauris id ex erat.');
+
+        expect(normalized).toBe('Mauris id ex erat.');
+    });
+
+    it('removes field code noise from inline runs before rendering', () => {
+        const parser = DocBinaryParser as unknown as {
+            renderInlineStyledText(
+                runs: Array<{ text: string; style?: { color?: string } }> | undefined,
+                fallbackText: string
+            ): string;
+        };
+
+        const rendered = parser.renderInlineStyledText(
+            [{ text: 'HYPERLINK "https://example.com" Mauris id ex erat.' }],
+            'fallback'
+        );
+
+        expect(rendered).toBe('Mauris id ex erat.');
+    });
+
     it('groups in-table paragraphs into a single row until the row terminator', () => {
         const parser = DocBinaryParser as unknown as {
             buildStructuredTableRow(
@@ -183,5 +209,59 @@ describe('DocBinaryParser encoding selection', () => {
         ], 2);
 
         expect(row).toEqual(['Header A', 'Header B']);
+    });
+
+    it('parses ODF chart package content into an embedded chart block', () => {
+        const parser = DocBinaryParser as unknown as {
+            parseOdfChartContent(contentXml: string): {
+                title: string;
+                rows: string[][];
+                showTable: boolean;
+                chart?: {
+                    type: 'bar' | 'line';
+                    categories: string[];
+                    series: Array<{ name: string; values: number[]; color: string }>;
+                };
+            } | undefined;
+        };
+
+        const parsed = parser.parseOdfChartContent(`
+            <office:document-content>
+                <chart:chart>
+                    <chart:plot-area>
+                        <chart:series chart:class="chart:bar" />
+                    </chart:plot-area>
+                </chart:chart>
+                <table:table-row>
+                    <table:table-cell><text:p/></table:table-cell>
+                    <table:table-cell><text:p>Column 1</text:p></table:table-cell>
+                    <table:table-cell><text:p>Column 2</text:p></table:table-cell>
+                    <table:table-cell><text:p>Column 3</text:p></table:table-cell>
+                </table:table-row>
+                <table:table-row>
+                    <table:table-cell><text:p>Row 1</text:p></table:table-cell>
+                    <table:table-cell><text:p>9.1</text:p></table:table-cell>
+                    <table:table-cell><text:p>3.2</text:p></table:table-cell>
+                    <table:table-cell><text:p>4.54</text:p></table:table-cell>
+                </table:table-row>
+                <table:table-row>
+                    <table:table-cell><text:p>Row 2</text:p></table:table-cell>
+                    <table:table-cell><text:p>2.4</text:p></table:table-cell>
+                    <table:table-cell><text:p>8.8</text:p></table:table-cell>
+                    <table:table-cell><text:p>9.65</text:p></table:table-cell>
+                </table:table-row>
+            </office:document-content>
+        `);
+
+        expect(parsed).toBeDefined();
+        expect(parsed?.showTable).toBe(false);
+        expect(parsed?.rows).toEqual([
+            ['', 'Column 1', 'Column 2', 'Column 3'],
+            ['Row 1', '9.1', '3.2', '4.54'],
+            ['Row 2', '2.4', '8.8', '9.65']
+        ]);
+        expect(parsed?.chart?.type).toBe('bar');
+        expect(parsed?.chart?.categories).toEqual(['Row 1', 'Row 2']);
+        expect(parsed?.chart?.series.map((series) => series.name)).toEqual(['Column 1', 'Column 2', 'Column 3']);
     });
 });

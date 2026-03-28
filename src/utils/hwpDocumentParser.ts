@@ -8,10 +8,18 @@ export type HwpSourceFormat = 'hwp' | 'hwpx';
 
 export interface HwpLayoutRun {
     text: string;
+    sourceIndex?: number;
+    textOffset?: number;
+    noteRefId?: string;
+    noteMarker?: string;
+    noteKind?: 'footnote' | 'endnote';
     fontSizePt?: number;
     fontFamily?: string;
     fontWeight?: string;
     fontStyle?: string;
+    textDecoration?: string;
+    verticalAlign?: 'super' | 'sub';
+    letterSpacingEm?: number;
     backgroundColor?: string;
     color?: string;
 }
@@ -19,6 +27,9 @@ export interface HwpLayoutRun {
 export interface HwpLayoutParagraph {
     id: string;
     kind: 'paragraph';
+    sourceIndex?: number;
+    semanticRole?: 'body' | 'header' | 'footer' | 'caption' | 'list-item';
+    styleSource?: 'direct' | 'referenced' | 'mixed' | 'default';
     align: 'left' | 'center' | 'right' | 'justify';
     lineHeight: number;
     fontSizePt?: number;
@@ -27,13 +38,25 @@ export interface HwpLayoutParagraph {
     marginLeftPt?: number;
     marginRightPt?: number;
     textIndentPt?: number;
+    tabStopsPt?: number[];
     runs: HwpLayoutRun[];
+    inlineBlocks?: Array<HwpLayoutImageBlock | HwpLayoutLineBlock | HwpLayoutTextBoxBlock>;
 }
 
 export interface HwpLayoutTableCell {
+    id?: string;
     text: string;
+    paragraphs?: HwpLayoutTableCellParagraph[];
+    sourceStart?: number;
+    sourceEnd?: number;
     colSpan?: number;
     rowSpan?: number;
+    rowStart?: number;
+    rowEnd?: number;
+    colStart?: number;
+    colEnd?: number;
+    totalRows?: number;
+    totalCols?: number;
     widthPt?: number;
     heightPt?: number;
     backgroundColor?: string;
@@ -46,10 +69,24 @@ export interface HwpLayoutTableRow {
     cells: HwpLayoutTableCell[];
 }
 
+export interface HwpLayoutTableCellParagraph {
+    id?: string;
+    text: string;
+    align?: 'left' | 'center' | 'right' | 'justify';
+    lineHeight?: number;
+    textIndentPt?: number;
+    tabStopsPt?: number[];
+    runs: HwpLayoutRun[];
+    inlineBlocks?: Array<HwpLayoutImageBlock | HwpLayoutTextBoxBlock | HwpLayoutLineBlock>;
+}
+
 export interface HwpLayoutTableBlock {
     id: string;
     kind: 'table';
+    sourceIndex?: number;
+    semanticRole?: 'body' | 'header' | 'footer' | 'caption';
     rows: HwpLayoutTableRow[];
+    anchorParagraphId?: string;
     widthPt?: number;
     marginTopPt?: number;
     marginBottomPt?: number;
@@ -58,10 +95,15 @@ export interface HwpLayoutTableBlock {
 export interface HwpLayoutImageBlock {
     id: string;
     kind: 'image';
+    sourceIndex?: number;
+    inlineOffset?: number;
+    inlineTextOffset?: number;
     src?: string;
     alt: string;
     positioning?: 'inline' | 'absolute';
     anchorScope?: 'page' | 'paragraph' | 'cell' | 'character';
+    anchorParagraphId?: string;
+    anchorCellId?: string;
     leftPt?: number;
     topPt?: number;
     zIndex?: number;
@@ -74,8 +116,13 @@ export interface HwpLayoutImageBlock {
 export interface HwpLayoutLineBlock {
     id: string;
     kind: 'line';
+    sourceIndex?: number;
+    inlineOffset?: number;
+    inlineTextOffset?: number;
     positioning?: 'inline' | 'absolute';
     anchorScope?: 'page' | 'paragraph' | 'cell' | 'character';
+    anchorParagraphId?: string;
+    anchorCellId?: string;
     leftPt?: number;
     topPt?: number;
     zIndex?: number;
@@ -99,6 +146,9 @@ export interface HwpLayoutLineBlock {
 export interface HwpLayoutTextBoxBlock {
     id: string;
     kind: 'textbox';
+    sourceIndex?: number;
+    inlineOffset?: number;
+    inlineTextOffset?: number;
     text: string;
     shapeType?: 'rectangle' | 'rounded' | 'ellipse' | 'diamond';
     textAlign?: 'left' | 'center' | 'right' | 'justify';
@@ -117,6 +167,8 @@ export interface HwpLayoutTextBoxBlock {
     markerEnd?: 'arrow' | 'diamond' | 'circle';
     positioning?: 'inline' | 'absolute';
     anchorScope?: 'page' | 'paragraph' | 'cell' | 'character';
+    anchorParagraphId?: string;
+    anchorCellId?: string;
     leftPt?: number;
     topPt?: number;
     zIndex?: number;
@@ -130,6 +182,18 @@ export type HwpLayoutBlock = HwpLayoutParagraph | HwpLayoutTableBlock | HwpLayou
 
 export interface HwpLayoutPage {
     id: string;
+    sectionIndex?: number;
+    sourcePageIndex?: number;
+    splitPageIndex?: number;
+    sectionType?: 'single-column' | 'multi-column';
+    columnCount?: number;
+    columnGapPt?: number;
+    pageNumberStart?: number;
+    headerFooterVariant?: 'default' | 'first' | 'odd' | 'even';
+    footnoteCount?: number;
+    endnoteCount?: number;
+    footnotes?: Array<{ id: string; marker: string; text: string }>;
+    endnotes?: Array<{ id: string; marker: string; text: string }>;
     widthPt: number;
     minHeightPt: number;
     headerText?: string;
@@ -142,6 +206,8 @@ export interface HwpLayoutPage {
         bottom: number;
         left: number;
     };
+    layoutSignature?: string;
+    semanticSummary?: string;
     blocks: HwpLayoutBlock[];
 }
 
@@ -150,8 +216,22 @@ export interface HwpLayoutDocument {
     stage: 'step2-paragraph-layout';
     fileName: string;
     fileSize: string;
+    layoutSignature?: string;
+    semanticSummary?: string;
     pages: HwpLayoutPage[];
     warnings: string[];
+}
+
+type HwpxParagraphStyle = Omit<HwpLayoutParagraph, 'id' | 'kind' | 'runs'>;
+
+interface HwpxExtractedParagraph extends HwpxParagraphStyle {
+    sourceIndex: number;
+    runs: HwpLayoutRun[];
+}
+
+interface HwpxStyleIndex {
+    styleBlocksByRefId: Map<string, string[]>;
+    paragraphStyleCache: Map<string, HwpxParagraphStyle>;
 }
 
 export class HwpDocumentParser {
@@ -180,15 +260,23 @@ export class HwpDocumentParser {
         if (pages.length === 0) {
             warnings.push('파싱된 섹션이 없어 빈 문서로 렌더링했습니다.');
         }
+        if (pages.some(page => (page.footnoteCount || 0) > 0 || (page.endnoteCount || 0) > 0)) {
+            warnings.push('각주/미주가 감지되었습니다. 현재는 감지/표시 중심 단계이며 완전 조판은 후속 단계에서 고도화합니다.');
+        }
 
-        return {
+        const document: HwpLayoutDocument = {
             format: 'hwp',
             stage: 'step2-paragraph-layout',
             fileName,
             fileSize,
             pages: this.paginatePages(pages.length > 0 ? pages : [this.createEmptyPage('hwp-empty-page')]),
+            layoutSignature: '',
+            semanticSummary: '',
             warnings
         };
+        document.layoutSignature = this.buildDocumentLayoutSignature(document.pages);
+        document.semanticSummary = this.buildDocumentSemanticSummary(document.pages);
+        return document;
     }
 
     private static async parseHwpxFile(filePath: string, fileName: string, fileSize: string): Promise<HwpLayoutDocument> {
@@ -208,21 +296,30 @@ export class HwpDocumentParser {
 
         for (const [index, sectionName] of sectionNames.entries()) {
             const xml = await zip.files[sectionName].async('text');
-            pages.push(this.mapHwpxSectionXmlToPage(xml, index, totalPages, binaryAssets, headerFooterMap));
+            const styleIndex = this.buildHwpxStyleIndex(xml);
+            pages.push(this.mapHwpxSectionXmlToPage(xml, index, totalPages, binaryAssets, headerFooterMap, styleIndex));
         }
 
         if (pages.length === 0) {
             warnings.push('HWPX 섹션 XML을 찾지 못해 빈 문서로 렌더링했습니다.');
         }
+        if (pages.some(page => (page.footnoteCount || 0) > 0 || (page.endnoteCount || 0) > 0)) {
+            warnings.push('각주/미주가 감지되었습니다. 현재는 감지/표시 중심 단계이며 완전 조판은 후속 단계에서 고도화합니다.');
+        }
 
-        return {
+        const document: HwpLayoutDocument = {
             format: 'hwpx',
             stage: 'step2-paragraph-layout',
             fileName,
             fileSize,
             pages: this.paginatePages(pages.length > 0 ? pages : [this.createEmptyPage('hwpx-empty-page')]),
+            layoutSignature: '',
+            semanticSummary: '',
             warnings
         };
+        document.layoutSignature = this.buildDocumentLayoutSignature(document.pages);
+        document.semanticSummary = this.buildDocumentSemanticSummary(document.pages);
+        return document;
     }
 
     private static mapHwpSectionToPage(section: any, info: any, index: number): HwpLayoutPage {
@@ -232,6 +329,8 @@ export class HwpDocumentParser {
         const paddingRight = this.hwpUnitToPt(section?.paddingRight, 56);
         const paddingBottom = this.hwpUnitToPt((section?.paddingBottom ?? 0) + (section?.footerPadding ?? 0), 56);
         const paddingLeft = this.hwpUnitToPt(section?.paddingLeft, 56);
+        const columnCount = this.resolveHwpSectionColumnCount(section);
+        const columnGapPt = this.resolveHwpSectionColumnGapPt(section);
 
         const blocks = Array.isArray(section?.content)
             ? section.content
@@ -241,6 +340,13 @@ export class HwpDocumentParser {
 
         return {
             id: `hwp-page-${index + 1}`,
+            sectionIndex: index + 1,
+            sourcePageIndex: index + 1,
+            splitPageIndex: 1,
+            sectionType: columnCount > 1 ? 'multi-column' : 'single-column',
+            columnCount,
+            columnGapPt,
+            pageNumberStart: this.resolveHwpSectionPageNumberStart(section, index + 1),
             widthPt,
             minHeightPt,
             headerText: this.defaultHeaderLabel(index + 1),
@@ -253,6 +359,8 @@ export class HwpDocumentParser {
                 bottom: paddingBottom,
                 left: paddingLeft
             },
+            layoutSignature: '',
+            semanticSummary: '',
             blocks: blocks.length > 0 ? blocks : [this.createEmptyParagraph(`hwp-empty-paragraph-${index + 1}`)]
         };
     }
@@ -281,6 +389,7 @@ export class HwpDocumentParser {
             blocks.push({
                 id: `hwp-p-${sectionIndex + 1}-${paragraphIndex + 1}`,
                 kind: 'paragraph',
+                semanticRole: 'body',
                 align: this.mapParagraphAlign(paragraphShape?.align),
                 lineHeight,
                 fontSizePt,
@@ -290,6 +399,9 @@ export class HwpDocumentParser {
                     text,
                     fontSizePt,
                     fontWeight: this.resolveHwpFontWeight(charShape),
+                    textDecoration: this.resolveHwpTextDecoration(charShape),
+                    verticalAlign: this.resolveHwpVerticalAlign(charShape),
+                    letterSpacingEm: this.resolveHwpLetterSpacing(charShape),
                     backgroundColor: this.rgbArrayToCss(charShape?.shadeColor),
                     color: this.rgbArrayToCss(charShape?.color)
                 }]
@@ -304,11 +416,16 @@ export class HwpDocumentParser {
         index: number,
         totalPages: number,
         binaryAssets: Map<string, string>,
-        headerFooterMap: Map<string, string>
+        headerFooterMap: Map<string, string>,
+        styleIndex: HwpxStyleIndex
     ): HwpLayoutPage {
-        const paragraphBlocks = this.extractHwpxParagraphs(xml).map((paragraph, paragraphIndex) => ({
+        const paragraphAnchors = this.extractHwpxParagraphAnchors(xml, index);
+        const paragraphBlocks = this.extractHwpxParagraphs(xml, styleIndex).map((paragraph, paragraphIndex) => ({
             id: `hwpx-p-${index + 1}-${paragraphIndex + 1}`,
             kind: 'paragraph' as const,
+            sourceIndex: paragraph.sourceIndex,
+            semanticRole: paragraph.semanticRole,
+            styleSource: paragraph.styleSource,
             align: paragraph.align,
             lineHeight: paragraph.lineHeight,
             fontSizePt: paragraph.fontSizePt,
@@ -319,15 +436,42 @@ export class HwpDocumentParser {
             textIndentPt: paragraph.textIndentPt,
             runs: paragraph.runs
         }));
-        const tableBlocks = this.extractHwpxTables(xml, index);
-        const imageBlocks = this.extractHwpxImages(xml, index, binaryAssets);
-        const lineBlocks = this.extractHwpxLines(xml, index);
-        const textBoxBlocks = this.extractHwpxTextBoxes(xml, index);
+        const tableBlocks = this.extractHwpxTables(xml, index, paragraphAnchors, binaryAssets, styleIndex);
+        const cellAnchors = this.extractCellAnchorsFromTables(tableBlocks);
+        const imageBlocks = this.extractHwpxImages(xml, index, binaryAssets, paragraphAnchors, cellAnchors);
+        const lineBlocks = this.extractHwpxLines(xml, index, paragraphAnchors, cellAnchors);
+        const textBoxBlocks = this.extractHwpxTextBoxes(xml, index, paragraphAnchors, cellAnchors);
+        const orderedBlocks = this.mergeHwpxInlineBlocks(
+            paragraphBlocks,
+            tableBlocks,
+            imageBlocks,
+            lineBlocks,
+            textBoxBlocks
+        );
 
         const headerFooter = this.extractHwpxHeaderFooterTexts(xml, index, totalPages, headerFooterMap);
+        const pagePadding = this.extractHwpxPagePadding(xml);
+        const columnCount = this.resolveHwpxSectionColumnCount(xml);
+        const columnGapPt = this.resolveHwpxSectionColumnGapPt(xml);
+        const pageNumberStart = this.resolveHwpxSectionPageNumberStart(xml, index + 1);
+        const headerFooterVariant = this.resolveHwpxHeaderFooterVariant(index, headerFooterMap);
+        const noteCounts = this.extractHwpxNoteCounts(xml);
+        const notes = this.extractHwpxNotes(xml);
 
         return {
             id: `hwpx-page-${index + 1}`,
+            sectionIndex: index + 1,
+            sourcePageIndex: index + 1,
+            splitPageIndex: 1,
+            sectionType: columnCount > 1 ? 'multi-column' : 'single-column',
+            columnCount,
+            columnGapPt,
+            pageNumberStart,
+            headerFooterVariant,
+            footnoteCount: noteCounts.footnoteCount,
+            endnoteCount: noteCounts.endnoteCount,
+            footnotes: notes.footnotes,
+            endnotes: notes.endnotes,
             widthPt: this.readHwpxDimension(xml, /(?:page|sec)W(?:idth)?="(\d+)"/i, 595),
             minHeightPt: this.readHwpxDimension(xml, /(?:page|sec)H(?:eight)?="(\d+)"/i, 842),
             headerText: headerFooter.headerText,
@@ -335,13 +479,15 @@ export class HwpDocumentParser {
             headerAlign: headerFooter.headerAlign,
             footerAlign: headerFooter.footerAlign,
             paddingPt: {
-                top: 56,
-                right: 56,
-                bottom: 56,
-                left: 56
+                top: pagePadding.top,
+                right: pagePadding.right,
+                bottom: pagePadding.bottom,
+                left: pagePadding.left
             },
-            blocks: [...paragraphBlocks, ...tableBlocks, ...imageBlocks, ...lineBlocks, ...textBoxBlocks].length > 0
-                ? [...paragraphBlocks, ...tableBlocks, ...imageBlocks, ...lineBlocks, ...textBoxBlocks]
+            layoutSignature: '',
+            semanticSummary: '',
+            blocks: orderedBlocks.length > 0
+                ? orderedBlocks
                 : [this.createEmptyParagraph(`hwpx-empty-paragraph-${index + 1}`)]
         };
     }
@@ -496,6 +642,69 @@ export class HwpDocumentParser {
         return undefined;
     }
 
+    private static resolveHwpxHeaderFooterVariant(
+        pageIndex: number,
+        headerFooterMap: Map<string, string>
+    ): 'default' | 'first' | 'odd' | 'even' {
+        const pageNumber = pageIndex + 1;
+        if (pageNumber === 1 && (headerFooterMap.has('header:first') || headerFooterMap.has('footer:first'))) {
+            return 'first';
+        }
+        if (pageNumber % 2 === 0 && (headerFooterMap.has('header:even') || headerFooterMap.has('footer:even'))) {
+            return 'even';
+        }
+        if (pageNumber % 2 === 1 && (headerFooterMap.has('header:odd') || headerFooterMap.has('footer:odd'))) {
+            return 'odd';
+        }
+        return 'default';
+    }
+
+    private static extractHwpxNoteCounts(xml: string): { footnoteCount: number; endnoteCount: number } {
+        const footnoteCount = (
+            xml.match(/<(?:[^>]*:)?(?:footNote|footnote)\b/gi)?.length
+            || 0
+        );
+        const endnoteCount = (
+            xml.match(/<(?:[^>]*:)?(?:endNote|endnote)\b/gi)?.length
+            || 0
+        );
+        return { footnoteCount, endnoteCount };
+    }
+
+    private static extractHwpxNotes(xml: string): {
+        footnotes: Array<{ id: string; marker: string; text: string }>;
+        endnotes: Array<{ id: string; marker: string; text: string }>;
+    } {
+        const extractTexts = (
+            pattern: RegExp,
+            kind: 'footnote' | 'endnote'
+        ): Array<{ id: string; marker: string; text: string }> => {
+            const blocks = [...xml.matchAll(pattern)].map(match => match[0]);
+            return blocks
+                .map((block, index) => {
+                    const text = this.extractXmlTextWithFieldTokens(block).replace(/\s+/g, ' ').trim();
+                    if (!text) {
+                        return null;
+                    }
+                    const rawId = this.readXmlAttribute(block, /\b(?:id|noteID|noteId|num|number|idx)="([^"]+)"/i);
+                    const marker = this.readXmlAttribute(block, /\b(?:num|number|idx)="([^"]+)"/i)
+                        || this.readXmlAttribute(block, /\b(?:id|noteID|noteId)="([^"]+)"/i)
+                        || String(index + 1);
+                    return {
+                        id: this.normalizeHwpxNoteId(kind, rawId, marker, index + 1),
+                        marker,
+                        text
+                    };
+                })
+                .filter((value): value is { id: string; marker: string; text: string } => value !== null);
+        };
+
+        return {
+            footnotes: extractTexts(/<(?:[^>]*:)?(?:footNote|footnote)\b[\s\S]*?<\/(?:[^>]*:)?(?:footNote|footnote)>/gi, 'footnote'),
+            endnotes: extractTexts(/<(?:[^>]*:)?(?:endNote|endnote)\b[\s\S]*?<\/(?:[^>]*:)?(?:endNote|endnote)>/gi, 'endnote')
+        };
+    }
+
     private static applyPageNumberTokens(text: string, pageIndex: number, totalPages: number): string {
         const pageNumber = pageIndex + 1;
         const today = new Date();
@@ -577,39 +786,23 @@ export class HwpDocumentParser {
         return text.replace(/\u0000/g, '').replace(/\s+\n/g, '\n').trimEnd();
     }
 
-    private static extractHwpxParagraphs(xml: string): Array<{
-        align: 'left' | 'center' | 'right' | 'justify';
-        lineHeight: number;
-        fontSizePt?: number;
-        marginTopPt?: number;
-        marginBottomPt?: number;
-        marginLeftPt?: number;
-        marginRightPt?: number;
-        textIndentPt?: number;
-        runs: HwpLayoutRun[];
-    }> {
+    private static extractHwpxParagraphs(xml: string, styleIndex: HwpxStyleIndex): HwpxExtractedParagraph[] {
         const normalized = xml
             .replace(/<w:br\s*\/>/gi, '\n')
             .replace(/<hp:lineBreak\s*\/>/gi, '\n');
-        const paragraphMatches = normalized.match(/<[^>]*?:p\b[\s\S]*?<\/[^>]*?:p>/gi) ?? [];
-        const paragraphs: Array<{
-            align: 'left' | 'center' | 'right' | 'justify';
-            lineHeight: number;
-            fontSizePt?: number;
-            marginTopPt?: number;
-            marginBottomPt?: number;
-            marginLeftPt?: number;
-            marginRightPt?: number;
-            textIndentPt?: number;
-            runs: HwpLayoutRun[];
-        }> = [];
+        const paragraphMatches = [...normalized.matchAll(/<[^>]*?:p\b[\s\S]*?<\/[^>]*?:p>/gi)];
+        const paragraphs: HwpxExtractedParagraph[] = [];
 
-        for (const paragraphXml of paragraphMatches) {
-            const paragraphStyle = this.extractHwpxParagraphStyle(paragraphXml);
+        for (const paragraphMatch of paragraphMatches) {
+            const paragraphXml = paragraphMatch[0];
+            const paragraphStyle = this.extractHwpxParagraphStyle(paragraphXml, styleIndex);
             const runs = this.extractHwpxRuns(paragraphXml);
+            const previewText = runs.map(run => run.text || '').join('').trim();
 
             if (runs.some(run => (run.text || '').trim())) {
                 paragraphs.push({
+                    sourceIndex: paragraphMatch.index ?? 0,
+                    semanticRole: /^\s*(?:[-*•·◦▪]|\d+[.)]|[A-Za-z][.)]|[가-힣][.)])\s+/.test(previewText) ? 'list-item' : 'body',
                     ...paragraphStyle,
                     runs
                 });
@@ -707,6 +900,65 @@ export class HwpDocumentParser {
         return (attr & 1) === 1 ? '700' : undefined;
     }
 
+    private static resolveHwpTextDecoration(charShape: any): string | undefined {
+        const decorations: string[] = [];
+        const underlineValue = String(
+            charShape?.underline
+            ?? charShape?.underLine
+            ?? charShape?.underlineSort
+            ?? charShape?.underLineSort
+            ?? ''
+        ).toLowerCase();
+        const strikeValue = String(
+            charShape?.strikeout
+            ?? charShape?.strikeOut
+            ?? charShape?.lineThrough
+            ?? ''
+        ).toLowerCase();
+
+        if (underlineValue && underlineValue !== '0' && underlineValue !== 'none' && underlineValue !== 'false') {
+            decorations.push('underline');
+        }
+
+        if (strikeValue && strikeValue !== '0' && strikeValue !== 'none' && strikeValue !== 'false') {
+            decorations.push('line-through');
+        }
+
+        return decorations.length > 0 ? decorations.join(' ') : undefined;
+    }
+
+    private static resolveHwpVerticalAlign(charShape: any): 'super' | 'sub' | undefined {
+        const value = String(
+            charShape?.vertAlign
+            ?? charShape?.verticalAlign
+            ?? charShape?.script
+            ?? ''
+        ).toLowerCase();
+
+        if (/(super|superscript|1)/.test(value)) {
+            return 'super';
+        }
+
+        if (/(sub|subscript|2)/.test(value)) {
+            return 'sub';
+        }
+
+        return undefined;
+    }
+
+    private static resolveHwpLetterSpacing(charShape: any): number | undefined {
+        const value = Number(
+            charShape?.charSpace
+            ?? charShape?.letterSpacing
+            ?? charShape?.spacing
+        );
+        if (!Number.isFinite(value) || value === 0) {
+            return undefined;
+        }
+
+        return Number((Math.max(-0.2, Math.min(value / 100, 0.4))).toFixed(3));
+    }
+
     private static resolveHwpBorderFillBackgroundColor(info: any, borderFillIndex: number | undefined): string | undefined {
         if (borderFillIndex === undefined || !Array.isArray(info?.borderFills)) {
             return undefined;
@@ -771,11 +1023,82 @@ export class HwpDocumentParser {
         return Number(((rawValue / 7200) * 72).toFixed(2));
     }
 
+    private static extractHwpxPagePadding(xml: string): { top: number; right: number; bottom: number; left: number } {
+        const top = this.readHwpxDimension(xml, /(?:marginTop|topMargin|top)="(\d+)"/i, 56);
+        const right = this.readHwpxDimension(xml, /(?:marginRight|rightMargin|right)="(\d+)"/i, 56);
+        const bottom = this.readHwpxDimension(xml, /(?:marginBottom|bottomMargin|bottom)="(\d+)"/i, 56);
+        const left = this.readHwpxDimension(xml, /(?:marginLeft|leftMargin|left)="(\d+)"/i, 56);
+        return { top, right, bottom, left };
+    }
+
+    private static resolveHwpSectionColumnCount(section: any): number {
+        const count = Number(
+            section?.columnCount
+            ?? section?.colCount
+            ?? section?.attribute?.columnCount
+            ?? section?.attribute?.colCount
+        );
+        return Number.isFinite(count) && count > 1 ? Math.max(1, Math.round(count)) : 1;
+    }
+
+    private static resolveHwpSectionColumnGapPt(section: any): number | undefined {
+        const rawValue = Number(
+            section?.columnGap
+            ?? section?.colGap
+            ?? section?.attribute?.columnGap
+            ?? section?.attribute?.colGap
+        );
+        if (!Number.isFinite(rawValue) || rawValue <= 0) {
+            return undefined;
+        }
+        return this.hwpUnitToPt(rawValue, 0);
+    }
+
+    private static resolveHwpSectionPageNumberStart(section: any, fallback: number): number {
+        const start = Number(
+            section?.pageStart
+            ?? section?.pageNumStart
+            ?? section?.startPage
+            ?? section?.attribute?.pageStart
+            ?? section?.attribute?.pageNumStart
+        );
+        return Number.isFinite(start) && start > 0 ? Math.round(start) : fallback;
+    }
+
+    private static resolveHwpxSectionColumnCount(xml: string): number {
+        const count = this.readXmlNumber(xml, /(?:colCount|columnCount|columns)="(\d+)"/i);
+        return Number.isFinite(count) && (count || 0) > 1 ? Math.max(1, Math.round(count || 1)) : 1;
+    }
+
+    private static resolveHwpxSectionColumnGapPt(xml: string): number | undefined {
+        const gap = this.readXmlNumber(xml, /(?:colGap|columnGap|sameGap|gap)="(\d+)"/i);
+        if (!Number.isFinite(gap) || (gap || 0) <= 0) {
+            return undefined;
+        }
+        return this.hwpxUnitToPt(gap, 0);
+    }
+
+    private static resolveHwpxSectionPageNumberStart(xml: string, fallback: number): number {
+        const start = this.readXmlNumber(xml, /(?:startNum|startPage|pageStart|pageNumStart)="(\d+)"/i);
+        return Number.isFinite(start) && (start || 0) > 0 ? Math.round(start || fallback) : fallback;
+    }
+
     private static createEmptyPage(id: string): HwpLayoutPage {
         return {
             id,
             widthPt: 595,
             minHeightPt: 842,
+            sectionIndex: 1,
+            sourcePageIndex: 1,
+            splitPageIndex: 1,
+            sectionType: 'single-column',
+            columnCount: 1,
+            pageNumberStart: 1,
+            headerFooterVariant: 'default',
+            footnoteCount: 0,
+            endnoteCount: 0,
+            footnotes: [],
+            endnotes: [],
             headerText: this.defaultHeaderLabel(1),
             headerAlign: 'left',
             footerText: 'Page 1',
@@ -786,6 +1109,8 @@ export class HwpDocumentParser {
                 bottom: 56,
                 left: 56
             },
+            layoutSignature: '',
+            semanticSummary: '',
             blocks: [this.createEmptyParagraph(`${id}-paragraph`)]
         };
     }
@@ -794,6 +1119,7 @@ export class HwpDocumentParser {
         return {
             id,
             kind: 'paragraph',
+            semanticRole: 'body',
             align: 'left',
             lineHeight: 1.65,
             marginBottomPt: 8,
@@ -801,60 +1127,260 @@ export class HwpDocumentParser {
         };
     }
 
-    private static extractHwpxParagraphStyle(paragraphXml: string): Omit<HwpLayoutParagraph, 'id' | 'kind' | 'runs'> {
-        const align = this.mapHwpxAlign(this.readXmlAttribute(paragraphXml, /(?:align|horzAlign)="([^"]+)"/i));
-        const fontSizePt = this.hwpxUnitToPt(this.readXmlNumber(paragraphXml, /(?:fontSize|charPrIDRefSize|sz)="(\d+)"/i), 11);
-        const marginLeftPt = this.hwpxUnitToPt(this.readXmlNumber(paragraphXml, /(?:marginLeft|left)="(\d+)"/i), 0);
-        const marginRightPt = this.hwpxUnitToPt(this.readXmlNumber(paragraphXml, /(?:marginRight|right)="(\d+)"/i), 0);
-        const textIndentPt = this.hwpxUnitToPt(this.readXmlNumber(paragraphXml, /(?:indent|firstLine)="(-?\d+)"/i), 0);
-        const marginTopPt = this.hwpxUnitToPt(this.readXmlNumber(paragraphXml, /(?:marginTop|spaceBefore|paraSpaceBefore)="(\d+)"/i), 0);
-        const marginBottomPt = this.hwpxUnitToPt(this.readXmlNumber(paragraphXml, /(?:marginBottom|spaceAfter|paraSpaceAfter)="(\d+)"/i), fontSizePt * 0.45);
-        const lineSpacingRaw = this.readXmlNumber(paragraphXml, /(?:lineSpacing|lineSpace)="(\d+)"/i);
+    private static extractHwpxParagraphStyle(paragraphXml: string, styleIndex: HwpxStyleIndex): HwpxParagraphStyle {
+        const directStyleBlock = this.extractHwpxDirectParagraphStyleBlock(paragraphXml);
+        const refIds = this.extractHwpxParagraphStyleRefIds(paragraphXml, directStyleBlock);
+        const cacheKey = [directStyleBlock, ...refIds].join('||');
+        const cachedStyle = styleIndex.paragraphStyleCache.get(cacheKey);
+        if (cachedStyle) {
+            return cachedStyle;
+        }
 
-        return {
-            align,
+        const styleCandidates = this.resolveHwpxParagraphStyleCandidates(directStyleBlock, refIds, styleIndex);
+        const alignValue = this.readFirstXmlAttribute(styleCandidates, /(?:align|horzAlign|textAlign)="([^"]+)"/i);
+        const fontSizeValue = this.readFirstXmlNumber(styleCandidates, /(?:fontSize|charPrIDRefSize|sz)="(\d+)"/i);
+        const marginLeftValue = this.readFirstXmlNumber(styleCandidates, /(?:marginLeft|left)="(\d+)"/i);
+        const marginRightValue = this.readFirstXmlNumber(styleCandidates, /(?:marginRight|right)="(\d+)"/i);
+        const textIndentValue = this.readFirstXmlNumber(styleCandidates, /(?:indent|firstLine)="(-?\d+)"/i);
+        const tabStopsPt = this.extractHwpxTabStops(styleCandidates);
+        const marginTopValue = this.readFirstXmlNumber(styleCandidates, /(?:marginTop|spaceBefore|paraSpaceBefore)="(\d+)"/i);
+        const marginBottomValue = this.readFirstXmlNumber(styleCandidates, /(?:marginBottom|spaceAfter|paraSpaceAfter)="(\d+)"/i);
+        const lineSpacingRaw = this.readFirstXmlNumber(styleCandidates, /(?:lineSpacing|lineSpace)="(\d+)"/i);
+        const directCandidate = styleCandidates[0] || paragraphXml;
+        const hasDirectStyle = /(?:align|horzAlign|textAlign|fontSize|marginLeft|marginRight|indent|firstLine|lineSpacing|lineSpace|spaceBefore|spaceAfter)/i.test(directCandidate);
+        const hasReferencedStyle = styleCandidates.length > 1;
+        const fontSizePt = this.hwpxUnitToPt(fontSizeValue, 11);
+
+        const paragraphStyle: HwpxParagraphStyle = {
+            semanticRole: 'body',
+            styleSource: hasDirectStyle && hasReferencedStyle ? 'mixed' : hasDirectStyle ? 'direct' : hasReferencedStyle ? 'referenced' : 'default',
+            align: this.mapHwpxAlign(alignValue),
             lineHeight: lineSpacingRaw && lineSpacingRaw > 0 ? Number(Math.max(1.3, Math.min(lineSpacingRaw / 100, 2.4)).toFixed(2)) : 1.65,
             fontSizePt,
-            marginTopPt,
-            marginBottomPt,
-            marginLeftPt,
-            marginRightPt,
-            textIndentPt
+            marginTopPt: this.hwpxUnitToPt(marginTopValue, 0),
+            marginBottomPt: this.hwpxUnitToPt(marginBottomValue, fontSizePt * 0.45),
+            marginLeftPt: this.hwpxUnitToPt(marginLeftValue, 0),
+            marginRightPt: this.hwpxUnitToPt(marginRightValue, 0),
+            textIndentPt: this.hwpxUnitToPt(textIndentValue, 0),
+            tabStopsPt
+        };
+        styleIndex.paragraphStyleCache.set(cacheKey, paragraphStyle);
+        return paragraphStyle;
+    }
+
+    private static extractHwpxDirectParagraphStyleBlock(paragraphXml: string): string {
+        return paragraphXml.match(/<[^>]*:(?:pPr|paraPr)\b[\s\S]*?<\/[^>]*:(?:pPr|paraPr)>/i)?.[0]
+            || paragraphXml.match(/<[^>]*:(?:pPr|paraPr)\b[^>]*\/>/i)?.[0]
+            || paragraphXml;
+    }
+
+    private static extractHwpxParagraphStyleRefIds(paragraphXml: string, directStyleBlock: string): string[] {
+        return [
+            this.readXmlAttribute(paragraphXml, /(?:paraPrIDRef|paraStyleIDRef|styleIDRef|styleRef|pStyle)="([^"]+)"/i),
+            this.readXmlAttribute(directStyleBlock, /(?:paraPrIDRef|paraStyleIDRef|styleIDRef|styleRef|pStyle)="([^"]+)"/i),
+            this.readXmlAttribute(paragraphXml, /(?:paraPrID|paraStyleID|styleID)="([^"]+)"/i)
+        ].filter((value, index, values): value is string => Boolean(value) && values.indexOf(value) === index);
+    }
+
+    private static resolveHwpxParagraphStyleCandidates(
+        directStyleBlock: string,
+        refIds: string[],
+        styleIndex: HwpxStyleIndex
+    ): string[] {
+        const candidates = new Set<string>();
+        candidates.add(directStyleBlock);
+
+        for (const refId of refIds) {
+            const indexedBlocks = styleIndex.styleBlocksByRefId.get(refId) || [];
+            for (const block of indexedBlocks) {
+                candidates.add(block);
+            }
+        }
+
+        return [...candidates];
+    }
+
+    private static buildHwpxStyleIndex(scopeXml: string): HwpxStyleIndex {
+        const styleBlocksByRefId = new Map<string, string[]>();
+        const patterns = [
+            /<[^>]*:(?:paraPr|pPr)\b[\s\S]*?<\/[^>]*:(?:paraPr|pPr)>/gi,
+            /<[^>]*:(?:paraPr|pPr)\b[^>]*\/>/gi,
+            /<[^>]*:(?:style|paraStyle)\b[\s\S]*?<\/[^>]*:(?:style|paraStyle)>/gi,
+            /<[^>]*:(?:style|paraStyle)\b[^>]*\/>/gi
+        ];
+
+        for (const pattern of patterns) {
+            for (const match of scopeXml.matchAll(pattern)) {
+                const block = match[0];
+                const ids = [
+                    this.readXmlAttribute(block, /(?:id|paraPrID|styleID|styleRef|refID)="([^"]+)"/i),
+                    this.readXmlAttribute(block, /(?:paraPrIDRef|paraStyleIDRef|styleIDRef|styleRef|pStyle)="([^"]+)"/i)
+                ].filter((value, index, values): value is string => Boolean(value) && values.indexOf(value) === index);
+
+                for (const id of ids) {
+                    const existing = styleBlocksByRefId.get(id) || [];
+                    if (!existing.includes(block)) {
+                        existing.push(block);
+                        styleBlocksByRefId.set(id, existing);
+                    }
+                }
+            }
+        }
+
+        return {
+            styleBlocksByRefId,
+            paragraphStyleCache: new Map<string, HwpxParagraphStyle>()
         };
     }
 
+    private static readFirstXmlAttribute(candidates: string[], pattern: RegExp): string | undefined {
+        for (const candidate of candidates) {
+            const value = this.readXmlAttribute(candidate, pattern);
+            if (value !== undefined) {
+                return value;
+            }
+        }
+        return undefined;
+    }
+
+    private static readFirstXmlNumber(candidates: string[], pattern: RegExp): number | undefined {
+        for (const candidate of candidates) {
+            const value = this.readXmlNumber(candidate, pattern);
+            if (value !== undefined) {
+                return value;
+            }
+        }
+        return undefined;
+    }
+
+    private static extractHwpxTabStops(candidates: string[]): number[] | undefined {
+        const rawStops = new Set<number>();
+        for (const candidate of candidates) {
+            const tabMatches = [...candidate.matchAll(/(?:tabPos|pos|position)="(-?\d+)"/gi)];
+            for (const match of tabMatches) {
+                const ptValue = this.hwpxUnitToPt(Number(match[1]), 0);
+                if (Number.isFinite(ptValue) && ptValue > 0) {
+                    rawStops.add(Number(ptValue.toFixed(2)));
+                }
+            }
+        }
+
+        const tabStops = [...rawStops].sort((left, right) => left - right);
+        return tabStops.length > 0 ? tabStops : undefined;
+    }
+
     private static extractHwpxRuns(paragraphXml: string): HwpLayoutRun[] {
-        const runMatches = paragraphXml.match(/<[^>]*?:run\b[\s\S]*?<\/[^>]*?:run>/gi) ?? [];
+        const runMatches = [...paragraphXml.matchAll(/<[^>]*?:run\b[\s\S]*?<\/[^>]*?:run>/gi)];
 
         if (runMatches.length === 0) {
             const text = this.decodeXmlText(paragraphXml.replace(/<[^>]+>/g, '')).trimEnd();
-            return text ? [{ text, fontSizePt: 11 }] : [];
+            return text ? [{ text, sourceIndex: 0, textOffset: 0, fontSizePt: 11 }] : [];
         }
 
+        let textOffset = 0;
         return runMatches
-            .map(runXml => {
+            .map(runMatch => {
+                const runXml = runMatch[0];
                 const textMatches = runXml.match(/<[^>]*?:t\b[^>]*>([\s\S]*?)<\/[^>]*?:t>/gi) ?? [];
+                const noteKind = /<(?:[^>]*:)?footNote\b/i.test(runXml) || /<(?:[^>]*:)?footnote\b/i.test(runXml)
+                    ? 'footnote'
+                    : /<(?:[^>]*:)?endNote\b/i.test(runXml) || /<(?:[^>]*:)?endnote\b/i.test(runXml)
+                        ? 'endnote'
+                        : undefined;
+                const noteId = this.readXmlAttribute(runXml, /<(?:[^>]*:)?(?:footNote|footnote|endNote|endnote)\b[^>]*\b(?:id|noteID|noteId)="([^"]+)"/i);
+                const noteMarker = this.readXmlAttribute(runXml, /<(?:[^>]*:)?(?:footNote|footnote|endNote|endnote)\b[^>]*\b(?:num|number|idx)="([^"]+)"/i)
+                    || noteId
+                    || '';
+                const inlineNoteRef = /<(?:[^>]*:)?(?:footNote|footnote|endNote|endnote)\b/i.test(runXml)
+                    && textMatches.length === 0
+                    && !/[^\s]/.test(runXml.replace(/<[^>]+>/g, ''));
                 const fieldAwareRunXml = this.extractXmlTextWithFieldTokens(runXml);
                 const rawText = textMatches.map(match => match.replace(/<[^>]+>/g, '')).join(' ');
                 const mergedText = [rawText, fieldAwareRunXml]
                     .filter(Boolean)
                     .join(' ')
                     .replace(/\s+/g, ' ');
-                const text = this.decodeXmlText(mergedText).trimEnd();
+                const baseText = this.decodeXmlText(mergedText).trimEnd();
+                const text = inlineNoteRef
+                    ? `[${noteMarker || '?'}]`
+                    : baseText;
                 if (!text) {
                     return null;
                 }
 
+                const currentTextOffset = textOffset;
+                textOffset += text.length;
+
                 return {
                     text,
+                    sourceIndex: runMatch.index ?? 0,
+                    textOffset: currentTextOffset,
+                    noteRefId: noteKind ? this.normalizeHwpxNoteId(noteKind, noteId, noteMarker, currentTextOffset + 1) : undefined,
+                    noteMarker: noteKind ? (noteMarker || String(currentTextOffset + 1)) : undefined,
+                    noteKind,
                     fontSizePt: this.hwpxUnitToPt(this.readXmlNumber(runXml, /(?:fontSize|sz)="(\d+)"/i), 11),
                     fontWeight: /(?:bold|fontWt)="(?:1|true|bold|700)"/i.test(runXml) ? '700' : undefined,
                     fontStyle: /(?:italic|fontStyle)="(?:1|true|italic)"/i.test(runXml) ? 'italic' : undefined,
+                    textDecoration: this.resolveHwpxTextDecoration(runXml),
+                    verticalAlign: this.resolveHwpxVerticalAlign(runXml),
+                    letterSpacingEm: this.resolveHwpxLetterSpacing(runXml),
                     color: this.normalizeHwpxColor(this.readXmlAttribute(runXml, /(?:textColor|color)="([^"]+)"/i)),
                     backgroundColor: this.normalizeHwpxColor(this.readXmlAttribute(runXml, /(?:shadeColor|fillColor|backColor)="([^"]+)"/i))
                 } as HwpLayoutRun;
             })
             .filter((run): run is HwpLayoutRun => run !== null);
+    }
+
+    private static normalizeHwpxNoteId(
+        kind: 'footnote' | 'endnote',
+        rawId: string | undefined,
+        marker: string | undefined,
+        fallbackIndex: number
+    ): string {
+        const base = String(rawId || marker || fallbackIndex)
+            .trim()
+            .toLowerCase()
+            .replace(/^#+/, '')
+            .replace(/\s+/g, '-')
+            .replace(/[^a-z0-9_-]+/g, '-')
+            .replace(/-+/g, '-')
+            .replace(/^-|-$/g, '');
+        return `${kind}-${base || fallbackIndex}`;
+    }
+
+    private static resolveHwpxTextDecoration(runXml: string): string | undefined {
+        const decorations: string[] = [];
+        if (/(?:underline|underLine|textDecoration)="(?:1|true|single|underline)"/i.test(runXml)) {
+            decorations.push('underline');
+        }
+
+        if (/(?:strike|strikeout|lineThrough|textLineThrough)="(?:1|true|single|line-through|strike)"/i.test(runXml)) {
+            decorations.push('line-through');
+        }
+
+        return decorations.length > 0 ? decorations.join(' ') : undefined;
+    }
+
+    private static resolveHwpxVerticalAlign(runXml: string): 'super' | 'sub' | undefined {
+        const verticalAlign = this.readXmlAttribute(runXml, /(?:vertAlign|baselineShift|script)="([^"]+)"/i) || '';
+        if (/(super|superscript)/i.test(verticalAlign)) {
+            return 'super';
+        }
+
+        if (/(sub|subscript)/i.test(verticalAlign)) {
+            return 'sub';
+        }
+
+        return undefined;
+    }
+
+    private static resolveHwpxLetterSpacing(runXml: string): number | undefined {
+        const spacingValue = this.readXmlNumber(runXml, /(?:spacing|charSpace|letterSpacing)="(-?\d+)"/i);
+        if (!Number.isFinite(spacingValue)) {
+            return undefined;
+        }
+
+        return Number((Math.max(-0.2, Math.min((spacingValue || 0) / 100, 0.4))).toFixed(3));
     }
 
     private static extractHwpControlBlocks(paragraph: any, info: any, sectionIndex: number, paragraphIndex: number): HwpLayoutBlock[] {
@@ -900,23 +1426,64 @@ export class HwpDocumentParser {
 
     private static mapHwpTableControl(control: any, info: any, sectionIndex: number, paragraphIndex: number, controlIndex: number): HwpLayoutTableBlock | null {
         const rows: HwpLayoutTableRow[] = [];
+        const occupancy: number[] = [];
+        let totalCols = 0;
 
-        for (const row of control.content ?? []) {
+        for (const [rowIndex, row] of (control.content ?? []).entries()) {
             if (!Array.isArray(row)) {
                 continue;
             }
 
+            let colCursor = 0;
             const cells = row
-                .map((cell: any) => this.mapHwpTableCell(cell, info))
+                .map((cell: any, cellIndex: number) => {
+                    while ((occupancy[colCursor] || 0) > 0) {
+                        colCursor += 1;
+                    }
+
+                    const colSpan = Number(cell?.attribute?.colSpan) || 1;
+                    const rowSpan = Number(cell?.attribute?.rowSpan) || 1;
+                    const mappedCell = this.mapHwpTableCell(
+                        cell,
+                        info,
+                        `hwp-cell-${sectionIndex + 1}-${paragraphIndex + 1}-${controlIndex + 1}-${rows.length + 1}-${cellIndex + 1}`
+                    );
+                    mappedCell.rowStart = rowIndex;
+                    mappedCell.rowEnd = rowIndex + rowSpan - 1;
+                    mappedCell.colStart = colCursor;
+                    mappedCell.colEnd = colCursor + colSpan - 1;
+
+                    for (let offset = 0; offset < colSpan; offset += 1) {
+                        occupancy[colCursor + offset] = Math.max(occupancy[colCursor + offset] || 0, rowSpan - 1);
+                    }
+
+                    colCursor += colSpan;
+                    totalCols = Math.max(totalCols, colCursor);
+                    return mappedCell;
+                })
                 .filter((cell: HwpLayoutTableCell) => cell.text);
 
             if (cells.length > 0) {
                 rows.push({ cells });
             }
+
+            for (let columnIndex = 0; columnIndex < occupancy.length; columnIndex += 1) {
+                if ((occupancy[columnIndex] || 0) > 0) {
+                    occupancy[columnIndex] -= 1;
+                }
+            }
         }
 
         if (rows.length === 0) {
             return null;
+        }
+
+        const totalRows = rows.length;
+        for (const row of rows) {
+            for (const cell of row.cells) {
+                cell.totalRows = totalRows;
+                cell.totalCols = totalCols;
+            }
         }
 
         return {
@@ -929,13 +1496,16 @@ export class HwpDocumentParser {
         };
     }
 
-    private static mapHwpTableCell(cell: any, info: any): HwpLayoutTableCell {
+    private static mapHwpTableCell(cell: any, info: any, cellId: string): HwpLayoutTableCell {
         const borderFill = cell?.attribute?.borderFillID !== undefined
             ? cell.attribute.borderFillID
             : undefined;
+        const paragraphs = this.extractHwpTableCellParagraphs(cell?.items, info, cellId);
 
         return {
-            text: this.extractParagraphListText(cell?.items),
+            id: cellId,
+            text: paragraphs.map(paragraph => paragraph.text).filter(Boolean).join('\n\n') || this.extractParagraphListText(cell?.items),
+            paragraphs,
             colSpan: Number(cell?.attribute?.colSpan) || 1,
             rowSpan: Number(cell?.attribute?.rowSpan) || 1,
             widthPt: Number(cell?.attribute?.width) > 0 ? Number((cell.attribute.width / 100).toFixed(2)) : undefined,
@@ -958,6 +1528,8 @@ export class HwpDocumentParser {
             alt: binData?.extension ? `embedded-${binData.extension}` : 'embedded-image',
             positioning: Number(control?.attribute?.vertRelTo) === 0 ? 'absolute' : 'inline',
             anchorScope: this.resolveHwpAnchorScope(control),
+            anchorParagraphId: `hwp-p-${sectionIndex + 1}-${paragraphIndex + 1}`,
+            anchorCellId: this.resolveHwpAnchorCellId(control, sectionIndex, paragraphIndex),
             leftPt: Number(control?.horizontalOffset) > 0 ? Number((control.horizontalOffset / 100).toFixed(2)) : undefined,
             topPt: Number(control?.verticalOffset) > 0 ? Number((control.verticalOffset / 100).toFixed(2)) : undefined,
             zIndex: Number.isFinite(Number(control?.zIndex)) ? Number(control.zIndex) : undefined,
@@ -981,6 +1553,8 @@ export class HwpDocumentParser {
             kind: 'line',
             positioning: Number(control?.attribute?.vertRelTo) === 0 ? 'absolute' : 'inline',
             anchorScope: this.resolveHwpAnchorScope(control),
+            anchorParagraphId: `hwp-p-${sectionIndex + 1}-${paragraphIndex + 1}`,
+            anchorCellId: this.resolveHwpAnchorCellId(control, sectionIndex, paragraphIndex),
             leftPt: Number(control?.horizontalOffset) > 0 ? Number((control.horizontalOffset / 100).toFixed(2)) : undefined,
             topPt: Number(control?.verticalOffset) > 0 ? Number((control.verticalOffset / 100).toFixed(2)) : undefined,
             zIndex: Number.isFinite(Number(control?.zIndex)) ? Number(control.zIndex) : undefined,
@@ -1035,6 +1609,8 @@ export class HwpDocumentParser {
             markerEnd: this.normalizeMarkerType(control?.lineTail || control?.endArrow),
             positioning: Number(control?.attribute?.vertRelTo) === 0 ? 'absolute' : 'inline',
             anchorScope: this.resolveHwpAnchorScope(control),
+            anchorParagraphId: `hwp-p-${sectionIndex + 1}-${paragraphIndex + 1}`,
+            anchorCellId: this.resolveHwpAnchorCellId(control, sectionIndex, paragraphIndex),
             leftPt: Number(control?.horizontalOffset) > 0 ? Number((control.horizontalOffset / 100).toFixed(2)) : undefined,
             topPt: Number(control?.verticalOffset) > 0 ? Number((control.verticalOffset / 100).toFixed(2)) : undefined,
             zIndex: Number.isFinite(Number(control?.zIndex)) ? Number(control.zIndex) : undefined,
@@ -1078,37 +1654,462 @@ export class HwpDocumentParser {
             .trim();
     }
 
-    private static extractHwpxTables(xml: string, pageIndex: number): HwpLayoutTableBlock[] {
-        const tableMatches = xml.match(/<[^>]*?:tbl\b[\s\S]*?<\/[^>]*?:tbl>/gi) ?? [];
+    private static extractHwpTableCellParagraphs(items: any[], info: any, cellId: string): HwpLayoutTableCellParagraph[] {
+        if (!Array.isArray(items)) {
+            return [];
+        }
 
-        return tableMatches.map((tableXml, tableIndex): HwpLayoutTableBlock => {
-            const rowMatches = tableXml.match(/<[^>]*?:tr\b[\s\S]*?<\/[^>]*?:tr>/gi) ?? [];
-            const rows: HwpLayoutTableRow[] = rowMatches.map(rowXml => {
-                const cellMatches = rowXml.match(/<[^>]*?:tc\b[\s\S]*?<\/[^>]*?:tc>/gi) ?? [];
+        return items
+            .map((paragraph: any, paragraphIndex: number): HwpLayoutTableCellParagraph | null => {
+                const text = this.extractHwpParagraphText(paragraph);
+                const inlineBlocks = this.extractHwpTableCellInlineBlocks(paragraph, info, cellId, paragraphIndex);
+                if (!text.trim() && inlineBlocks.length === 0) {
+                    return null;
+                }
+
+                const charShapeIndex = paragraph?.shapeBuffer?.[0]?.shapeIndex;
+                const charShape = typeof info?.getCharShpe === 'function'
+                    ? info.getCharShpe(charShapeIndex ?? 0)
+                    : null;
+                const paragraphShape = Array.isArray(info?.paragraphShapes)
+                    ? info.paragraphShapes[paragraph?.shapeIndex ?? 0]
+                    : null;
+                const fontSizePt = this.resolveHwpFontSizePt(charShape);
+
+                return {
+                    text,
+                    align: this.mapParagraphAlign(paragraphShape?.align),
+                    lineHeight: this.resolveHwpLineHeight(paragraph, fontSizePt),
+                    textIndentPt: 0,
+                    inlineBlocks,
+                    runs: [{
+                        text,
+                        fontSizePt,
+                        fontWeight: this.resolveHwpFontWeight(charShape),
+                        backgroundColor: this.rgbArrayToCss(charShape?.shadeColor),
+                        color: this.rgbArrayToCss(charShape?.color)
+                    }]
+                };
+            })
+            .filter((paragraph): paragraph is HwpLayoutTableCellParagraph => paragraph !== null);
+    }
+
+    private static extractHwpTableCellInlineBlocks(
+        paragraph: any,
+        info: any,
+        cellId: string,
+        paragraphIndex: number
+    ): Array<HwpLayoutImageBlock | HwpLayoutTextBoxBlock | HwpLayoutLineBlock> {
+        if (!Array.isArray(paragraph?.controls)) {
+            return [];
+        }
+
+        const blocks: Array<HwpLayoutImageBlock | HwpLayoutTextBoxBlock | HwpLayoutLineBlock> = [];
+        let imageIndex = 0;
+        let textBoxIndex = 0;
+        let lineIndex = 0;
+
+        for (const control of paragraph.controls) {
+            const binId = control?.info?.binID;
+            const binData = Array.isArray(info?.binData) ? info.binData[binId] : null;
+            const src = this.createHwpImageDataUrl(binData);
+            if (src) {
+                imageIndex += 1;
+                blocks.push({
+                    id: `${cellId}-image-${paragraphIndex + 1}-${imageIndex}`,
+                    kind: 'image',
+                    src,
+                    alt: binData?.extension ? `embedded-${binData.extension}` : 'embedded-image',
+                    positioning: Number(control?.attribute?.vertRelTo) === 0 ? 'absolute' : 'inline',
+                    anchorScope: 'cell',
+                    anchorCellId: cellId,
+                    leftPt: Number(control?.horizontalOffset) > 0 ? Number((control.horizontalOffset / 100).toFixed(2)) : undefined,
+                    topPt: Number(control?.verticalOffset) > 0 ? Number((control.verticalOffset / 100).toFixed(2)) : undefined,
+                    zIndex: Number.isFinite(Number(control?.zIndex)) ? Number(control.zIndex) : undefined,
+                    widthPt: Number(control?.width) > 0 ? Number((control.width / 100).toFixed(2)) : undefined,
+                    heightPt: Number(control?.height) > 0 ? Number((control.height / 100).toFixed(2)) : undefined,
+                    marginTopPt: 4,
+                    marginBottomPt: 6
+                });
+                continue;
+            }
+
+            if (Array.isArray(control?.content) && Number(control?.width) > 0 && Number(control?.height) > 0) {
+                const text = (control.content ?? [])
+                    .flatMap((paragraphList: any) => Array.isArray(paragraphList?.items) ? paragraphList.items : [])
+                    .map((item: any) => this.extractHwpParagraphText(item))
+                    .filter(Boolean)
+                    .join('\n')
+                    .trim();
+                if (text) {
+                    textBoxIndex += 1;
+                    blocks.push({
+                        id: `${cellId}-textbox-${paragraphIndex + 1}-${textBoxIndex}`,
+                        kind: 'textbox',
+                        text,
+                        shapeType: this.normalizeShapeType(control?.shapeType || control?.objectType || control?.ctrlId),
+                        textAlign: 'left',
+                        color: this.rgbArrayToCss(control?.textColor),
+                        backgroundColor: this.rgbArrayToCss(control?.fillColor) || this.rgbArrayToCss(control?.backgroundColor),
+                        borderColor: this.rgbArrayToCss(control?.lineColor) || this.rgbArrayToCss(control?.borderColor),
+                        borderWidthPt: Number(control?.lineThick) > 0 ? Number((Number(control.lineThick) / 100).toFixed(2)) : undefined,
+                        borderStyle: this.normalizeBorderStyle(control?.lineStyle || control?.lineType),
+                        borderRadiusPt: Number(control?.radius) > 0 ? Number((Number(control.radius) / 100).toFixed(2)) : undefined,
+                        paddingPt: 6,
+                        positioning: Number(control?.attribute?.vertRelTo) === 0 ? 'absolute' : 'inline',
+                        anchorScope: 'cell',
+                        anchorCellId: cellId,
+                        leftPt: Number(control?.horizontalOffset) > 0 ? Number((control.horizontalOffset / 100).toFixed(2)) : undefined,
+                        topPt: Number(control?.verticalOffset) > 0 ? Number((control.verticalOffset / 100).toFixed(2)) : undefined,
+                        zIndex: Number.isFinite(Number(control?.zIndex)) ? Number(control.zIndex) : undefined,
+                        widthPt: Number(control?.width) > 0 ? Number((control.width / 100).toFixed(2)) : undefined,
+                        heightPt: Number(control?.height) > 0 ? Number((control.height / 100).toFixed(2)) : undefined,
+                        marginTopPt: 4,
+                        marginBottomPt: 6
+                    });
+                }
+                continue;
+            }
+
+            const lineBlock = this.mapHwpTableCellLineControl(control, cellId, paragraphIndex, lineIndex);
+            if (lineBlock) {
+                lineIndex += 1;
+                lineBlock.id = `${cellId}-line-${paragraphIndex + 1}-${lineIndex}`;
+                blocks.push(lineBlock);
+            }
+        }
+
+        return blocks;
+    }
+
+    private static mapHwpTableCellLineControl(
+        control: any,
+        cellId: string,
+        paragraphIndex: number,
+        lineIndex: number
+    ): HwpLayoutLineBlock | null {
+        const controlType = String(control?.ctrlId || control?.shapeType || control?.objectType || '').toLowerCase();
+        const widthPt = Number(control?.width) > 0 ? Number((control.width / 100).toFixed(2)) : undefined;
+        const heightPt = Number(control?.height) > 0 ? Number((control.height / 100).toFixed(2)) : undefined;
+        if (!/line|arc|curve|connector/.test(controlType) && !(widthPt && heightPt && Math.min(widthPt, heightPt) <= 8 && !Array.isArray(control?.content))) {
+            return null;
+        }
+
+        return {
+            id: `${cellId}-line-${paragraphIndex + 1}-${lineIndex + 1}`,
+            kind: 'line',
+            positioning: 'inline',
+            anchorScope: 'cell',
+            anchorCellId: cellId,
+            widthPt: widthPt || 80,
+            heightPt: heightPt || 2,
+            x1Pt: Number.isFinite(Number(control?.x1)) ? Number((Number(control.x1) / 100).toFixed(2)) : 0,
+            y1Pt: Number.isFinite(Number(control?.y1)) ? Number((Number(control.y1) / 100).toFixed(2)) : 0,
+            x2Pt: Number.isFinite(Number(control?.x2)) ? Number((Number(control.x2) / 100).toFixed(2)) : (widthPt || 80),
+            y2Pt: Number.isFinite(Number(control?.y2)) ? Number((Number(control.y2) / 100).toFixed(2)) : (heightPt || 2),
+            pathD: this.extractLinePathDFromPoints(control?.points),
+            rotateDeg: this.normalizeRotation(control?.rotateAngle ?? control?.rotation),
+            color: this.rgbArrayToCss(control?.lineColor || control?.color),
+            lineWidthPt: Number(control?.lineThick) > 0 ? Number((Number(control.lineThick) / 100).toFixed(2)) : 1,
+            lineStyle: this.normalizeBorderStyle(control?.lineStyle || control?.lineType),
+            markerStart: this.normalizeMarkerType(control?.lineHead || control?.startArrow),
+            markerEnd: this.normalizeMarkerType(control?.lineTail || control?.endArrow),
+            marginTopPt: 4,
+            marginBottomPt: 6
+        };
+    }
+
+    private static extractHwpxTables(
+        xml: string,
+        pageIndex: number,
+        paragraphAnchors: Array<{ id: string; start: number; end: number }>,
+        binaryAssets: Map<string, string>,
+        styleIndex: HwpxStyleIndex
+    ): HwpLayoutTableBlock[] {
+        const tableMatches = [...xml.matchAll(/<[^>]*?:tbl\b[\s\S]*?<\/[^>]*?:tbl>/gi)];
+
+        return tableMatches.map((tableMatch, tableIndex): HwpLayoutTableBlock => {
+            const tableXml = tableMatch[0];
+            const rowMatches = [...tableXml.matchAll(/<[^>]*?:tr\b[\s\S]*?<\/[^>]*?:tr>/gi)];
+            const occupancy: number[] = [];
+            let totalCols = 0;
+            const rows: HwpLayoutTableRow[] = rowMatches.map((rowMatch, rowIndex) => {
+                const rowXml = rowMatch[0];
+                const rowStart = (tableMatch.index ?? 0) + (rowMatch.index ?? 0);
+                const cellMatches = [...rowXml.matchAll(/<[^>]*?:tc\b[\s\S]*?<\/[^>]*?:tc>/gi)];
+                let colCursor = 0;
                 return {
                     cells: cellMatches
-                        .map(cellXml => ({
-                            text: this.decodeXmlText(cellXml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')).trim(),
-                            colSpan: this.readXmlNumber(cellXml, /(?:colSpan|gridSpan)="(\d+)"/i) ?? 1,
-                            rowSpan: this.readXmlNumber(cellXml, /(?:rowSpan|rowMerge)="(\d+)"/i) ?? 1,
-                            widthPt: this.hwpxUnitToPt(this.readXmlNumber(cellXml, /(?:width|cellW)="(\d+)"/i), 0),
-                            heightPt: this.hwpxUnitToPt(this.readXmlNumber(cellXml, /(?:height|cellH)="(\d+)"/i), 0),
-                            backgroundColor: this.normalizeHwpxColor(this.readXmlAttribute(cellXml, /(?:fillColor|backColor|bgColor)="([^"]+)"/i)),
-                            borderColor: this.normalizeHwpxColor(this.readXmlAttribute(cellXml, /(?:borderColor|lineColor)="([^"]+)"/i)),
-                            textAlign: this.mapHwpxAlign(this.readXmlAttribute(cellXml, /(?:align|horzAlign)="([^"]+)"/i))
-                        }))
-                        .filter((cell: HwpLayoutTableCell) => cell.text)
+                        .map((cellMatch, cellIndex) => {
+                            const cellXml = cellMatch[0];
+                            while ((occupancy[colCursor] || 0) > 0) {
+                                colCursor += 1;
+                            }
+
+                            const cellId = `hwpx-cell-${pageIndex + 1}-${tableIndex + 1}-${rowIndex + 1}-${cellIndex + 1}`;
+                            const paragraphs = this.extractHwpxTableCellParagraphs(cellXml, binaryAssets, cellId, styleIndex);
+                            const text = paragraphs.length > 0
+                                ? paragraphs.map(paragraph => paragraph.text).join('\n\n')
+                                : this.decodeXmlText(cellXml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')).trim();
+                            const colSpan = this.readXmlNumber(cellXml, /(?:colSpan|gridSpan)="(\d+)"/i) ?? 1;
+                            const rowSpan = this.readXmlNumber(cellXml, /(?:rowSpan|rowMerge)="(\d+)"/i) ?? 1;
+                            const mappedCell = {
+                                id: cellId,
+                                text,
+                                paragraphs,
+                                sourceStart: rowStart + (cellMatch.index ?? 0),
+                                sourceEnd: rowStart + (cellMatch.index ?? 0) + cellXml.length,
+                                colSpan,
+                                rowSpan,
+                                rowStart: rowIndex,
+                                rowEnd: rowIndex + rowSpan - 1,
+                                colStart: colCursor,
+                                colEnd: colCursor + colSpan - 1,
+                                widthPt: this.hwpxUnitToPt(this.readXmlNumber(cellXml, /(?:width|cellW)="(\d+)"/i), 0),
+                                heightPt: this.hwpxUnitToPt(this.readXmlNumber(cellXml, /(?:height|cellH)="(\d+)"/i), 0),
+                                backgroundColor: this.normalizeHwpxColor(this.readXmlAttribute(cellXml, /(?:fillColor|backColor|bgColor)="([^"]+)"/i)),
+                                borderColor: this.normalizeHwpxColor(this.readXmlAttribute(cellXml, /(?:borderColor|lineColor)="([^"]+)"/i)),
+                                textAlign: this.mapHwpxAlign(this.readXmlAttribute(cellXml, /(?:align|horzAlign)="([^"]+)"/i))
+                            } as HwpLayoutTableCell;
+
+                            for (let offset = 0; offset < colSpan; offset += 1) {
+                                occupancy[colCursor + offset] = Math.max(occupancy[colCursor + offset] || 0, rowSpan - 1);
+                            }
+
+                            colCursor += colSpan;
+                            totalCols = Math.max(totalCols, colCursor);
+
+                            return mappedCell;
+                        })
+                        .filter((cell: HwpLayoutTableCell) => cell.text || (cell.paragraphs?.length ?? 0) > 0)
                 };
             }).filter((row: HwpLayoutTableRow) => row.cells.length > 0);
+
+            for (let columnIndex = 0; columnIndex < occupancy.length; columnIndex += 1) {
+                if ((occupancy[columnIndex] || 0) > 0) {
+                    occupancy[columnIndex] -= 1;
+                }
+            }
+
+            const totalRows = rows.length;
+            for (const row of rows) {
+                for (const cell of row.cells) {
+                    cell.totalRows = totalRows;
+                    cell.totalCols = totalCols;
+                }
+            }
 
             return {
                 id: `hwpx-table-${pageIndex + 1}-${tableIndex + 1}`,
                 kind: 'table',
+                sourceIndex: tableMatch.index ?? 0,
                 rows,
+                anchorParagraphId: this.findNearestParagraphIdByIndex(tableMatch.index ?? 0, paragraphAnchors),
                 marginTopPt: 10,
                 marginBottomPt: 12
             };
         }).filter((table: HwpLayoutTableBlock) => table.rows.length > 0);
+    }
+
+    private static extractHwpxTableCellParagraphs(
+        cellXml: string,
+        binaryAssets: Map<string, string>,
+        cellId: string,
+        styleIndex: HwpxStyleIndex
+    ): HwpLayoutTableCellParagraph[] {
+        const paragraphAnchors = [...cellXml.matchAll(/<[^>]*?:p\b[\s\S]*?<\/[^>]*?:p>/gi)].map((match, index) => ({
+            id: `${cellId}-p-${index + 1}`,
+            start: match.index ?? 0,
+            end: (match.index ?? 0) + match[0].length
+        }));
+        const paragraphs = this.extractHwpxParagraphs(cellXml, styleIndex).map((paragraph, index) => ({
+            id: `${cellId}-p-${index + 1}`,
+            text: paragraph.runs.map(run => run.text).join('').trim(),
+            align: paragraph.align,
+            lineHeight: paragraph.lineHeight,
+            textIndentPt: paragraph.textIndentPt,
+            tabStopsPt: paragraph.tabStopsPt,
+            runs: paragraph.runs,
+            inlineBlocks: [] as Array<HwpLayoutImageBlock | HwpLayoutTextBoxBlock | HwpLayoutLineBlock>
+        })).filter(paragraph => paragraph.text);
+
+        const imageRefs = new Set<string>();
+        const patterns = [
+            /(?:binaryItemIDRef|idref|href|src)="([^"]+)"/gi,
+            /(?:fileName|name)="([^"]+\.(?:png|jpe?g|gif|bmp|webp|svg))"/gi
+        ];
+        for (const pattern of patterns) {
+            let match: RegExpExecArray | null;
+            while ((match = pattern.exec(cellXml)) !== null) {
+                imageRefs.add(match[1]);
+            }
+        }
+
+        let imageIndex = 0;
+        for (const ref of imageRefs) {
+            const normalizedCandidates = this.expandHwpxImageRefCandidates(ref);
+            const src = normalizedCandidates.map(candidate => binaryAssets.get(candidate)).find(Boolean);
+            const snippet = this.findHwpxImageSnippet(cellXml, ref) || '';
+            const rawAnchorParagraphId = this.findNearestHwpxParagraphId(cellXml, snippet, paragraphAnchors);
+            const anchorScope = this.normalizeCellAnchorScope(this.resolveHwpxAnchorScope(snippet));
+            const anchorParagraphId = this.resolveCellParagraphAnchorId(anchorScope, rawAnchorParagraphId, paragraphAnchors);
+            const sourceIndex = snippet ? Math.max(cellXml.indexOf(snippet), 0) : undefined;
+            if (!src) {
+                continue;
+            }
+
+            imageIndex += 1;
+            const paragraph = paragraphs.find(candidate => candidate.id === anchorParagraphId) || paragraphs[0];
+            if (!paragraph) {
+                continue;
+            }
+
+            paragraph.inlineBlocks.push({
+                id: `${cellId}-image-${imageIndex}`,
+                kind: 'image',
+                sourceIndex,
+                inlineTextOffset: this.resolveHwpxInlineTextOffset(cellXml, sourceIndex, anchorParagraphId, paragraphAnchors),
+                src,
+                alt: path.basename(ref),
+                positioning: this.readHwpxImagePositioning(cellXml, ref),
+                anchorScope,
+                anchorParagraphId,
+                anchorCellId: cellId,
+                leftPt: this.hwpxUnitToPt(this.readHwpxImageMetric(cellXml, ref, /(?:x|left)="(-?\d+)"/i), 0),
+                topPt: this.hwpxUnitToPt(this.readHwpxImageMetric(cellXml, ref, /(?:y|top)="(-?\d+)"/i), 0),
+                zIndex: this.readHwpxImageMetric(cellXml, ref, /(?:zOrder|zIndex)="(-?\d+)"/i) ?? undefined,
+                widthPt: this.hwpxUnitToPt(this.readHwpxImageMetric(cellXml, ref, /(?:width|curWidth)="(\d+)"/i), 0),
+                heightPt: this.hwpxUnitToPt(this.readHwpxImageMetric(cellXml, ref, /(?:height|curHeight)="(\d+)"/i), 0),
+                marginTopPt: 4,
+                marginBottomPt: 6
+            });
+        }
+
+        const textBoxCandidates = [
+            ...this.matchHwpxShapeLikeBlocks(cellXml, /<[^>]*?(?:textbox|shapeRect|shapeObject|drawText|textBox)[^>]*>[\s\S]*?<\/[^>]+>/gi),
+            ...this.matchHwpxShapeLikeBlocks(cellXml, /<[^>]*?(?:shapeRect|shapeContainer|shapeComponent)[^>]*\/>/gi)
+        ];
+        let textBoxIndex = 0;
+        for (const candidate of textBoxCandidates) {
+            const text = this.extractVisibleTextFromXml(candidate.xml);
+            if (!text) {
+                continue;
+            }
+
+            textBoxIndex += 1;
+            const rawAnchorParagraphId = this.findNearestHwpxParagraphId(cellXml, candidate.xml, paragraphAnchors);
+            const anchorScope = this.normalizeCellAnchorScope(this.resolveHwpxAnchorScope(candidate.xml));
+            const anchorParagraphId = this.resolveCellParagraphAnchorId(anchorScope, rawAnchorParagraphId, paragraphAnchors);
+            const sourceIndex = Math.max(cellXml.indexOf(candidate.xml), 0);
+            const paragraph = paragraphs.find(entry => entry.id === anchorParagraphId) || paragraphs[0];
+            if (!paragraph) {
+                continue;
+            }
+
+            paragraph.inlineBlocks.push({
+                id: `${cellId}-textbox-${textBoxIndex}`,
+                kind: 'textbox',
+                text,
+                shapeType: this.normalizeShapeType(
+                    this.readXmlAttribute(candidate.xml, /(?:shapeType|objectType|type)="([^"]+)"/i)
+                        || candidate.xml.match(/<(?:[^>:]+:)?(ellipse|oval|rect|roundRect|diamond|textbox|shapeRect)\b/i)?.[1]
+                ),
+                textAlign: this.mapHwpxAlign(this.readXmlAttribute(candidate.xml, /(?:align|horzAlign|textAlign)="([^"]+)"/i)),
+                color: this.normalizeHwpxColor(this.readXmlAttribute(candidate.xml, /(?:textColor|fontColor|color)="([^"]+)"/i)),
+                backgroundColor: this.normalizeHwpxColor(this.readXmlAttribute(candidate.xml, /(?:fillColor|backColor|bgColor)="([^"]+)"/i)),
+                borderColor: this.normalizeHwpxColor(this.readXmlAttribute(candidate.xml, /(?:borderColor|lineColor|strokeColor)="([^"]+)"/i)),
+                borderWidthPt: this.hwpxUnitToPt(this.readXmlNumber(candidate.xml, /(?:lineWidth|borderWidth|strokeWidth)="(\d+)"/i), 0),
+                borderStyle: this.normalizeBorderStyle(this.readXmlAttribute(candidate.xml, /(?:lineStyle|strokeStyle|borderStyle)="([^"]+)"/i)),
+                borderRadiusPt: this.hwpxUnitToPt(this.readXmlNumber(candidate.xml, /(?:radius|cornerRadius)="(\d+)"/i), 0),
+                paddingPt: this.hwpxUnitToPt(this.readXmlNumber(candidate.xml, /(?:padding|innerMargin)="(\d+)"/i), 8),
+                positioning: this.resolveHwpxShapePositioning(candidate.xml),
+                anchorScope,
+                anchorParagraphId,
+                anchorCellId: cellId,
+                sourceIndex,
+                inlineTextOffset: this.resolveHwpxInlineTextOffset(cellXml, sourceIndex, anchorParagraphId, paragraphAnchors),
+                leftPt: this.hwpxUnitToPt(this.readXmlNumber(candidate.xml, /(?:x|left)="(-?\d+)"/i), 0),
+                topPt: this.hwpxUnitToPt(this.readXmlNumber(candidate.xml, /(?:y|top)="(-?\d+)"/i), 0),
+                zIndex: this.readXmlNumber(candidate.xml, /(?:zOrder|zIndex)="(-?\d+)"/i) ?? undefined,
+                widthPt: this.hwpxUnitToPt(this.readXmlNumber(candidate.xml, /(?:width|curWidth|szw)="(\d+)"/i), 120),
+                heightPt: this.hwpxUnitToPt(this.readXmlNumber(candidate.xml, /(?:height|curHeight|szh)="(\d+)"/i), 40),
+                marginTopPt: 4,
+                marginBottomPt: 6
+            });
+        }
+
+        const lineCandidates = this.matchHwpxShapeLikeBlocks(cellXml, /<[^>]*?(?:line|arc|curve|connector|shapeLine)[^>]*\/?>[\s\S]*?(?:<\/[^>]+>)?/gi);
+        let lineIndex = 0;
+        for (const candidate of lineCandidates) {
+            lineIndex += 1;
+            const rawAnchorParagraphId = this.findNearestHwpxParagraphId(cellXml, candidate.xml, paragraphAnchors);
+            const anchorScope = this.normalizeCellAnchorScope(this.resolveHwpxAnchorScope(candidate.xml));
+            const anchorParagraphId = this.resolveCellParagraphAnchorId(anchorScope, rawAnchorParagraphId, paragraphAnchors);
+            const sourceIndex = Math.max(cellXml.indexOf(candidate.xml), 0);
+            const paragraph = paragraphs.find(entry => entry.id === anchorParagraphId) || paragraphs[0];
+            if (!paragraph) {
+                continue;
+            }
+
+            const widthPt = this.hwpxUnitToPt(this.readXmlNumber(candidate.xml, /(?:width|curWidth|szw)="(\d+)"/i), 80);
+            const heightPt = this.hwpxUnitToPt(this.readXmlNumber(candidate.xml, /(?:height|curHeight|szh)="(\d+)"/i), 2);
+            paragraph.inlineBlocks.push({
+                id: `${cellId}-line-${lineIndex}`,
+                kind: 'line',
+                sourceIndex,
+                inlineTextOffset: this.resolveHwpxInlineTextOffset(cellXml, sourceIndex, anchorParagraphId, paragraphAnchors),
+                positioning: this.resolveHwpxShapePositioning(candidate.xml),
+                anchorScope,
+                anchorParagraphId,
+                anchorCellId: cellId,
+                leftPt: this.hwpxUnitToPt(this.readXmlNumber(candidate.xml, /(?:x|left)="(-?\d+)"/i), 0),
+                topPt: this.hwpxUnitToPt(this.readXmlNumber(candidate.xml, /(?:y|top)="(-?\d+)"/i), 0),
+                zIndex: this.readXmlNumber(candidate.xml, /(?:zOrder|zIndex)="(-?\d+)"/i) ?? undefined,
+                widthPt,
+                heightPt,
+                x1Pt: this.hwpxUnitToPt(this.readXmlNumber(candidate.xml, /(?:x1|startX|fromX)="(-?\d+)"/i), 0),
+                y1Pt: this.hwpxUnitToPt(this.readXmlNumber(candidate.xml, /(?:y1|startY|fromY)="(-?\d+)"/i), 0),
+                x2Pt: this.hwpxUnitToPt(this.readXmlNumber(candidate.xml, /(?:x2|endX|toX)="(-?\d+)"/i), widthPt),
+                y2Pt: this.hwpxUnitToPt(this.readXmlNumber(candidate.xml, /(?:y2|endY|toY)="(-?\d+)"/i), heightPt),
+                pathD: this.extractHwpxLinePathD(candidate.xml),
+                rotateDeg: this.normalizeRotation(this.readXmlAttribute(candidate.xml, /(?:rotation|rotate|rot)="([^"]+)"/i)),
+                color: this.normalizeHwpxColor(this.readXmlAttribute(candidate.xml, /(?:lineColor|strokeColor|color)="([^"]+)"/i)),
+                lineWidthPt: this.hwpxUnitToPt(this.readXmlNumber(candidate.xml, /(?:lineWidth|strokeWidth)="(\d+)"/i), 1),
+                lineStyle: this.normalizeBorderStyle(this.readXmlAttribute(candidate.xml, /(?:lineStyle|strokeStyle|borderStyle)="([^"]+)"/i)),
+                markerStart: this.normalizeMarkerType(this.readXmlAttribute(candidate.xml, /(?:startArrow|headStyle|lineHead)="([^"]+)"/i)),
+                markerEnd: this.normalizeMarkerType(this.readXmlAttribute(candidate.xml, /(?:endArrow|tailStyle|lineTail)="([^"]+)"/i)),
+                marginTopPt: 4,
+                marginBottomPt: 6
+            });
+        }
+
+        return paragraphs;
+    }
+
+    private static normalizeCellAnchorScope(
+        anchorScope: 'page' | 'paragraph' | 'cell' | 'character' | undefined
+    ): 'paragraph' | 'cell' | 'character' {
+        if (anchorScope === 'paragraph' || anchorScope === 'character' || anchorScope === 'cell') {
+            return anchorScope;
+        }
+
+        return 'cell';
+    }
+
+    private static resolveCellParagraphAnchorId(
+        anchorScope: 'paragraph' | 'cell' | 'character',
+        anchorParagraphId: string | undefined,
+        paragraphAnchors: Array<{ id: string; start: number; end: number }>
+    ): string | undefined {
+        if (anchorScope === 'cell') {
+            return undefined;
+        }
+
+        if (anchorParagraphId) {
+            return anchorParagraphId;
+        }
+
+        return paragraphAnchors[0]?.id;
     }
 
     private static async collectHwpxBinaryAssets(zip: JSZip): Promise<Map<string, string>> {
@@ -1150,7 +2151,13 @@ export class HwpDocumentParser {
         return /\.(png|jpe?g|gif|bmp|webp|svg)$/i.test(name);
     }
 
-    private static extractHwpxImages(xml: string, pageIndex: number, binaryAssets: Map<string, string>): HwpLayoutImageBlock[] {
+    private static extractHwpxImages(
+        xml: string,
+        pageIndex: number,
+        binaryAssets: Map<string, string>,
+        paragraphAnchors: Array<{ id: string; start: number; end: number }>,
+        cellAnchors: Array<{ id: string; sourceStart?: number; sourceEnd?: number; paragraphIds: string[] }>
+    ): HwpLayoutImageBlock[] {
         const imageRefs = new Set<string>();
         const patterns = [
             /(?:binaryItemIDRef|idref|href|src)="([^"]+)"/gi,
@@ -1170,6 +2177,10 @@ export class HwpDocumentParser {
         for (const ref of imageRefs) {
             const normalizedCandidates = this.expandHwpxImageRefCandidates(ref);
             const src = normalizedCandidates.map(candidate => binaryAssets.get(candidate)).find(Boolean);
+            const snippet = this.findHwpxImageSnippet(xml, ref) || '';
+            const anchorParagraphId = this.findNearestHwpxParagraphId(xml, snippet, paragraphAnchors);
+            const sourceIndex = snippet ? Math.max(xml.indexOf(snippet), 0) : undefined;
+            const anchorCellId = this.resolveNearestCellAnchorId(anchorParagraphId, cellAnchors, sourceIndex);
 
             if (!src) {
                 continue;
@@ -1179,10 +2190,15 @@ export class HwpDocumentParser {
             blocks.push({
                 id: `hwpx-image-${pageIndex + 1}-${imageIndex}`,
                 kind: 'image',
+                sourceIndex,
+                inlineOffset: this.resolveHwpxInlineOffset(sourceIndex, anchorParagraphId, paragraphAnchors),
+                inlineTextOffset: this.resolveHwpxInlineTextOffset(xml, sourceIndex, anchorParagraphId, paragraphAnchors),
                 src,
                 alt: path.basename(ref),
                 positioning: this.readHwpxImagePositioning(xml, ref),
-                anchorScope: this.resolveHwpxAnchorScope(this.findHwpxImageSnippet(xml, ref) || ''),
+                anchorScope: this.resolveHwpxAnchorScope(snippet),
+                anchorParagraphId,
+                anchorCellId,
                 leftPt: this.hwpxUnitToPt(this.readHwpxImageMetric(xml, ref, /(?:x|left)="(-?\d+)"/i), 0),
                 topPt: this.hwpxUnitToPt(this.readHwpxImageMetric(xml, ref, /(?:y|top)="(-?\d+)"/i), 0),
                 zIndex: this.readHwpxImageMetric(xml, ref, /(?:zOrder|zIndex)="(-?\d+)"/i) ?? undefined,
@@ -1196,7 +2212,12 @@ export class HwpDocumentParser {
         return blocks;
     }
 
-    private static extractHwpxTextBoxes(xml: string, pageIndex: number): HwpLayoutTextBoxBlock[] {
+    private static extractHwpxTextBoxes(
+        xml: string,
+        pageIndex: number,
+        paragraphAnchors: Array<{ id: string; start: number; end: number }>,
+        cellAnchors: Array<{ id: string; sourceStart?: number; sourceEnd?: number; paragraphIds: string[] }>
+    ): HwpLayoutTextBoxBlock[] {
         const candidates = [
             ...this.matchHwpxShapeLikeBlocks(xml, /<[^>]*?(?:textbox|shapeRect|shapeObject|drawText|textBox)[^>]*>[\s\S]*?<\/[^>]+>/gi),
             ...this.matchHwpxShapeLikeBlocks(xml, /<[^>]*?(?:shapeRect|shapeContainer|shapeComponent)[^>]*\/>/gi)
@@ -1213,9 +2234,15 @@ export class HwpDocumentParser {
 
             index += 1;
             const id = `hwpx-textbox-${pageIndex + 1}-${index}`;
+            const anchorParagraphId = this.findNearestHwpxParagraphId(xml, candidate.xml, paragraphAnchors);
+            const sourceIndex = Math.max(xml.indexOf(candidate.xml), 0);
+            const anchorCellId = this.resolveNearestCellAnchorId(anchorParagraphId, cellAnchors, sourceIndex);
             deduped.set(id, {
                 id,
                 kind: 'textbox',
+                sourceIndex,
+                inlineOffset: this.resolveHwpxInlineOffset(sourceIndex, anchorParagraphId, paragraphAnchors),
+                inlineTextOffset: this.resolveHwpxInlineTextOffset(xml, sourceIndex, anchorParagraphId, paragraphAnchors),
                 text,
                 shapeType: this.normalizeShapeType(
                     this.readXmlAttribute(candidate.xml, /(?:shapeType|objectType|type)="([^"]+)"/i)
@@ -1245,6 +2272,8 @@ export class HwpDocumentParser {
                 ),
                 positioning: this.resolveHwpxShapePositioning(candidate.xml),
                 anchorScope: this.resolveHwpxAnchorScope(candidate.xml),
+                anchorParagraphId,
+                anchorCellId,
                 leftPt: this.hwpxUnitToPt(this.readXmlNumber(candidate.xml, /(?:x|left)="(-?\d+)"/i), 0),
                 topPt: this.hwpxUnitToPt(this.readXmlNumber(candidate.xml, /(?:y|top)="(-?\d+)"/i), 0),
                 zIndex: this.readXmlNumber(candidate.xml, /(?:zOrder|zIndex)="(-?\d+)"/i) ?? undefined,
@@ -1258,15 +2287,28 @@ export class HwpDocumentParser {
         return [...deduped.values()];
     }
 
-    private static extractHwpxLines(xml: string, pageIndex: number): HwpLayoutLineBlock[] {
+    private static extractHwpxLines(
+        xml: string,
+        pageIndex: number,
+        paragraphAnchors: Array<{ id: string; start: number; end: number }>,
+        cellAnchors: Array<{ id: string; sourceStart?: number; sourceEnd?: number; paragraphIds: string[] }>
+    ): HwpLayoutLineBlock[] {
         const candidates = this.matchHwpxShapeLikeBlocks(xml, /<[^>]*?(?:line|arc|curve|connector|shapeLine)[^>]*\/?>[\s\S]*?(?:<\/[^>]+>)?/gi);
         return candidates.map((candidate, index) => {
             const widthPt = this.hwpxUnitToPt(this.readXmlNumber(candidate.xml, /(?:width|curWidth|szw)="(\d+)"/i), 80);
             const heightPt = this.hwpxUnitToPt(this.readXmlNumber(candidate.xml, /(?:height|curHeight|szh)="(\d+)"/i), 2);
+            const anchorParagraphId = this.findNearestHwpxParagraphId(xml, candidate.xml, paragraphAnchors);
+            const sourceIndex = Math.max(xml.indexOf(candidate.xml), 0);
+            const anchorCellId = this.resolveNearestCellAnchorId(anchorParagraphId, cellAnchors, sourceIndex);
             return {
                 id: `hwpx-line-${pageIndex + 1}-${index + 1}`,
                 kind: 'line',
+                sourceIndex,
+                inlineOffset: this.resolveHwpxInlineOffset(sourceIndex, anchorParagraphId, paragraphAnchors),
+                inlineTextOffset: this.resolveHwpxInlineTextOffset(xml, sourceIndex, anchorParagraphId, paragraphAnchors),
                 positioning: this.resolveHwpxShapePositioning(candidate.xml),
+                anchorParagraphId,
+                anchorCellId,
                 leftPt: this.hwpxUnitToPt(this.readXmlNumber(candidate.xml, /(?:x|left)="(-?\d+)"/i), 0),
                 topPt: this.hwpxUnitToPt(this.readXmlNumber(candidate.xml, /(?:y|top)="(-?\d+)"/i), 0),
                 zIndex: this.readXmlNumber(candidate.xml, /(?:zOrder|zIndex)="(-?\d+)"/i) ?? undefined,
@@ -1322,6 +2364,241 @@ export class HwpDocumentParser {
         }
 
         return this.readXmlAttribute(xml, /(?:pathData|d)="([^"]+)"/i) || undefined;
+    }
+
+    private static extractHwpxParagraphAnchors(xml: string, pageIndex: number): Array<{ id: string; start: number; end: number }> {
+        const anchors: Array<{ id: string; start: number; end: number }> = [];
+        const paragraphPattern = /<[^>]*?:p\b[\s\S]*?<\/[^>]*?:p>/gi;
+        let match: RegExpExecArray | null;
+        let paragraphIndex = 0;
+
+        while ((match = paragraphPattern.exec(xml)) !== null) {
+            paragraphIndex += 1;
+            anchors.push({
+                id: `hwpx-p-${pageIndex + 1}-${paragraphIndex}`,
+                start: match.index,
+                end: match.index + match[0].length
+            });
+        }
+
+        return anchors;
+    }
+
+    private static extractCellAnchorsFromTables(
+        tables: HwpLayoutTableBlock[]
+    ): Array<{ id: string; sourceStart?: number; sourceEnd?: number; paragraphIds: string[] }> {
+        return tables.flatMap(table => table.rows.flatMap(row => row.cells
+            .filter((cell): cell is HwpLayoutTableCell & { id: string } => Boolean(cell.id))
+            .map(cell => ({
+                id: cell.id,
+                sourceStart: cell.sourceStart,
+                sourceEnd: cell.sourceEnd,
+                paragraphIds: (cell.paragraphs || [])
+                    .map(paragraph => paragraph.id)
+                    .filter((id): id is string => Boolean(id))
+            }))));
+    }
+
+    private static resolveNearestCellAnchorId(
+        anchorParagraphId: string | undefined,
+        cellAnchors: Array<{ id: string; sourceStart?: number; sourceEnd?: number; paragraphIds: string[] }>,
+        sourceIndex?: number
+    ): string | undefined {
+        if (cellAnchors.length === 0) {
+            return undefined;
+        }
+
+        if (typeof sourceIndex === 'number') {
+            const containingCell = cellAnchors.find(cell => (
+                typeof cell.sourceStart === 'number'
+                && typeof cell.sourceEnd === 'number'
+                && sourceIndex >= cell.sourceStart
+                && sourceIndex <= cell.sourceEnd
+            ));
+            if (containingCell) {
+                return containingCell.id;
+            }
+        }
+
+        if (!anchorParagraphId) {
+            return cellAnchors[0]?.id;
+        }
+
+        const paragraphOwnedCell = cellAnchors.find(cell => cell.paragraphIds.includes(anchorParagraphId));
+        if (paragraphOwnedCell) {
+            return paragraphOwnedCell.id;
+        }
+
+        const pageMatch = anchorParagraphId.match(/^hwpx-p-(\d+)-/);
+        if (!pageMatch) {
+            return cellAnchors[0]?.id;
+        }
+
+        const prefix = `hwpx-cell-${pageMatch[1]}-`;
+        return cellAnchors.find(cell => cell.id.startsWith(prefix))?.id || cellAnchors[0]?.id;
+    }
+
+    private static mergeHwpxInlineBlocks(
+        paragraphBlocks: HwpLayoutParagraph[],
+        tableBlocks: HwpLayoutTableBlock[],
+        imageBlocks: HwpLayoutImageBlock[],
+        lineBlocks: HwpLayoutLineBlock[],
+        textBoxBlocks: HwpLayoutTextBoxBlock[]
+    ): HwpLayoutBlock[] {
+        const paragraphMap = new Map<string, HwpLayoutParagraph>(
+            paragraphBlocks.map(paragraph => [paragraph.id, { ...paragraph, inlineBlocks: [...(paragraph.inlineBlocks || [])] }])
+        );
+        const flowBlocks: HwpLayoutBlock[] = paragraphBlocks.map(paragraph => paragraphMap.get(paragraph.id) || paragraph);
+        const inlineObjects = [...imageBlocks, ...lineBlocks, ...textBoxBlocks]
+            .filter(block => block.positioning !== 'absolute');
+        const anchoredTableBlocks: HwpLayoutTableBlock[] = [...tableBlocks];
+        const absoluteBlocks = [...imageBlocks, ...lineBlocks, ...textBoxBlocks]
+            .filter(block => block.positioning === 'absolute');
+        inlineObjects.sort((left, right) => (left.sourceIndex ?? Number.MAX_SAFE_INTEGER) - (right.sourceIndex ?? Number.MAX_SAFE_INTEGER));
+        anchoredTableBlocks.sort((left, right) => (left.sourceIndex ?? Number.MAX_SAFE_INTEGER) - (right.sourceIndex ?? Number.MAX_SAFE_INTEGER));
+
+        for (const block of inlineObjects) {
+            if (block.anchorParagraphId) {
+                const paragraph = paragraphMap.get(block.anchorParagraphId);
+                if (paragraph) {
+                    paragraph.inlineBlocks = [...(paragraph.inlineBlocks || []), block]
+                        .sort((left, right) => (left.sourceIndex ?? Number.MAX_SAFE_INTEGER) - (right.sourceIndex ?? Number.MAX_SAFE_INTEGER));
+                    continue;
+                }
+            }
+
+            flowBlocks.push(block);
+        }
+
+        for (const block of anchoredTableBlocks) {
+            const anchorIndex = block.anchorParagraphId
+                ? flowBlocks.findIndex(candidate => candidate.kind === 'paragraph' && candidate.id === block.anchorParagraphId)
+                : -1;
+            if (anchorIndex >= 0) {
+                const insertIndex = this.resolveHwpxFlowInsertionIndex(flowBlocks, anchorIndex, block.sourceIndex);
+                flowBlocks.splice(insertIndex, 0, block);
+            } else {
+                flowBlocks.push(block);
+            }
+        }
+
+        return [...flowBlocks, ...absoluteBlocks];
+    }
+
+    private static resolveHwpxFlowInsertionIndex(
+        flowBlocks: HwpLayoutBlock[],
+        anchorIndex: number,
+        sourceIndex: number | undefined
+    ): number {
+        let insertIndex = anchorIndex + 1;
+
+        if (sourceIndex === undefined) {
+            return insertIndex;
+        }
+
+        while (insertIndex < flowBlocks.length) {
+            const candidate = flowBlocks[insertIndex];
+            if (candidate.kind === 'paragraph') {
+                const candidateSourceIndex = candidate.sourceIndex ?? Number.MAX_SAFE_INTEGER;
+                if (candidateSourceIndex > sourceIndex) {
+                    break;
+                }
+            }
+
+            const candidateSourceIndex = 'sourceIndex' in candidate ? (candidate.sourceIndex ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
+            if (candidateSourceIndex > sourceIndex) {
+                break;
+            }
+
+            insertIndex += 1;
+        }
+
+        return insertIndex;
+    }
+
+    private static findNearestParagraphIdByIndex(
+        sourceIndex: number,
+        paragraphAnchors: Array<{ id: string; start: number; end: number }>
+    ): string | undefined {
+        if (paragraphAnchors.length === 0) {
+            return undefined;
+        }
+
+        let nearestId = paragraphAnchors[0]?.id;
+        for (const anchor of paragraphAnchors) {
+            if (anchor.start > sourceIndex) {
+                break;
+            }
+
+            nearestId = anchor.id;
+        }
+
+        return nearestId;
+    }
+
+    private static findNearestHwpxParagraphId(
+        xml: string,
+        snippet: string,
+        paragraphAnchors: Array<{ id: string; start: number; end: number }>
+    ): string | undefined {
+        if (!snippet || paragraphAnchors.length === 0) {
+            return paragraphAnchors[0]?.id;
+        }
+
+        const snippetIndex = xml.indexOf(snippet);
+        if (snippetIndex < 0) {
+            return paragraphAnchors[paragraphAnchors.length - 1]?.id;
+        }
+
+        let nearestId = paragraphAnchors[0]?.id;
+        for (const anchor of paragraphAnchors) {
+            if (anchor.start > snippetIndex) {
+                break;
+            }
+
+            nearestId = anchor.id;
+        }
+
+        return nearestId;
+    }
+
+    private static resolveHwpxInlineOffset(
+        sourceIndex: number | undefined,
+        anchorParagraphId: string | undefined,
+        paragraphAnchors: Array<{ id: string; start: number; end: number }>
+    ): number | undefined {
+        if (sourceIndex === undefined || !anchorParagraphId) {
+            return undefined;
+        }
+
+        const anchor = paragraphAnchors.find(candidate => candidate.id === anchorParagraphId);
+        if (!anchor) {
+            return undefined;
+        }
+
+        return Math.max(0, Math.min(sourceIndex - anchor.start, Math.max(anchor.end - anchor.start, 0)));
+    }
+
+    private static resolveHwpxInlineTextOffset(
+        xml: string,
+        sourceIndex: number | undefined,
+        anchorParagraphId: string | undefined,
+        paragraphAnchors: Array<{ id: string; start: number; end: number }>
+    ): number | undefined {
+        if (sourceIndex === undefined || !anchorParagraphId) {
+            return undefined;
+        }
+
+        const anchor = paragraphAnchors.find(candidate => candidate.id === anchorParagraphId);
+        if (!anchor) {
+            return undefined;
+        }
+
+        const beforeXml = xml.slice(anchor.start, Math.max(anchor.start, Math.min(sourceIndex, anchor.end)));
+        const beforeFieldAwareText = this.extractXmlTextWithFieldTokens(beforeXml);
+        const beforeRawText = this.decodeXmlText(beforeXml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')).trim();
+        const text = beforeFieldAwareText.length >= beforeRawText.length ? beforeFieldAwareText : beforeRawText;
+        return text.length;
     }
 
     private static matchHwpxShapeLikeBlocks(xml: string, pattern: RegExp): Array<{ xml: string }> {
@@ -1419,6 +2696,15 @@ export class HwpDocumentParser {
         return undefined;
     }
 
+    private static resolveHwpAnchorCellId(control: any, sectionIndex: number, paragraphIndex: number): string | undefined {
+        const explicitCellId = control?.attribute?.cellID ?? control?.cellID ?? control?.parentCellID;
+        if (explicitCellId !== undefined && explicitCellId !== null && explicitCellId !== '') {
+            return `hwp-cell-ref-${sectionIndex + 1}-${paragraphIndex + 1}-${String(explicitCellId)}`;
+        }
+
+        return undefined;
+    }
+
     private static resolveHwpxAnchorScope(xml: string): 'page' | 'paragraph' | 'cell' | 'character' | undefined {
         const value = this.readXmlAttribute(xml, /(?:vertRelTo|horzRelTo|relativeTo|textFlowAnchor)="([^"]+)"/i);
         if (!value) {
@@ -1476,6 +2762,7 @@ export class HwpDocumentParser {
                     result.push({
                         ...page,
                         id: `${page.id}-split-${pageIndex}`,
+                        splitPageIndex: pageIndex,
                         blocks: currentBlocks
                     });
                     currentBlocks = [];
@@ -1490,11 +2777,80 @@ export class HwpDocumentParser {
             result.push({
                 ...page,
                 id: pageIndex === 1 ? page.id : `${page.id}-split-${pageIndex}`,
+                splitPageIndex: pageIndex,
                 blocks: currentBlocks.length > 0 ? currentBlocks : [this.createEmptyParagraph(`${page.id}-empty`)]
             });
         }
 
+        for (const page of result) {
+            page.layoutSignature = this.buildPageLayoutSignature(page);
+            page.semanticSummary = this.buildPageSemanticSummary(page);
+        }
+
         return result;
+    }
+
+    private static buildPageLayoutSignature(page: HwpLayoutPage): string {
+        const blockKinds = page.blocks.map(block => {
+            const positioning = 'positioning' in block ? block.positioning || 'flow' : 'flow';
+            return `${block.kind}:${positioning}`;
+        }).join('|');
+        return [
+            page.sectionIndex || 0,
+            page.sourcePageIndex || 0,
+            page.splitPageIndex || 0,
+            page.columnCount || 1,
+            Math.round(page.columnGapPt || 0),
+            Math.round(page.widthPt),
+            Math.round(page.minHeightPt),
+            Math.round(page.paddingPt.top),
+            Math.round(page.paddingPt.right),
+            Math.round(page.paddingPt.bottom),
+            Math.round(page.paddingPt.left),
+            blockKinds
+        ].join(';');
+    }
+
+    private static buildPageSemanticSummary(page: HwpLayoutPage): string {
+        const counts = page.blocks.reduce((acc, block) => {
+            acc[block.kind] = (acc[block.kind] || 0) + 1;
+            return acc;
+        }, {} as Record<string, number>);
+        return [
+            `section:${page.sectionIndex || 0}`,
+            `source:${page.sourcePageIndex || 0}`,
+            `split:${page.splitPageIndex || 0}`,
+            `columns:${page.columnCount || 1}`,
+            `hf:${page.headerFooterVariant || 'default'}`,
+            `footnotes:${page.footnoteCount || 0}`,
+            `endnotes:${page.endnoteCount || 0}`,
+            `paragraphs:${counts.paragraph || 0}`,
+            `tables:${counts.table || 0}`,
+            `images:${counts.image || 0}`,
+            `lines:${counts.line || 0}`,
+            `textboxes:${counts.textbox || 0}`
+        ].join(' ');
+    }
+
+    private static buildDocumentLayoutSignature(pages: HwpLayoutPage[]): string {
+        return pages.map(page => page.layoutSignature || this.buildPageLayoutSignature(page)).join('||');
+    }
+
+    private static buildDocumentSemanticSummary(pages: HwpLayoutPage[]): string {
+        const counts = pages.reduce((acc, page) => {
+            for (const block of page.blocks) {
+                acc[block.kind] = (acc[block.kind] || 0) + 1;
+            }
+            return acc;
+        }, {} as Record<string, number>);
+        return [
+            `pages:${pages.length}`,
+            `paragraphs:${counts.paragraph || 0}`,
+            `tables:${counts.table || 0}`,
+            `images:${counts.image || 0}`,
+            `lines:${counts.line || 0}`,
+            `textboxes:${counts.textbox || 0}`
+        ].join(' ');
     }
 
     private static estimateBlockHeight(block: HwpLayoutBlock, usableWidthPt: number): number {

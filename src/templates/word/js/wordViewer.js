@@ -321,6 +321,63 @@
         }
     }
 
+    function normalizeChartSpacerParagraphs() {
+        if (!wordContent) return;
+
+        const hasOnlyChartContent = (paragraph) => {
+            if (!paragraph || paragraph.tagName !== 'P' || !paragraph.querySelector('.ov-chart-card')) {
+                return false;
+            }
+
+            const clone = paragraph.cloneNode(true);
+            clone.querySelectorAll('.ov-chart-card').forEach((node) => node.remove());
+            return (clone.textContent || '').replace(/\u200b/g, '').trim() === '';
+        };
+
+        const isVisualEmptyParagraph = (paragraph) => {
+            if (!paragraph || paragraph.tagName !== 'P' || paragraph.querySelector('.ov-chart-card')) {
+                return false;
+            }
+
+            if (paragraph.querySelector('table, img, svg, canvas, object, iframe')) {
+                return false;
+            }
+
+            return (paragraph.textContent || '').replace(/\u200b/g, '').trim() === '';
+        };
+
+        const markTrailingEmptyParagraphs = (startElement) => {
+            const trailingEmptyParagraphs = [];
+            let sibling = startElement?.nextElementSibling || null;
+            while (sibling && sibling.tagName === 'P' && isVisualEmptyParagraph(sibling)) {
+                trailingEmptyParagraphs.push(sibling);
+                sibling = sibling.nextElementSibling;
+            }
+
+            if (trailingEmptyParagraphs.length <= 1) {
+                return;
+            }
+
+            trailingEmptyParagraphs.forEach((emptyParagraph, index) => {
+                emptyParagraph.setAttribute('data-ov-chart-spacer', index === 0 ? 'keep' : 'trim');
+            });
+        };
+
+        wordContent.querySelectorAll('p[data-ov-chart-spacer]').forEach((el) => {
+            el.removeAttribute('data-ov-chart-spacer');
+        });
+
+        wordContent.querySelectorAll('p').forEach((paragraph) => {
+            if (hasOnlyChartContent(paragraph)) {
+                markTrailingEmptyParagraphs(paragraph);
+            }
+        });
+
+        wordContent.querySelectorAll('.ov-doc-embedded-sheet').forEach((section) => {
+            markTrailingEmptyParagraphs(section);
+        });
+    }
+
     function normalizeDocxPreviewDom() {
         if (!wordContent) return;
 
@@ -356,6 +413,7 @@
                 el.setAttribute('data-ov-bullet-fix', '1');
             }
         });
+        normalizeChartSpacerParagraphs();
     }
 
     function createChartElement(chartData) {
@@ -468,6 +526,7 @@
                     if (!wordContent.innerHTML || wordContent.innerHTML.trim() === '') {
                         wordContent.innerHTML = config.htmlContent || '';
                     }
+                    normalizeChartSpacerParagraphs();
                 }
                 appendSourceInfo(config, false);
                 if (loading) loading.style.display = 'none';

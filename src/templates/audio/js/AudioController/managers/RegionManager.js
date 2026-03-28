@@ -4,6 +4,7 @@ import { AudioUtils } from '../utils/AudioUtils.js';
 export class RegionManager {
     constructor(state) {
         this.state = state;
+        this.overlayRegionListenersCleanup = null;
     }
 
     showControls() {
@@ -19,12 +20,9 @@ export class RegionManager {
         this.removeOverlays();
         
         const waveformContainer = document.getElementById('waveform');
-        const containerRect = waveformContainer.getBoundingClientRect();
         const regionElement = region.element;
         
-        if (!regionElement) return;
-        
-        const regionRect = regionElement.getBoundingClientRect();
+        if (!waveformContainer || !regionElement) return;
         
         // Start input overlay
         this.state.regionStartOverlay = document.createElement('div');
@@ -40,21 +38,66 @@ export class RegionManager {
             <input type="number" value="${region.end.toFixed(3)}" class="region-end-input" title="End time">
         `;
         
-        // Position calculation
-        const startLeft = regionRect.left - containerRect.left - 10;
-        const endLeft = regionRect.right - containerRect.left + 10;
-        const top = regionRect.top - containerRect.top + 10;
-        
-        this.state.regionStartOverlay.style.left = startLeft + 'px';
-        this.state.regionStartOverlay.style.top = top + 'px';
-        
-        this.state.regionEndOverlay.style.left = endLeft + 'px';
-        this.state.regionEndOverlay.style.top = top + 'px';
-        
         waveformContainer.appendChild(this.state.regionStartOverlay);
         waveformContainer.appendChild(this.state.regionEndOverlay);
         
+        this.attachRegionOverlaySync(region);
+        this.positionOverlays(region);
         this.setupOverlayEvents(region);
+    }
+
+    attachRegionOverlaySync(region) {
+        if (this.overlayRegionListenersCleanup) {
+            this.overlayRegionListenersCleanup();
+            this.overlayRegionListenersCleanup = null;
+        }
+
+        if (!region?.on) {
+            return;
+        }
+
+        const syncOverlays = () => {
+            this.updateOverlays(region);
+        };
+
+        const unsubscribeUpdate = region.on('update', syncOverlays);
+        const unsubscribeUpdateEnd = region.on('update-end', syncOverlays);
+
+        this.overlayRegionListenersCleanup = () => {
+            if (typeof unsubscribeUpdate === 'function') {
+                unsubscribeUpdate();
+            }
+            if (typeof unsubscribeUpdateEnd === 'function') {
+                unsubscribeUpdateEnd();
+            }
+        };
+    }
+
+    positionOverlays(region) {
+        if (!this.state.regionStartOverlay || !this.state.regionEndOverlay) {
+            return;
+        }
+
+        const regionElement = region.element;
+        if (!regionElement) {
+            return;
+        }
+
+        const overlayParent = this.state.regionStartOverlay.offsetParent || this.state.regionStartOverlay.parentElement;
+        if (!overlayParent) {
+            return;
+        }
+
+        const parentRect = overlayParent.getBoundingClientRect();
+        const regionRect = regionElement.getBoundingClientRect();
+        const startLeft = regionRect.left - parentRect.left - 10;
+        const endLeft = regionRect.right - parentRect.left + 10;
+        const top = regionRect.top - parentRect.top + 10;
+
+        this.state.regionStartOverlay.style.left = startLeft + 'px';
+        this.state.regionStartOverlay.style.top = top + 'px';
+        this.state.regionEndOverlay.style.left = endLeft + 'px';
+        this.state.regionEndOverlay.style.top = top + 'px';
     }
 
     setupOverlayEvents(region) {
@@ -164,10 +207,25 @@ export class RegionManager {
             const endInput = this.state.regionEndOverlay.querySelector('.region-end-input');
             startInput.value = region.start.toFixed(3);
             endInput.value = region.end.toFixed(3);
+            this.positionOverlays(region);
         }
     }
 
+    updateSelectedRegionOverlays() {
+        const selectedRegion = this.getSelectedRegion();
+        if (!selectedRegion) {
+            return;
+        }
+
+        this.updateOverlays(selectedRegion);
+    }
+
     removeOverlays() {
+        if (this.overlayRegionListenersCleanup) {
+            this.overlayRegionListenersCleanup();
+            this.overlayRegionListenersCleanup = null;
+        }
+
         if (this.state.regionStartOverlay) {
             this.state.regionStartOverlay.remove();
             this.state.regionStartOverlay = null;

@@ -165,7 +165,13 @@ export class PluginManager {
 
         this.state.regionsPlugin.on('region-updated', (region) => {
             if (this.state.selectedRegionId === region.id) {
-                this.state.regionManager.updateOverlays(region);
+                this.state.regionManager.updateSelectedRegionOverlays();
+            }
+        });
+
+        this.state.regionsPlugin.on('region-update', (region) => {
+            if (this.state.selectedRegionId === region.id) {
+                this.state.regionManager.updateSelectedRegionOverlays();
             }
         });
 

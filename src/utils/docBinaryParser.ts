@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as XLSX from 'xlsx';
+import JSZip from 'jszip';
 
 const FREESECT = 0xffffffff;
 const ENDOFCHAIN = 0xfffffffe;
@@ -124,7 +125,22 @@ type LegacyBlock =
     }
     | { kind: 'image-gallery'; images: Array<{ src: string; alt: string }> };
 
+type EmbeddedChart = {
+    type: 'bar' | 'line';
+    categories: string[];
+    series: Array<{ name: string; values: number[]; color: string }>;
+};
+
+type EmbeddedSheetData = {
+    title: string;
+    rows: string[][];
+    showTable: boolean;
+    chart?: EmbeddedChart;
+};
+
 export class DocBinaryParser {
+    private static readonly FIELD_CODE_NOISE_PATTERN = /\b(?:HYPERLINK|PAGEREF|TOC|REF)\b\s+"[^"]*"\s*/gi;
+
     public static async parseToHtml(filePath: string): Promise<string> {
         const buffer = await fs.promises.readFile(filePath);
         const cfb = this.parseCfb(buffer);
@@ -137,23 +153,11 @@ export class DocBinaryParser {
         const extracted = this.extractDocumentText(cfb, wordStream, fib);
         const images = this.extractImages(cfb);
         const embeddedTables = this.extractEmbeddedWorkbookTables(cfb);
-        const html = this.renderHtml(extracted.text, images, extracted.styledParagraphs);
-        if (html || embeddedTables.length > 0) {
-            const baseHtml = html || '<div class="ov-doc-legacy"></div>';
-            if (embeddedTables.length === 0) {
-                return baseHtml;
-            }
-
-            const workbookBlocks = embeddedTables.flatMap((table) => {
-                return [{
-                    kind: 'embedded-sheet',
-                    title: table.title,
-                    chart: table.chart,
-                    rows: table.showTable ? table.rows : undefined
-                } satisfies LegacyBlock];
-            });
-
-            return baseHtml.replace(/<\/div>\s*$/, `${this.renderBlocks(workbookBlocks)}</div>`);
+        const embeddedPackageCharts = await this.extractEmbeddedPackageCharts(cfb);
+        const blocks = this.buildDocumentBlocks(extracted.text, images, extracted.styledParagraphs);
+        if (blocks.length > 0 || embeddedTables.length > 0 || embeddedPackageCharts.length > 0) {
+            const combinedBlocks = this.composeDocumentBlocks(blocks, embeddedPackageCharts, embeddedTables);
+            return this.wrapLegacyHtml(this.renderBlocks(combinedBlocks));
         }
 
         return '<div class="ov-doc-legacy-empty">No readable text content found in this .doc file.</div>';
@@ -1350,6 +1354,32 @@ export class DocBinaryParser {
         images: Array<{ src: string; alt: string }>,
         styledParagraphs?: StyledParagraph[]
     ): string {
+        const blocks = this.buildDocumentBlocks(rawText, images, styledParagraphs);
+        if (blocks.length === 0) {
+            return '';
+        }
+
+        return this.wrapLegacyHtml(this.renderBlocks(blocks));
+    }
+
+    private static buildDocumentBlocks(
+        rawText: string,
+        images: Array<{ src: string; alt: string }>,
+        styledParagraphs?: StyledParagraph[]
+    ): LegacyBlock[] {
+        const lines = this.buildRenderableLines(rawText, styledParagraphs);
+        if (lines.length === 0 && images.length === 0) {
+            return [];
+        }
+
+        const blocks = this.buildBlocks(lines);
+        if (images.length > 0) {
+            blocks.push({ kind: 'image-gallery', images });
+        }
+        return blocks;
+    }
+
+    private static buildRenderableLines(rawText: string, styledParagraphs?: StyledParagraph[]): StyledLine[] {
         const rawLines: StyledLine[] = styledParagraphs && styledParagraphs.length > 0
             ? styledParagraphs
                 .map((entry) => ({
@@ -1368,18 +1398,58 @@ export class DocBinaryParser {
                 .split(/\n+/)
                 .map((text) => ({ text: this.normalizeParagraphText(text, true) }))
                 .filter((entry) => entry.text.length > 0);
-        const lines = rawLines.filter((line, index) => line.inTable || line.isTableTerminator || !this.shouldDropLine(line.text, rawLines[index - 1]?.text || '', rawLines[index + 1]?.text || ''));
 
-        if (lines.length === 0 && images.length === 0) {
-            return '';
+        return rawLines.filter((line, index) => (
+            line.inTable
+            || line.isTableTerminator
+            || !this.shouldDropLine(line.text, rawLines[index - 1]?.text || '', rawLines[index + 1]?.text || '')
+        ));
+    }
+
+    private static composeDocumentBlocks(
+        baseBlocks: LegacyBlock[],
+        packageCharts: EmbeddedSheetData[],
+        workbookTables: EmbeddedSheetData[]
+    ): LegacyBlock[] {
+        const combinedBlocks = [...baseBlocks];
+        const packageBlocks = this.buildEmbeddedSheetBlocks(packageCharts);
+        if (packageBlocks.length > 0) {
+            this.insertBlocksBeforeFirstTable(combinedBlocks, packageBlocks);
         }
 
-        const blocks = this.buildBlocks(lines);
-        if (images.length > 0) {
-            blocks.push({ kind: 'image-gallery', images });
+        const workbookBlocks = this.buildEmbeddedSheetBlocks(workbookTables);
+        if (workbookBlocks.length > 0) {
+            combinedBlocks.push(...workbookBlocks);
         }
 
-        return `<div class="ov-doc-legacy">${this.renderBlocks(blocks)}</div>`;
+        return combinedBlocks;
+    }
+
+    private static buildEmbeddedSheetBlocks(sheets: EmbeddedSheetData[]): LegacyBlock[] {
+        return sheets.map((sheet) => ({
+            kind: 'embedded-sheet',
+            title: sheet.title,
+            chart: sheet.chart,
+            rows: sheet.showTable ? sheet.rows : undefined
+        }));
+    }
+
+    private static insertBlocksBeforeFirstTable(targetBlocks: LegacyBlock[], blocksToInsert: LegacyBlock[]): void {
+        if (blocksToInsert.length === 0) {
+            return;
+        }
+
+        const firstTableIndex = targetBlocks.findIndex((block) => block.kind === 'table');
+        if (firstTableIndex >= 0) {
+            targetBlocks.splice(firstTableIndex, 0, ...blocksToInsert);
+            return;
+        }
+
+        targetBlocks.push(...blocksToInsert);
+    }
+
+    private static wrapLegacyHtml(content: string): string {
+        return `<div class="ov-doc-legacy">${content}</div>`;
     }
 
     private static buildBlocks(lines: StyledLine[]): LegacyBlock[] {
@@ -1760,7 +1830,11 @@ export class DocBinaryParser {
                 const items = block.images
                     .map((image) => `<figure class="ov-doc-legacy-image"><img src="${image.src}" alt="${this.escapeHtml(image.alt)}"><figcaption>${this.escapeHtml(image.alt)}</figcaption></figure>`)
                     .join('');
-                rendered.push(`<section class="ov-doc-legacy-images"><h2>Images</h2><div class="ov-doc-legacy-image-grid">${items}</div></section>`);
+                if (block.images.length === 1) {
+                    rendered.push(`<section class="ov-doc-legacy-images"><div class="ov-doc-legacy-image-grid">${items}</div></section>`);
+                } else {
+                    rendered.push(`<section class="ov-doc-legacy-images"><h2>Images</h2><div class="ov-doc-legacy-image-grid">${items}</div></section>`);
+                }
             }
         }
 
@@ -1842,12 +1916,12 @@ export class DocBinaryParser {
         fallbackText: string
     ): string {
         if (!runs || runs.length === 0) {
-            return this.escapeHtml(fallbackText);
+            return this.escapeHtml(this.stripFieldCodeNoise(fallbackText));
         }
 
         return runs
             .map((run) => {
-                const text = this.escapeHtml(run.text);
+                const text = this.escapeHtml(this.stripFieldCodeNoise(run.text));
                 const styleAttr = this.renderInlineStyleAttribute(run.style);
                 return styleAttr ? `<span${styleAttr}>${text}</span>` : text;
             })
@@ -2203,7 +2277,7 @@ export class DocBinaryParser {
     private static normalizeDocumentText(raw: string): string {
         return raw
             .replace(/\u0000/g, '')
-            .replace(/\b(HYPERLINK|PAGEREF|TOC|REF)\b\s+"[^"]*"\s*/gi, '')
+            .replace(this.FIELD_CODE_NOISE_PATTERN, '')
             .replace(/[\u0001-\u0006\u0008\u000c\u000e-\u0012\u0014-\u001f]/g, ' ')
             .replace(/[\u0007\u000b]/g, '\n')
             .replace(/\r/g, '\n')
@@ -2216,9 +2290,14 @@ export class DocBinaryParser {
     private static normalizeParagraphText(raw: string, preserveTabs = false): string {
         const whitespacePattern = preserveTabs ? /[^\S\t]+/g : /\s+/g;
         return (raw || '')
+            .replace(this.FIELD_CODE_NOISE_PATTERN, '')
             .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, ' ')
             .replace(whitespacePattern, ' ')
             .trim();
+    }
+
+    private static stripFieldCodeNoise(raw: string): string {
+        return (raw || '').replace(this.FIELD_CODE_NOISE_PATTERN, '');
     }
 
     private static isNoise(text: string): boolean {
@@ -2291,12 +2370,7 @@ export class DocBinaryParser {
 
     private static extractEmbeddedWorkbookTables(
         cfb: CfbReader
-    ): Array<{
-        title: string;
-        rows: string[][];
-        showTable: boolean;
-        chart?: { type: 'bar' | 'line'; categories: string[]; series: Array<{ name: string; values: number[]; color: string }> };
-    }> {
+    ): EmbeddedSheetData[] {
         const workbook = cfb.getStream('Workbook');
         if (!workbook) {
             return [];
@@ -2321,12 +2395,7 @@ export class DocBinaryParser {
                         chart: this.buildEmbeddedChart(normalizedRows)
                     };
                 })
-                .filter(Boolean) as Array<{
-                    title: string;
-                    rows: string[][];
-                    showTable: boolean;
-                    chart?: { type: 'bar' | 'line'; categories: string[]; series: Array<{ name: string; values: number[]; color: string }> };
-                }>)
+                .filter(Boolean) as EmbeddedSheetData[])
                 .slice(0, 3);
         } catch (error) {
             console.warn('[DOC] Failed to parse embedded workbook:', error);
@@ -2334,7 +2403,83 @@ export class DocBinaryParser {
         }
     }
 
-    private static buildEmbeddedChart(rows: string[][]): { type: 'bar' | 'line'; categories: string[]; series: Array<{ name: string; values: number[]; color: string }> } | undefined {
+    private static async extractEmbeddedPackageCharts(
+        cfb: CfbReader
+    ): Promise<EmbeddedSheetData[]> {
+        const packageStream = cfb.getStream('package_stream');
+        if (!packageStream) {
+            return [];
+        }
+
+        try {
+            const zip = await JSZip.loadAsync(packageStream);
+            const mimeType = await zip.file('mimetype')?.async('string');
+            if (!mimeType || !/opendocument\.chart/i.test(mimeType)) {
+                return [];
+            }
+
+            const contentXml = await zip.file('content.xml')?.async('string');
+            if (!contentXml) {
+                return [];
+            }
+
+            const parsed = this.parseOdfChartContent(contentXml);
+            return parsed ? [parsed] : [];
+        } catch (error) {
+            console.warn('[DOC] Failed to parse embedded chart package:', error);
+            return [];
+        }
+    }
+
+    private static parseOdfChartContent(
+        contentXml: string
+    ): EmbeddedSheetData | undefined {
+        const rowMatches = Array.from(contentXml.matchAll(/<table:table-row[\s\S]*?<\/table:table-row>/g));
+        if (rowMatches.length < 2) {
+            return undefined;
+        }
+
+        const rows = rowMatches
+            .map((match) => this.parseOdfTableRow(match[0]))
+            .filter((row) => row.some((cell) => cell.length > 0));
+        if (rows.length < 2 || rows[0].length < 2) {
+            return undefined;
+        }
+
+        const firstSeries = contentXml.match(/<chart:series[^>]*chart:class="chart:([^"]+)"/i)?.[1];
+        const chart = this.buildEmbeddedChart(rows);
+        const title = 'Embedded Chart';
+
+        return {
+            title,
+            rows,
+            showTable: false,
+            chart: chart
+                ? {
+                    ...chart,
+                    type: firstSeries === 'line' ? 'line' : chart.type
+                }
+                : undefined
+        };
+    }
+
+    private static parseOdfTableRow(rowXml: string): string[] {
+        const cellMatches = Array.from(rowXml.matchAll(/<table:table-cell\b[\s\S]*?<\/table:table-cell>/g));
+        return cellMatches.map((cellMatch) => {
+            const cellXml = cellMatch[0];
+            const paragraphMatches = Array.from(cellXml.matchAll(/<text:p(?:\b[^>]*)?>([\s\S]*?)<\/text:p>|<text:p\b[^>]*\/>/g));
+            if (paragraphMatches.length === 0) {
+                return '';
+            }
+
+            return paragraphMatches
+                .map((paragraph) => this.decodeXmlEntities(this.normalizeParagraphText(paragraph[1] ?? '')))
+                .join(' ')
+                .trim();
+        });
+    }
+
+    private static buildEmbeddedChart(rows: string[][]): EmbeddedChart | undefined {
         if (rows.length < 2 || rows[0].length < 3) {
             return undefined;
         }
@@ -2381,7 +2526,7 @@ export class DocBinaryParser {
         return 'bar';
     }
 
-    private static renderEmbeddedChart(chart: { type: 'bar' | 'line'; categories: string[]; series: Array<{ name: string; values: number[]; color: string }> }): string {
+    private static renderEmbeddedChart(chart: EmbeddedChart): string {
         const width = 760;
         const height = 320;
         const margin = { top: 28, right: 160, bottom: 54, left: 46 };
@@ -2507,5 +2652,14 @@ export class DocBinaryParser {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
+    }
+
+    private static decodeXmlEntities(value: string): string {
+        return value
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&apos;/g, '\'')
+            .replace(/&amp;/g, '&');
     }
 }

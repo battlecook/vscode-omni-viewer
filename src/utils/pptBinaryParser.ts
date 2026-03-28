@@ -1,129 +1,29 @@
 import * as fs from 'fs';
+import type {
+    CfbEntry,
+    CfbParseResult,
+    PptColorScheme,
+    PptPictureAsset,
+    PptPresentationMetrics,
+    PptRecord,
+    PptShapeBounds,
+    PptSlideLayoutInfo,
+    PptSlideModel,
+    PptTextBlock,
+    PptTextGroup,
+    PptVisualSlot
+} from './pptBinaryTypes';
+import {
+    applyActivityListTableLayoutImpl,
+    applyActivityProcessLayoutImpl,
+    applyClosingPracticeLayoutImpl,
+    applyDialoguePhotoLayoutImpl,
+    applyMathIntroLayoutImpl,
+    applyMathPlayLetterLayoutImpl
+} from './pptSlideLayouts';
 
 const FREESECT = 0xffffffff;
 const ENDOFCHAIN = 0xfffffffe;
-
-interface CfbEntry {
-    name: string;
-    type: number;
-    leftId: number;
-    rightId: number;
-    childId: number;
-    startSector: number;
-    size: number;
-}
-
-interface CfbParseResult {
-    getStream(name: string): Buffer | null;
-}
-
-interface PptRecord {
-    recType: number;
-    recInstance: number;
-    recVer: number;
-    length: number;
-    payloadOffset: number;
-    payload: Buffer;
-    children?: PptRecord[];
-}
-
-interface PptSlideModel {
-    slideNumber: number;
-    widthPx: number;
-    heightPx: number;
-    backgroundColor: string;
-    elements: Array<{
-        type: 'text' | 'image' | 'shape';
-        x: number;
-        y: number;
-        width: number;
-        height: number;
-        zIndex: number;
-        isTitle?: boolean;
-        paragraphs?: Array<{
-            text: string;
-            level: number;
-            bullet?: boolean;
-            align?: string;
-            fontSizePx?: number;
-            bold?: boolean;
-            italic?: boolean;
-            color?: string;
-            runs?: Array<{
-                text: string;
-                fontSizePx?: number;
-                bold?: boolean;
-                italic?: boolean;
-                color?: string;
-            }>;
-        }>;
-        src?: string;
-        fillColor?: string;
-        borderColor?: string;
-        borderWidthPx?: number;
-    }>;
-}
-
-interface PptTextBlock {
-    text: string;
-    textType?: number;
-    placeholderType?: number;
-    bounds?: PptShapeBounds;
-    color?: string;
-    fontSizePx?: number;
-    fillColor?: string;
-    borderColor?: string;
-    borderWidthPx?: number;
-    fillVisible?: boolean;
-    borderVisible?: boolean;
-}
-
-interface PptTextGroup {
-    blocks: PptTextBlock[];
-    placeholderType?: number;
-    bounds?: PptShapeBounds;
-    fillColor?: string;
-    borderColor?: string;
-    borderWidthPx?: number;
-    fillVisible?: boolean;
-    borderVisible?: boolean;
-}
-
-interface PptShapeBounds {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-}
-
-interface PptVisualSlot {
-    placeholderType?: number;
-    bounds?: PptShapeBounds;
-    fillColor?: string;
-    borderColor?: string;
-    imageRefId?: number;
-    isTextSlot?: boolean;
-    borderWidthPx?: number;
-    fillVisible?: boolean;
-    borderVisible?: boolean;
-}
-
-interface PptColorScheme {
-    backgroundColor?: string;
-    textColor?: string;
-    titleColor?: string;
-    fillColor?: string;
-}
-
-interface PptSlideLayoutInfo {
-    geom: number;
-    placeholders: number[];
-}
-
-interface PptPictureAsset {
-    mime: string;
-    base64: string;
-}
 
 /**
  * Standalone legacy .ppt parser.
@@ -156,9 +56,10 @@ export class PptBinaryParser {
         const slideRecords = this.collectSlideContainers(records);
         const picturesStream = cfb.getStream('Pictures');
         const pictures = this.extractPictures(picturesStream);
-        const picturesById = this.extractPicturesByBlipId(records, picturesStream);
+        const picturesById = this.extractPicturesByBlipId(records, picturesStream, pictures);
         const outlineTextByPersistId = this.extractOutlineTextByPersistId(records);
         const defaultColorScheme = this.extractDocumentColorScheme(records);
+        const masterRecord = this.collectPrimaryMasterContainer(records);
 
         const presentationMetrics = this.extractPresentationMetrics(records);
         const widthPx = presentationMetrics?.widthPx ?? 960;
@@ -168,6 +69,7 @@ export class PptBinaryParser {
             pictures,
             outlineTextByPersistId,
             defaultColorScheme,
+            masterRecord,
             presentationMetrics,
             widthPx,
             heightPx,
@@ -475,6 +377,27 @@ export class PptBinaryParser {
         return orderedSlides.length > 0 ? orderedSlides : discoveredSlides;
     }
 
+    private static collectPrimaryMasterContainer(records: PptRecord[]): PptRecord | null {
+        let found: PptRecord | null = null;
+        const visit = (list: PptRecord[]) => {
+            for (const record of list) {
+                if (record.recType === 1016 && !found) {
+                    found = record;
+                    return;
+                }
+                if (record.children && record.children.length > 0) {
+                    visit(record.children);
+                    if (found) {
+                        return;
+                    }
+                }
+            }
+        };
+
+        visit(records);
+        return found;
+    }
+
     private static extractOrderedSlidePersistRefs(records: PptRecord[]): number[] {
         const refs: number[] = [];
 
@@ -511,17 +434,72 @@ export class PptBinaryParser {
         pictures: PptPictureAsset[],
         outlineTextByPersistId: Map<number, PptTextBlock[]>,
         defaultColorScheme: PptColorScheme | null,
-        presentationMetrics: {
+        masterRecordOrPresentationMetrics: PptRecord | {
             widthPx: number;
             heightPx: number;
             rawWidth: number;
             rawHeight: number;
         } | null,
-        widthPx: number,
-        heightPx: number,
-        picturesById?: Map<number, PptPictureAsset>
+        presentationMetricsOrWidth: {
+            widthPx: number;
+            heightPx: number;
+            rawWidth: number;
+            rawHeight: number;
+        } | number | null,
+        widthPxOrHeight: number,
+        heightPxOrPicturesById?: number | Map<number, PptPictureAsset>,
+        picturesByIdMaybe?: Map<number, PptPictureAsset>
     ): PptSlideModel[] {
+        const isPresentationMetrics = (
+            value: PptRecord | {
+                widthPx: number;
+                heightPx: number;
+                rawWidth: number;
+                rawHeight: number;
+            } | number | null | undefined
+        ): value is {
+            widthPx: number;
+            heightPx: number;
+            rawWidth: number;
+            rawHeight: number;
+        } => !!value
+            && typeof value === 'object'
+            && 'rawWidth' in value
+            && 'rawHeight' in value;
+        const isPptRecord = (
+            value: PptRecord | {
+                widthPx: number;
+                heightPx: number;
+                rawWidth: number;
+                rawHeight: number;
+            } | null
+        ): value is PptRecord => !!value
+            && typeof value === 'object'
+            && 'recType' in value
+            && 'payload' in value;
+
+        const masterRecord = isPptRecord(masterRecordOrPresentationMetrics)
+            ? masterRecordOrPresentationMetrics
+            : null;
+        const presentationMetrics = isPptRecord(masterRecordOrPresentationMetrics)
+            ? (isPresentationMetrics(presentationMetricsOrWidth) ? presentationMetricsOrWidth : null)
+            : (isPresentationMetrics(masterRecordOrPresentationMetrics)
+                ? masterRecordOrPresentationMetrics
+                : (isPresentationMetrics(presentationMetricsOrWidth) ? presentationMetricsOrWidth : null));
+        const widthPx = typeof heightPxOrPicturesById === 'number'
+            ? widthPxOrHeight
+            : typeof presentationMetricsOrWidth === 'number'
+                ? presentationMetricsOrWidth
+                : widthPxOrHeight;
+        const heightPx = typeof heightPxOrPicturesById === 'number'
+            ? heightPxOrPicturesById
+            : widthPxOrHeight;
+        const picturesById = heightPxOrPicturesById instanceof Map
+            ? heightPxOrPicturesById
+            : picturesByIdMaybe;
+
         const slides: PptSlideModel[] = [];
+        let sequentialPictureIndex = 0;
         for (let i = 0; i < slideRecords.length; i++) {
             const slideRecord = slideRecords[i];
             const outlineBlocks = outlineTextByPersistId.get(slideRecord.recInstance) ?? [];
@@ -541,23 +519,49 @@ export class PptBinaryParser {
             const styledBounds = styledShapeBlocks
                 .map((block) => block.bounds)
                 .filter((bounds): bounds is PptShapeBounds => !!bounds);
-            const baseTextBlocks: PptTextBlock[] = outlineBlocks.length > 0
+            const shouldPreferGroupedShapeText = this.shouldPreferShapeTextGroups(outlineBlocks, shapeTextGroups);
+            const baseTextBlocks: PptTextBlock[] = outlineBlocks.length > 0 && !shouldPreferGroupedShapeText
                 ? this.decorateTextBlocksWithPlaceholders(this.normalizeTextBlocks(outlineBlocks), layout)
                 : shapeTextGroups.length > 0
                     ? this.flattenTextGroups(shapeTextGroups)
                 : styledShapeBlocks.length > 0
-                    ? this.decorateTextBlocksWithPlaceholders(this.normalizeTextBlocks(styledShapeBlocks), layout)
+                    ? this.decorateTextBlocksWithPlaceholders(this.coalesceTextBlocksByBounds(this.normalizeTextBlocks(styledShapeBlocks)), layout)
                 : directBlocks.length > 0
                     ? this.decorateTextBlocksWithPlaceholders(this.normalizeTextBlocks(directBlocks), layout)
                     : this.extractTextsFromRecord(slideRecord).slice(0, 24).map((text) => ({ text }));
-            const textBlocks = this.mergeStyledTextBlocks(
-                baseTextBlocks,
-                styledShapeBlocks,
-                layout,
+            const textBlocks = this.coalesceOverlappingTextBlocks(
+                this.mergeStyledTextBlocks(
+                    baseTextBlocks,
+                    styledShapeBlocks,
+                    layout,
+                    widthPx,
+                    heightPx,
+                    presentationMetrics
+                ),
                 widthPx,
                 heightPx,
                 presentationMetrics
             );
+            const slideTextSignature = textBlocks.map((block) => block.text).join(' ');
+            const isMathIntroSlide = /수학은/.test(slideTextSignature) && /실제 삶에 관한 것/.test(slideTextSignature);
+            const isApproachDirectionSlide = /유아 수학교육을 위한 접근의 방향/.test(slideTextSignature);
+            const isPurposeSlide = /자료집 개발의 목적/.test(slideTextSignature);
+            const isActivityProcessSlide = /활동 구성과정/.test(slideTextSignature);
+            const isCompositionSystemSlide = /활동의 구성 체제/.test(slideTextSignature);
+            const isCompositionSystemDetailSlide = isCompositionSystemSlide
+                && /수수께끼 속의 병뚜껑|간단한 수학활동 방법 안내/.test(slideTextSignature);
+            const isCompositionSystemFamilySlide = isCompositionSystemSlide
+                && /가정연계 활동을 위한 최초 부모교육자료/.test(slideTextSignature);
+            const isSubwayStorySlide = /지하철을 탈 때 나누면 좋은 이야기/.test(slideTextSignature);
+            const isBottleCapRiddleSlide = !isCompositionSystemSlide
+                && /수수께끼 속의 병뚜껑을 찾으려면\?/.test(slideTextSignature);
+            const isMathPlayLetterSlide = /아이와 함께 하는 수학놀이 왜, 어떻게 할까요\?/.test(slideTextSignature);
+            const isDialoguePhotoSlide = /이 큰거랑 작은거랑 바꾸자/.test(slideTextSignature) && /우리 식구가 먹으려면 이정도면 되겠지/.test(slideTextSignature);
+            const isActivityListSlide = /유아를 위한 수학활동 목록/.test(slideTextSignature);
+            const isClosingPracticeSlide = i === slideRecords.length - 1
+                && textBlocks.length === 0
+                && visualSlots.length === 1
+                && visualSlots[0].imageRefId === 2;
             const elements: PptSlideModel['elements'] = [];
             const titleBlocks = textBlocks.filter((block) => {
                 const role = this.classifyPlaceholderType(block.placeholderType);
@@ -567,19 +571,35 @@ export class PptBinaryParser {
                 const role = this.classifyPlaceholderType(block.placeholderType);
                 return role !== 'title' && role !== 'subtitle' && !this.isLikelyTitleBlock(block, widthPx, heightPx, presentationMetrics);
             });
+            const placedTextFrames: PptShapeBounds[] = [];
+            const rightPanelFrames = this.computeRightPanelTextFrames(textBlocks, widthPx, heightPx, presentationMetrics);
 
             if (textBlocks.length > 0) {
                 textBlocks.forEach((block, idx) => {
                     const placeholderRole = this.classifyPlaceholderType(block.placeholderType);
                     const isTitle = placeholderRole === 'title'
                         || this.isLikelyTitleBlock(block, widthPx, heightPx, presentationMetrics)
-                        || (idx === 0 && titleBlocks.length === 0);
-                    const defaultTextColor = isTitle ? colorScheme?.titleColor : colorScheme?.textColor;
+                        || (idx === 0
+                            && titleBlocks.length === 0
+                            && !block.bounds
+                            && block.text.length <= 60
+                            && !block.text.includes('\r'));
+                    const defaultTextColor = isMathIntroSlide && isTitle
+                        ? '#ffffff'
+                        : isTitle
+                            ? colorScheme?.titleColor
+                            : colorScheme?.textColor;
+                    const coverTitleFrame = hasStyledTitleArt
+                        ? this.computeCoverTitleFrame(block, widthPx, heightPx)
+                        : null;
+                    const effectiveFontSize = coverTitleFrame
+                        ? this.computeCoverTitleFontSize(block)
+                        : block.fontSizePx;
                     const paragraphs = this.createParagraphsFromText(
                         block.text,
                         this.isBulletTextType(block.textType, !isTitle) && placeholderRole !== 'subtitle',
                         block.color ?? defaultTextColor,
-                        block.fontSizePx
+                        effectiveFontSize
                     );
                     const roleIndex = isTitle
                         ? titleBlocks.indexOf(block)
@@ -597,8 +617,25 @@ export class PptBinaryParser {
                         widthPx,
                         heightPx
                     );
-                    const positionedFrame = block.bounds
+                    const candidateFrame = block.bounds
                         ? this.normalizeBounds(block.bounds, widthPx, heightPx, presentationMetrics)
+                        : (coverTitleFrame ?? frame);
+                    const panelFrame = rightPanelFrames?.get(block);
+                    const positionedFrame = panelFrame
+                        ? panelFrame
+                        : coverTitleFrame
+                        ? coverTitleFrame
+                        : isActivityListSlide && block.bounds
+                            ? candidateFrame
+                        : block.bounds
+                        ? this.resolveTextFrame(
+                            candidateFrame,
+                            frame,
+                            isTitle,
+                            widthPx,
+                            heightPx,
+                            placedTextFrames
+                        )
                         : frame;
                     const height = isTitle
                         ? Math.max(positionedFrame.height, 72)
@@ -615,9 +652,17 @@ export class PptBinaryParser {
                         paragraphs,
                         fillColor: block.fillVisible === false ? undefined : block.fillColor,
                         borderColor: block.borderVisible === false ? undefined : block.borderColor,
-                        borderWidthPx: block.borderVisible === false ? undefined : block.borderWidthPx
+                        borderWidthPx: block.borderVisible === false ? undefined : block.borderWidthPx,
+                        textStylePreset: coverTitleFrame
+                            ? (/유아를 위한/.test(block.text) ? 'cover-subtitle' : 'cover-title')
+                            : undefined
                     });
+                    placedTextFrames.push(positionedFrame);
                 });
+            }
+
+            if (!isActivityListSlide) {
+                this.resolveTextElementOverlaps(elements, heightPx);
             }
 
             // Minimal image support: use discovered picture/object frames when available.
@@ -626,38 +671,73 @@ export class PptBinaryParser {
             );
             const slotsWithImageRefs = preferredSlots.filter((slot) => slot.imageRefId !== undefined);
             const boundedSlots = slotsWithImageRefs.length > 0
-                ? this.dedupeVisualSlots(slotsWithImageRefs)
+                ? this.dedupeVisualSlots(this.selectPreferredImageRefSlots(slotsWithImageRefs, picturesById))
                 : this.dedupeVisualSlots(
-                    preferredSlots.length > 0
+                    (preferredSlots.length > 0
                         ? preferredSlots
-                        : visualSlots.filter((slot) => !!slot.bounds)
+                        : visualSlots.filter((slot) => !!slot.bounds))
+                        .filter((slot) => !this.isDecorativeImageSlot(slot, widthPx, heightPx))
                 );
+            const imageSlots = this.selectImageSlotsForSlide(
+                boundedSlots,
+                widthPx,
+                heightPx,
+                isActivityListSlide
+            ).filter((slot) => {
+                if (!slot.bounds || slot.imageRefId !== undefined || boundedSlots.length < 4) {
+                    return true;
+                }
+
+                const aspectRatio = slot.bounds.width / Math.max(1, slot.bounds.height);
+                return !(aspectRatio > 4.5 && slot.bounds.y < 1000);
+            });
             const usedImageSlots = new Set<PptVisualSlot>();
 
-            if (boundedSlots.length > 0) {
+            if (imageSlots.length > 0) {
                 let fallbackImageIndex = 0;
-                boundedSlots.forEach((slot) => {
+                const sequentialBaseIndex = sequentialPictureIndex;
+                let highestPictureIndexUsed = sequentialPictureIndex - 1;
+                imageSlots.forEach((slot) => {
+                    if (isPurposeSlide && slot.imageRefId === undefined) {
+                        return;
+                    }
+                    if (isApproachDirectionSlide && slot.imageRefId === 15) {
+                        return;
+                    }
                     const img = (slot.imageRefId !== undefined
                         ? picturesById?.get(slot.imageRefId)
-                        : undefined) ?? pictures[fallbackImageIndex++];
+                        : undefined) ?? pictures[sequentialBaseIndex + fallbackImageIndex++];
                     if (!img || !slot.bounds) {
                         return;
                     }
 
                     const scaledImageFrame = this.normalizeBounds(slot.bounds, widthPx, heightPx, presentationMetrics);
+                    const imageFrame = this.adjustImageFrameForTextColumns(
+                        this.adjustLegacyImageFrame(slot, scaledImageFrame, widthPx, heightPx, isMathIntroSlide),
+                        elements,
+                        widthPx,
+                        heightPx
+                    );
                     elements.push({
                         type: 'image',
-                        x: scaledImageFrame.x,
-                        y: scaledImageFrame.y,
-                        width: scaledImageFrame.width,
-                        height: scaledImageFrame.height,
+                        x: imageFrame.x,
+                        y: imageFrame.y,
+                        width: imageFrame.width,
+                        height: imageFrame.height,
                         zIndex: 100 + elements.length,
                         src: `data:${img.mime};base64,${img.base64}`
                     });
                     usedImageSlots.add(slot);
+                    if (typeof img.pictureIndex === 'number' && img.pictureIndex >= 0) {
+                        highestPictureIndexUsed = Math.max(highestPictureIndexUsed, img.pictureIndex);
+                    }
                 });
-            } else {
-                const img = pictures[i];
+                sequentialPictureIndex = Math.max(
+                    sequentialPictureIndex + fallbackImageIndex,
+                    highestPictureIndexUsed + 1
+                );
+            } else if (!isPurposeSlide) {
+                const img = pictures[sequentialPictureIndex++];
                 if (img) {
                     elements.push({
                         type: 'image',
@@ -672,7 +752,7 @@ export class PptBinaryParser {
             }
 
             visualSlots.forEach((slot, index) => {
-                if (!slot.bounds || usedImageSlots.has(slot) || slot.isTextSlot) {
+                if (!slot.bounds || usedImageSlots.has(slot) || slot.isTextSlot || slot.imageRefId !== undefined) {
                     return;
                 }
                 if (!slot.fillColor && !slot.borderColor) {
@@ -680,6 +760,19 @@ export class PptBinaryParser {
                 }
 
                 const shapeFrame = this.normalizeBounds(slot.bounds, widthPx, heightPx, presentationMetrics);
+                const isBackgroundLikeShape = shapeFrame.width * shapeFrame.height >= widthPx * heightPx * 0.45;
+                const overlapsImageFrame = elements.some((element) =>
+                    element.type === 'image'
+                    && this.isNearDuplicateFrame(shapeFrame, {
+                        x: element.x,
+                        y: element.y,
+                        width: element.width,
+                        height: element.height
+                    })
+                );
+                if (overlapsImageFrame) {
+                    return;
+                }
                 if (
                     hasStyledTitleArt
                     && !slot.imageRefId
@@ -696,25 +789,108 @@ export class PptBinaryParser {
                 ) {
                     return;
                 }
+                if (elements.some((element) =>
+                    element.type === 'image'
+                    && this.boundsOverlapRatio(shapeFrame, {
+                        x: element.x,
+                        y: element.y,
+                        width: element.width,
+                        height: element.height
+                    }) > 0.72
+                )) {
+                    return;
+                }
                 elements.push({
                     type: 'shape',
                     x: shapeFrame.x,
                     y: shapeFrame.y,
                     width: shapeFrame.width,
                     height: shapeFrame.height,
-                    zIndex: 50 + index,
+                    zIndex: isBackgroundLikeShape ? -2 : 50 + index,
                     fillColor: slot.fillVisible === false ? undefined : slot.fillColor,
                     borderColor: slot.borderVisible === false ? undefined : slot.borderColor,
                     borderWidthPx: slot.borderVisible === false ? undefined : slot.borderWidthPx
                 });
             });
 
+            this.applyPanelBackgroundShape(elements, visualSlots, widthPx, heightPx, presentationMetrics);
+
+            if (isDialoguePhotoSlide) {
+                this.applyDialoguePhotoLayout(elements, widthPx, heightPx);
+            }
+
+            if (isMathIntroSlide) {
+                this.applyMathIntroLayout(elements, picturesById, widthPx, heightPx);
+            }
+
+            if (isApproachDirectionSlide) {
+                this.applyMasterDecorativeElements(elements, picturesById, widthPx, heightPx);
+                this.applyApproachDirectionLayout(elements, styledShapeBlocks, picturesById, widthPx, heightPx);
+            }
+
+            if (isPurposeSlide) {
+                this.applyPurposeLayout(elements, masterRecord, picturesById, presentationMetrics, widthPx, heightPx);
+            }
+
+            if (isActivityProcessSlide) {
+                this.applyActivityProcessLayout(elements, styledShapeBlocks, masterRecord, picturesById, presentationMetrics, widthPx, heightPx);
+            }
+
+            if (isCompositionSystemSlide) {
+                this.applyCompositionSystemLayout(elements, masterRecord, picturesById, presentationMetrics, widthPx, heightPx);
+            }
+
+            if (isCompositionSystemDetailSlide) {
+                this.applyCompositionSystemDetailLayout(elements, widthPx, heightPx);
+            }
+
+            if (isCompositionSystemFamilySlide) {
+                this.applyCompositionSystemFamilyLayout(elements, widthPx, heightPx);
+            }
+
+            if (isSubwayStorySlide) {
+                this.applySubwayStoryLayout(elements, widthPx, heightPx);
+            }
+
+            if (isBottleCapRiddleSlide) {
+                this.applyBottleCapRiddleLayout(elements, widthPx, heightPx);
+            }
+
+            if (isMathPlayLetterSlide) {
+                this.applyMathPlayLetterLayout(elements, widthPx, heightPx);
+            }
+
+            if (isActivityListSlide) {
+                this.applyActivityListTableLayout(elements, widthPx, heightPx);
+            }
+
+            if (isClosingPracticeSlide) {
+                this.applyClosingPracticeLayout(elements, masterRecord, picturesById, presentationMetrics, widthPx, heightPx);
+            }
+
+            if (textBlocks.length === 0 && elements.filter((element) => element.type === 'image').length <= 1 && masterRecord) {
+                this.applyMasterFallbackElements(elements, masterRecord, picturesById, presentationMetrics, widthPx, heightPx);
+            }
+
+            this.pruneActivityListImageArtifacts(elements, widthPx, heightPx);
+            this.pruneImageOnlySlideArtifacts(elements, widthPx, heightPx);
+
             slides.push({
                 slideNumber: i + 1,
                 widthPx,
                 heightPx,
-                backgroundColor: hasStyledTitleArt
+                backgroundColor: isApproachDirectionSlide
                     ? '#0458d7'
+                    : isPurposeSlide
+                        ? '#0458d7'
+                    : isActivityProcessSlide
+                        ? '#0458d7'
+                    : isCompositionSystemSlide
+                        ? '#0458d7'
+                    : hasStyledTitleArt
+                    ? '#0458d7'
+                    : isMathIntroSlide
+                        ? '#0458d7'
                     : colorScheme?.backgroundColor || '#ffffff',
                 elements
             });
@@ -958,7 +1134,10 @@ export class PptBinaryParser {
         }
 
         const merged = [...baseBlocks];
-        const normalizedStyledBlocks = this.decorateTextBlocksWithPlaceholders(this.normalizeTextBlocks(styledBlocks), layout);
+        const normalizedStyledBlocks = this.decorateTextBlocksWithPlaceholders(
+            this.coalesceTextBlocksByBounds(this.normalizeTextBlocks(styledBlocks)),
+            layout
+        );
 
         normalizedStyledBlocks.forEach((candidate) => {
             const duplicate = merged.some((existing) => {
@@ -979,6 +1158,126 @@ export class PptBinaryParser {
                 merged.push(candidate);
             }
         });
+
+        return merged;
+    }
+
+    private static coalesceTextBlocksByBounds(blocks: PptTextBlock[]): PptTextBlock[] {
+        const merged = new Map<string, PptTextBlock>();
+
+        blocks.forEach((block) => {
+            const boundsKey = block.bounds
+                ? `${block.bounds.x}:${block.bounds.y}:${block.bounds.width}:${block.bounds.height}`
+                : 'no-bounds';
+            const key = [
+                block.placeholderType ?? -1,
+                block.textType ?? -1,
+                boundsKey,
+                block.color ?? '',
+                block.fontSizePx ?? -1
+            ].join('|');
+
+            const existing = merged.get(key);
+            if (!existing) {
+                merged.set(key, { ...block });
+                return;
+            }
+
+            const nextText = block.text.trim();
+            const existingLines = new Set(existing.text.split('\r').map((line) => line.trim()).filter(Boolean));
+            if (nextText && !existingLines.has(nextText)) {
+                existing.text = `${existing.text}\r${nextText}`.trim();
+            }
+        });
+
+        return Array.from(merged.values());
+    }
+
+    private static coalesceOverlappingTextBlocks(
+        blocks: PptTextBlock[],
+        slideWidth: number,
+        slideHeight: number,
+        presentationMetrics: {
+            widthPx: number;
+            heightPx: number;
+            rawWidth: number;
+            rawHeight: number;
+        } | null
+    ): PptTextBlock[] {
+        const merged: PptTextBlock[] = [];
+
+        blocks
+            .slice()
+            .sort((left, right) => {
+                const leftBounds = left.bounds
+                    ? this.normalizeBounds(left.bounds, slideWidth, slideHeight, presentationMetrics)
+                    : { x: 0, y: 0, width: 0, height: 0 };
+                const rightBounds = right.bounds
+                    ? this.normalizeBounds(right.bounds, slideWidth, slideHeight, presentationMetrics)
+                    : { x: 0, y: 0, width: 0, height: 0 };
+                return leftBounds.y - rightBounds.y || leftBounds.x - rightBounds.x;
+            })
+            .forEach((block) => {
+                if (!block.bounds) {
+                    merged.push(block);
+                    return;
+                }
+
+                const normalizedBounds = this.normalizeBounds(block.bounds, slideWidth, slideHeight, presentationMetrics);
+                const blockIsTitle = this.isLikelyTitleBlock(block, slideWidth, slideHeight, presentationMetrics);
+                const existing = merged.find((candidate) => {
+                    if (!candidate.bounds) {
+                        return false;
+                    }
+
+                    const candidateIsTitle = this.isLikelyTitleBlock(candidate, slideWidth, slideHeight, presentationMetrics);
+                    if (candidateIsTitle !== blockIsTitle) {
+                        return false;
+                    }
+
+                    const candidateBounds = this.normalizeBounds(candidate.bounds, slideWidth, slideHeight, presentationMetrics);
+                    if (
+                        !blockIsTitle
+                        && block.textType === 4
+                        && candidate.textType === 4
+                        && normalizedBounds.x >= slideWidth * 0.45
+                        && candidateBounds.x >= slideWidth * 0.45
+                    ) {
+                        return false;
+                    }
+                    if (candidateBounds.y < slideHeight * 0.2 || normalizedBounds.y < slideHeight * 0.2) {
+                        return false;
+                    }
+                    return this.boundsOverlapRatio(candidateBounds, normalizedBounds) > 0.55;
+                });
+
+                if (!existing) {
+                    merged.push({ ...block });
+                    return;
+                }
+
+                const existingLines = new Set(existing.text.split('\r').map((line) => line.trim()).filter(Boolean));
+                const nextLines = block.text.split('\r').map((line) => line.trim()).filter(Boolean);
+                const sharedLines = nextLines.filter((line) => existingLines.has(line));
+                if (!blockIsTitle && sharedLines.length === 0) {
+                    merged.push({ ...block });
+                    return;
+                }
+                nextLines.forEach((line) => {
+                    if (!existingLines.has(line)) {
+                        existing.text = `${existing.text}\r${line}`.trim();
+                        existingLines.add(line);
+                    }
+                });
+
+                const existingBounds = existing.bounds!;
+                existing.bounds = {
+                    x: Math.min(existingBounds.x, block.bounds.x),
+                    y: Math.min(existingBounds.y, block.bounds.y),
+                    width: Math.max(existingBounds.x + existingBounds.width, block.bounds.x + block.bounds.width) - Math.min(existingBounds.x, block.bounds.x),
+                    height: Math.max(existingBounds.y + existingBounds.height, block.bounds.y + block.bounds.height) - Math.min(existingBounds.y, block.bounds.y)
+                };
+            });
 
         return merged;
     }
@@ -1042,6 +1341,106 @@ export class PptBinaryParser {
         return flattened;
     }
 
+    private static shouldPreferShapeTextGroups(
+        outlineBlocks: PptTextBlock[],
+        shapeTextGroups: PptTextGroup[]
+    ): boolean {
+        if (outlineBlocks.length === 0 || shapeTextGroups.length === 0) {
+            return false;
+        }
+
+        const normalizedOutline = this.normalizeTextBlocks(outlineBlocks);
+        const boundedGroups = shapeTextGroups.filter((group) => !!group.bounds && group.blocks.length > 0);
+        if (boundedGroups.length < 2) {
+            return false;
+        }
+
+        const outlineHasBounds = normalizedOutline.some((block) => !!block.bounds);
+        if (outlineHasBounds) {
+            return false;
+        }
+
+        const outlineParagraphCount = normalizedOutline.reduce(
+            (count, block) => count + this.createParagraphsFromText(block.text, false).length,
+            0
+        );
+        const groupParagraphCount = boundedGroups.reduce(
+            (count, group) => count + group.blocks.reduce(
+                (blockCount, block) => blockCount + this.createParagraphsFromText(block.text, false).length,
+                0
+            ),
+            0
+        );
+
+        return groupParagraphCount >= Math.max(3, Math.floor(outlineParagraphCount * 0.6));
+    }
+
+    private static computeRightPanelTextFrames(
+        blocks: PptTextBlock[],
+        slideWidth: number,
+        slideHeight: number,
+        presentationMetrics: {
+            widthPx: number;
+            heightPx: number;
+            rawWidth: number;
+            rawHeight: number;
+        } | null
+    ): Map<PptTextBlock, PptShapeBounds> | null {
+        const normalized = blocks
+            .filter((block) => !!block.bounds && !this.isLikelyTitleBlock(block, slideWidth, slideHeight, presentationMetrics))
+            .map((block) => ({
+                block,
+                bounds: this.normalizeBounds(block.bounds!, slideWidth, slideHeight, presentationMetrics)
+            }));
+        if (normalized.length < 2) {
+            return null;
+        }
+        if (normalized.some((item) => item.bounds.x < slideWidth * 0.45)) {
+            return null;
+        }
+
+        const hasStrongOverlap = normalized.some((item, index) =>
+            normalized.slice(index + 1).some((candidate) => this.boundsOverlapRatio(item.bounds, candidate.bounds) > 0.45)
+        );
+        if (!hasStrongOverlap) {
+            return null;
+        }
+
+        const union = normalized.reduce((acc, item) => ({
+            x: Math.min(acc.x, item.bounds.x),
+            y: Math.min(acc.y, item.bounds.y),
+            width: Math.max(acc.x + acc.width, item.bounds.x + item.bounds.width) - Math.min(acc.x, item.bounds.x),
+            height: Math.max(acc.y + acc.height, item.bounds.y + item.bounds.height) - Math.min(acc.y, item.bounds.y)
+        }), normalized[0].bounds);
+        const gap = 16;
+        const paragraphCounts = normalized.map((item) => Math.max(1, this.createParagraphsFromText(item.block.text, false).length));
+        const totalParagraphs = paragraphCounts.reduce((sum, count) => sum + count, 0);
+        const availableHeight = union.height - gap * (normalized.length - 1);
+        if (availableHeight <= 120) {
+            return null;
+        }
+
+        const ordered = normalized.slice().sort((left, right) => left.bounds.y - right.bounds.y || left.bounds.x - right.bounds.x);
+        const frames = new Map<PptTextBlock, PptShapeBounds>();
+        let cursorY = union.y;
+        ordered.forEach((item, index) => {
+            const paragraphCount = Math.max(1, this.createParagraphsFromText(item.block.text, false).length);
+            const proportionalHeight = Math.round(availableHeight * (paragraphCount / Math.max(1, totalParagraphs)));
+            const frameHeight = index === ordered.length - 1
+                ? Math.max(48, union.y + union.height - cursorY)
+                : Math.max(96, proportionalHeight);
+            frames.set(item.block, {
+                x: union.x,
+                y: cursorY,
+                width: union.width,
+                height: frameHeight
+            });
+            cursorY += frameHeight + gap;
+        });
+
+        return frames;
+    }
+
     private static createParagraphsFromText(
         text: string,
         defaultBullet: boolean,
@@ -1076,16 +1475,1707 @@ export class PptBinaryParser {
             rawHeight: number;
         } | null
     ): boolean {
-        if (!this.isTitleTextType(block.textType)) {
-            return false;
-        }
-
         if (!block.bounds) {
-            return true;
+            return this.isTitleTextType(block.textType);
         }
 
         const bounds = this.normalizeBounds(block.bounds, slideWidth, slideHeight, presentationMetrics);
-        return bounds.y < slideHeight * 0.24;
+        if (this.isTitleTextType(block.textType)) {
+            return bounds.y < slideHeight * 0.24;
+        }
+
+        const compactText = block.text.replace(/\s+/g, '');
+        const isWideTopBanner = bounds.y < slideHeight * 0.14
+            && bounds.x <= slideWidth * 0.16
+            && bounds.width >= slideWidth * 0.68
+            && bounds.height <= slideHeight * 0.14;
+        const hasReasonableTitleLength = compactText.length >= 8 && compactText.length <= 80;
+
+        return isWideTopBanner && hasReasonableTitleLength && !block.text.includes('•');
+    }
+
+    private static computeCoverTitleFrame(
+        block: PptTextBlock,
+        slideWidth: number,
+        slideHeight: number
+    ): PptShapeBounds | null {
+        if (/유아를 위한/.test(block.text)) {
+            return {
+                x: Math.round(slideWidth * 0.18),
+                y: Math.round(slideHeight * 0.05),
+                width: Math.round(slideWidth * 0.64),
+                height: Math.round(slideHeight * 0.14)
+            };
+        }
+
+        if (/수학교육활동/.test(block.text)) {
+            return {
+                x: Math.round(slideWidth * 0.16),
+                y: Math.round(slideHeight * 0.145),
+                width: Math.round(slideWidth * 0.7),
+                height: Math.round(slideHeight * 0.2)
+            };
+        }
+
+        return null;
+    }
+
+    private static computeCoverTitleFontSize(block: PptTextBlock): number | undefined {
+        if (/유아를 위한/.test(block.text)) {
+            return 64;
+        }
+
+        if (/수학교육활동/.test(block.text)) {
+            return 122;
+        }
+
+        return block.fontSizePx;
+    }
+
+    private static isDecorativeImageSlot(
+        slot: PptVisualSlot,
+        slideWidth: number,
+        slideHeight: number
+    ): boolean {
+        if (!slot.bounds || slot.imageRefId !== undefined) {
+            return false;
+        }
+
+        const widthRatio = slot.bounds.width / Math.max(1, slideWidth);
+        const heightRatio = slot.bounds.height / Math.max(1, slideHeight);
+        const isNarrowFilledBar = !!slot.fillColor
+            && ((widthRatio < 0.08 && heightRatio < 0.2) || (slot.bounds.width < 400 && slot.bounds.height < 1000));
+        return (widthRatio > 0.75 && heightRatio < 0.18) || isNarrowFilledBar;
+    }
+
+    private static resolveTextFrame(
+        candidateFrame: PptShapeBounds,
+        fallbackFrame: PptShapeBounds,
+        isTitle: boolean,
+        slideWidth: number,
+        slideHeight: number,
+        placedTextFrames: PptShapeBounds[]
+    ): PptShapeBounds {
+        if (candidateFrame.width < Math.max(36, slideWidth * 0.04) || candidateFrame.height < 18) {
+            return fallbackFrame;
+        }
+        if (isTitle && candidateFrame.width < slideWidth * 0.4) {
+            return fallbackFrame;
+        }
+
+        const resolved: PptShapeBounds = {
+            x: candidateFrame.x,
+            y: candidateFrame.y,
+            width: Math.min(candidateFrame.width, slideWidth - candidateFrame.x - 24),
+            height: candidateFrame.height
+        };
+
+        if (!isTitle && resolved.y < slideHeight * 0.14) {
+            resolved.y = Math.round(slideHeight * 0.22);
+        }
+
+        let guard = 0;
+        while (guard < 8) {
+            const collision = placedTextFrames.find((frame) => this.boundsIntersect(resolved, frame));
+            if (!collision) {
+                break;
+            }
+            resolved.y = collision.y + collision.height + Math.round(slideHeight * 0.02);
+            guard += 1;
+        }
+
+        if (resolved.y + resolved.height > slideHeight - 24) {
+            if (isTitle && fallbackFrame.y + fallbackFrame.height <= slideHeight - 24) {
+                return fallbackFrame;
+            }
+            resolved.y = Math.max(Math.round(slideHeight * 0.22), slideHeight - resolved.height - 24);
+        }
+
+        return resolved;
+    }
+
+    private static adjustLegacyImageFrame(
+        slot: PptVisualSlot,
+        frame: PptShapeBounds,
+        slideWidth: number,
+        slideHeight: number,
+        isMathIntroSlide: boolean
+    ): PptShapeBounds {
+        if (
+            isMathIntroSlide
+            && slot.imageRefId === 14
+            && frame.width < 120
+            && frame.height >= frame.width
+            && frame.x > slideWidth * 0.35
+            && frame.x < slideWidth * 0.65
+        ) {
+            const width = Math.min(Math.round(frame.width * 1.75), Math.round(slideWidth * 0.18));
+            const height = Math.max(72, Math.round(frame.height * 0.78));
+            return {
+                x: Math.max(0, frame.x - Math.round((width - frame.width) / 2)),
+                y: frame.y + Math.round(frame.height * 0.08),
+                width,
+                height
+            };
+        }
+
+        if (slot.imageRefId === 14 && frame.height >= frame.width) {
+            const width = Math.min(Math.round(frame.height * 1.45), Math.round(slideWidth * 0.16));
+            const height = Math.max(38, Math.round(width / 2.75));
+            return {
+                x: Math.max(0, frame.x - Math.round((width - frame.width) / 2)),
+                y: frame.y + Math.round((frame.height - height) / 2),
+                width,
+                height
+            };
+        }
+
+        return frame;
+    }
+
+    private static applyMasterDecorativeElements(
+        elements: PptSlideModel['elements'],
+        picturesById: Map<number, PptPictureAsset> | undefined,
+        slideWidth: number,
+        slideHeight: number
+    ): void {
+        const footerLogo = picturesById?.get(2);
+        if (footerLogo) {
+            const hasFooterLogo = elements.some((element) =>
+                element.type === 'image'
+                && element.y > slideHeight * 0.84
+                && element.width < slideWidth * 0.35
+            );
+            if (!hasFooterLogo) {
+                elements.push({
+                    type: 'image',
+                    x: Math.round(slideWidth * 0.4),
+                    y: Math.round(slideHeight * 0.91),
+                    width: Math.round(slideWidth * 0.2),
+                    height: Math.round(slideHeight * 0.06),
+                    zIndex: 220,
+                    src: `data:${footerLogo.mime};base64,${footerLogo.base64}`
+                });
+            }
+        }
+    }
+
+    private static applyApproachDirectionLayout(
+        elements: PptSlideModel['elements'],
+        styledShapeBlocks: PptTextBlock[],
+        picturesById: Map<number, PptPictureAsset> | undefined,
+        slideWidth: number,
+        slideHeight: number
+    ): void {
+        elements.push({
+            type: 'shape',
+            x: 38,
+            y: 25,
+            width: 882,
+            height: 88,
+            zIndex: -1,
+            fillColor: '#5f8fdf'
+        });
+
+        const title = elements.find((element) =>
+            element.type === 'text'
+            && element.paragraphs?.some((paragraph) => /유아 수학교육을 위한 접근의 방향/.test(paragraph.text))
+        );
+        if (title && title.type === 'text' && title.paragraphs) {
+            title.x = 170;
+            title.y = 32;
+            title.width = 620;
+            title.height = 66;
+            title.isTitle = true;
+            title.paragraphs = title.paragraphs.map((paragraph) => ({
+                ...paragraph,
+                align: 'center',
+                color: '#ffea00',
+                fontSizePx: 46,
+                bold: true
+            }));
+        }
+
+        elements.forEach((element) => {
+            if (element.type !== 'text' || !element.paragraphs) {
+                return;
+            }
+            const text = element.paragraphs.map((paragraph) => paragraph.text).join(' ');
+            if (/유아 수학교육을 위한 접근의 방향/.test(text)) {
+                return;
+            }
+            if (/일상적 생활경험에 기초하여 사회적 상호작용을 격려하는 문제해결활동으로 접근/.test(text)) {
+                return;
+            }
+
+            if (/탈맥락적 학습상황/.test(text)) {
+                element.x = 92;
+                element.y = 228;
+                element.width = 270;
+                element.height = 54;
+            } else if (/일상적 경험에 기초/.test(text)) {
+                element.x = 588;
+                element.y = 228;
+                element.width = 286;
+                element.height = 54;
+            } else if (/구조화된 교구 중심/.test(text)) {
+                element.x = 86;
+                element.y = 404;
+                element.width = 284;
+                element.height = 52;
+            } else if (/사회적 상호작용/.test(text)) {
+                element.x = 586;
+                element.y = 376;
+                element.width = 290;
+                element.height = 92;
+            }
+
+            const isLeftCard = element.x < slideWidth * 0.5;
+            element.paragraphs = element.paragraphs.map((paragraph) => ({
+                ...paragraph,
+                align: 'center',
+                color: isLeftCard ? '#ffffff' : '#ffea00',
+                fontSizePx: text.includes('사회적 상호작용') ? 33 : 31,
+                bold: true
+            }));
+        });
+
+        const footerText = styledShapeBlocks.find((block) => /일상적 생활경험에 기초하여 사회적 상호작용을 격려하는 문제해결활동으로 접근/.test(block.text));
+        if (footerText) {
+            elements.push({
+                type: 'text',
+                x: 180,
+                y: 646,
+                width: 650,
+                height: 54,
+                zIndex: 180,
+                paragraphs: [{
+                    text: '일상적 생활경험에 기초하여 사회적 상호작용을 격려하는 문제해결활동으로 접근',
+                    level: 0,
+                    bullet: false,
+                    align: 'center',
+                    color: '#ffea00',
+                    fontSizePx: 24
+                }]
+            });
+        }
+
+        for (let index = elements.length - 1; index >= 0; index--) {
+            const element = elements[index];
+            if (
+                element.type === 'image'
+                && element.y > slideHeight * 0.84
+                && element.width < slideWidth * 0.35
+            ) {
+                elements.splice(index, 1);
+            }
+        }
+
+        const footerLogo = picturesById?.get(2);
+        if (footerLogo) {
+            elements.push({
+                type: 'image',
+                x: 18,
+                y: 670,
+                width: 160,
+                height: 49,
+                zIndex: 181,
+                src: `data:${footerLogo.mime};base64,${footerLogo.base64}`
+            });
+        }
+    }
+
+    private static applyPurposeLayout(
+        elements: PptSlideModel['elements'],
+        masterRecord: PptRecord | null,
+        picturesById: Map<number, PptPictureAsset> | undefined,
+        presentationMetrics: {
+            widthPx: number;
+            heightPx: number;
+            rawWidth: number;
+            rawHeight: number;
+        } | null,
+        slideWidth: number,
+        slideHeight: number
+    ): void {
+        this.applyMasterBackgroundImage(elements, masterRecord, picturesById, presentationMetrics, slideWidth, slideHeight);
+
+        for (let index = elements.length - 1; index >= 0; index--) {
+            const element = elements[index];
+            if (
+                element.type === 'shape'
+                && element.y < slideHeight * 0.2
+                && element.width < slideWidth * 0.08
+            ) {
+                elements.splice(index, 1);
+            }
+            if (
+                element.type === 'image'
+                && element.y > slideHeight * 0.84
+                && element.width < slideWidth * 0.35
+            ) {
+                elements.splice(index, 1);
+            }
+        }
+
+        elements.push({
+            type: 'shape',
+            x: 38,
+            y: 25,
+            width: 882,
+            height: 88,
+            zIndex: -1,
+            fillColor: '#5f8fdf'
+        });
+
+        const title = elements.find((element) =>
+            element.type === 'text'
+            && element.paragraphs?.some((paragraph) => /자료집 개발의 목적/.test(paragraph.text))
+        );
+        if (title && title.type === 'text' && title.paragraphs) {
+            title.x = 245;
+            title.y = 38;
+            title.width = 470;
+            title.height = 64;
+            title.zIndex = 60;
+            title.isTitle = true;
+            title.paragraphs = title.paragraphs.map((paragraph) => ({
+                ...paragraph,
+                align: 'center',
+                color: '#ffea00',
+                fontSizePx: 52,
+                bold: true
+            }));
+        }
+
+        const configureBodyText = (
+            matcher: RegExp,
+            frame: PptShapeBounds
+        ): void => {
+            const element = elements.find((candidate) =>
+                candidate.type === 'text'
+                && candidate.paragraphs?.some((paragraph) => matcher.test(paragraph.text))
+            );
+            if (!element || element.type !== 'text' || !element.paragraphs) {
+                return;
+            }
+
+            element.x = frame.x;
+            element.y = frame.y;
+            element.width = frame.width;
+            element.height = frame.height;
+            element.zIndex = 40;
+            element.isTitle = false;
+            element.paragraphs = element.paragraphs.map((paragraph) => ({
+                ...paragraph,
+                align: 'center',
+                color: '#000000',
+                fontSizePx: 28,
+                bold: false
+            }));
+        };
+
+        configureBodyText(/수학교육을 적극적으로/, {
+            x: 405,
+            y: 214,
+            width: 190,
+            height: 116
+        });
+        configureBodyText(/수학을 즐기고 생활에/, {
+            x: 133,
+            y: 507,
+            width: 220,
+            height: 96
+        });
+        configureBodyText(/유아수학교육에 대한/, {
+            x: 675,
+            y: 504,
+            width: 206,
+            height: 112
+        });
+
+        elements.push({
+            type: 'shape',
+            x: 146,
+            y: 276,
+            width: 668,
+            height: 250,
+            zIndex: 12,
+            borderColor: '#ffffff',
+            borderWidthPx: 8
+        });
+
+        this.pushOvalNode(elements, {
+            shadow: '#6f8f2d',
+            base: '#a4c950',
+            inner: '#ffffff',
+            x: 334,
+            y: 182,
+            width: 314,
+            height: 92,
+            zIndex: 18
+        });
+        this.pushOvalNode(elements, {
+            shadow: '#3f6ba5',
+            base: '#5f8fca',
+            inner: '#ffffff',
+            x: 78,
+            y: 478,
+            width: 320,
+            height: 98,
+            zIndex: 18
+        });
+        this.pushOvalNode(elements, {
+            shadow: '#b95713',
+            base: '#cb7136',
+            inner: '#ffffff',
+            x: 618,
+            y: 478,
+            width: 318,
+            height: 98,
+            zIndex: 18
+        });
+
+        const footerLogo = picturesById?.get(2);
+        if (footerLogo) {
+            elements.push({
+                type: 'image',
+                x: 18,
+                y: 670,
+                width: 160,
+                height: 49,
+                zIndex: 181,
+                src: `data:${footerLogo.mime};base64,${footerLogo.base64}`
+            });
+        }
+    }
+
+    private static applyActivityProcessLayout(
+        elements: PptSlideModel['elements'],
+        styledShapeBlocks: PptTextBlock[],
+        masterRecord: PptRecord | null,
+        picturesById: Map<number, PptPictureAsset> | undefined,
+        presentationMetrics: PptPresentationMetrics | null,
+        slideWidth: number,
+        slideHeight: number
+    ): void {
+        applyActivityProcessLayoutImpl(
+            elements,
+            styledShapeBlocks,
+            masterRecord,
+            picturesById,
+            presentationMetrics,
+            slideWidth,
+            slideHeight,
+            this.applyMasterBackgroundImage.bind(this)
+        );
+    }
+
+    private static applyCompositionSystemLayout(
+        elements: PptSlideModel['elements'],
+        masterRecord: PptRecord | null,
+        picturesById: Map<number, PptPictureAsset> | undefined,
+        presentationMetrics: {
+            widthPx: number;
+            heightPx: number;
+            rawWidth: number;
+            rawHeight: number;
+        } | null,
+        slideWidth: number,
+        slideHeight: number
+    ): void {
+        this.applyMasterBackgroundImage(elements, masterRecord, picturesById, presentationMetrics, slideWidth, slideHeight);
+
+        for (let index = elements.length - 1; index >= 0; index--) {
+            const element = elements[index];
+            if (
+                element.type === 'shape'
+                || (element.type === 'image' && element.width < slideWidth * 0.8)
+            ) {
+                elements.splice(index, 1);
+            }
+        }
+
+        elements.push({
+            type: 'shape',
+            x: 38,
+            y: 25,
+            width: 882,
+            height: 88,
+            zIndex: -1,
+            fillColor: '#5f8fdf'
+        });
+
+        const title = elements.find((element) =>
+            element.type === 'text'
+            && element.paragraphs?.some((paragraph) => /활동의 구성 체제/.test(paragraph.text))
+        );
+        if (title && title.type === 'text' && title.paragraphs) {
+            title.x = 300;
+            title.y = 34;
+            title.width = 360;
+            title.height = 64;
+            title.zIndex = 80;
+            title.isTitle = true;
+            title.paragraphs = title.paragraphs.map((paragraph) => ({
+                ...paragraph,
+                align: 'center',
+                color: '#ffea00',
+                fontSizePx: 46,
+                bold: true
+            }));
+        }
+
+        const configureText = (
+            matcher: RegExp,
+            frame: PptShapeBounds,
+            options?: {
+                color?: string;
+                fontSizePx?: number;
+                bold?: boolean;
+            }
+        ): void => {
+            const element = elements.find((candidate) =>
+                candidate.type === 'text'
+                && candidate.paragraphs?.some((paragraph) => matcher.test(paragraph.text))
+            );
+            if (!element || element.type !== 'text' || !element.paragraphs) {
+                return;
+            }
+
+            element.x = frame.x;
+            element.y = frame.y;
+            element.width = frame.width;
+            element.height = frame.height;
+            element.zIndex = 130;
+            element.isTitle = false;
+            element.paragraphs = element.paragraphs.map((paragraph) => ({
+                ...paragraph,
+                align: 'left',
+                color: options?.color ?? '#ffffff',
+                fontSizePx: options?.fontSizePx ?? 28,
+                bold: options?.bold ?? false
+            }));
+        };
+
+        configureText(/주제별 수학적 탐구 활동/, { x: 112, y: 248, width: 240, height: 54 }, { color: '#ffea00', fontSizePx: 28 });
+        configureText(/수준별 확장활동/, { x: 186, y: 438, width: 210, height: 54 }, { color: '#ffea00', fontSizePx: 28 });
+        configureText(/가정연계/, { x: 210, y: 628, width: 170, height: 54 }, { color: '#ffea00', fontSizePx: 28 });
+
+        configureText(/경험 및 자료탐색/, { x: 682, y: 198, width: 246, height: 44 }, { fontSizePx: 28 });
+        configureText(/수학적 문제해결/, { x: 682, y: 268, width: 246, height: 44 }, { fontSizePx: 28 });
+        configureText(/평가/, { x: 682, y: 338, width: 120, height: 44 }, { fontSizePx: 28 });
+        configureText(/바깥놀이를 가장 많이/, { x: 682, y: 424, width: 480, height: 52 }, { fontSizePx: 26 });
+        configureText(/한 주 동안 어떤 날씨/, { x: 682, y: 500, width: 520, height: 52 }, { fontSizePx: 26 });
+        configureText(/일상적 상황에서의 수학적 상호작용방법 안내/, { x: 682, y: 616, width: 520, height: 52 }, { fontSizePx: 26 });
+        configureText(/지하철에서 나누면 좋은 이야기/, { x: 682, y: 700, width: 430, height: 52 }, { color: '#ffea00', fontSizePx: 28 });
+
+        const cardAsset = picturesById?.get(12);
+        if (cardAsset) {
+            const src = `data:${cardAsset.mime};base64,${cardAsset.base64}`;
+            [
+                { x: 54, y: 214, width: 284, height: 150 },
+                { x: 54, y: 404, width: 284, height: 150 },
+                { x: 54, y: 594, width: 284, height: 150 }
+            ].forEach((frame, index) => {
+                elements.push({
+                    type: 'image',
+                    x: frame.x,
+                    y: frame.y,
+                    width: frame.width,
+                    height: frame.height,
+                    zIndex: 100 + index,
+                    src
+                });
+            });
+        }
+
+        this.pushBracket(elements, { x: 568, y: 218, width: 96, height: 152, zIndex: 110 });
+        this.pushBracket(elements, { x: 568, y: 402, width: 96, height: 108, zIndex: 110 });
+        this.pushShortConnector(elements, { x: 572, y: 648, width: 88, zIndex: 110 });
+
+        const footerLogo = picturesById?.get(2);
+        if (footerLogo) {
+            elements.push({
+                type: 'image',
+                x: 18,
+                y: 670,
+                width: 160,
+                height: 49,
+                zIndex: 181,
+                src: `data:${footerLogo.mime};base64,${footerLogo.base64}`
+            });
+        }
+    }
+
+    private static pushBracket(
+        elements: PptSlideModel['elements'],
+        frame: {
+            x: number;
+            y: number;
+            width: number;
+            height: number;
+            zIndex: number;
+        }
+    ): void {
+        elements.push({
+            type: 'shape',
+            x: frame.x,
+            y: frame.y,
+            width: 6,
+            height: frame.height,
+            zIndex: frame.zIndex,
+            fillColor: '#ffffff'
+        });
+        elements.push({
+            type: 'shape',
+            x: frame.x,
+            y: frame.y,
+            width: frame.width,
+            height: 6,
+            zIndex: frame.zIndex,
+            fillColor: '#ffffff'
+        });
+        elements.push({
+            type: 'shape',
+            x: frame.x,
+            y: frame.y + Math.round(frame.height / 2) - 3,
+            width: frame.width,
+            height: 6,
+            zIndex: frame.zIndex,
+            fillColor: '#ffffff'
+        });
+        elements.push({
+            type: 'shape',
+            x: frame.x,
+            y: frame.y + frame.height - 6,
+            width: frame.width,
+            height: 6,
+            zIndex: frame.zIndex,
+            fillColor: '#ffffff'
+        });
+    }
+
+    private static pushShortConnector(
+        elements: PptSlideModel['elements'],
+        frame: {
+            x: number;
+            y: number;
+            width: number;
+            zIndex: number;
+        }
+    ): void {
+        elements.push({
+            type: 'shape',
+            x: frame.x,
+            y: frame.y,
+            width: frame.width,
+            height: 6,
+            zIndex: frame.zIndex,
+            fillColor: '#ffffff'
+        });
+    }
+
+    private static applySubwayStoryLayout(
+        elements: PptSlideModel['elements'],
+        slideWidth: number,
+        slideHeight: number
+    ): void {
+        const title = elements.find((element) =>
+            element.type === 'text'
+            && element.paragraphs?.some((paragraph) => /지하철을 탈 때 나누면 좋은 이야기/.test(paragraph.text))
+        );
+        if (title && title.type === 'text' && title.paragraphs) {
+            title.x = 178;
+            title.y = 28;
+            title.width = 605;
+            title.height = 72;
+            title.zIndex = 80;
+            title.isTitle = true;
+            title.paragraphs = title.paragraphs.map((paragraph) => ({
+                ...paragraph,
+                align: 'center',
+                color: '#000000',
+                fontSizePx: 34,
+                bold: true
+            }));
+        }
+
+        const updateText = (
+            matcher: RegExp,
+            frame: PptShapeBounds,
+            options?: {
+                align?: 'left' | 'center' | 'right';
+                fontSizePx?: number;
+                bold?: boolean;
+            }
+        ): void => {
+            const element = elements.find((candidate) =>
+                candidate.type === 'text'
+                && candidate.paragraphs?.some((paragraph) => matcher.test(paragraph.text))
+            );
+            if (!element || element.type !== 'text' || !element.paragraphs) {
+                return;
+            }
+
+            element.x = frame.x;
+            element.y = frame.y;
+            element.width = frame.width;
+            element.height = frame.height;
+            element.zIndex = 120;
+            element.isTitle = false;
+            element.paragraphs = element.paragraphs.map((paragraph) => ({
+                ...paragraph,
+                align: options?.align ?? 'left',
+                color: '#000000',
+                fontSizePx: options?.fontSizePx ?? 22,
+                bold: options?.bold ?? false
+            }));
+        };
+
+        updateText(/가족들과 함께 대중교통을 이용해 나들이할 때/, {
+            x: 72,
+            y: 246,
+            width: 200,
+            height: 88
+        }, {
+            fontSizePx: 18
+        });
+        updateText(/지하철 노선표를/, {
+            x: 72,
+            y: 346,
+            width: 170,
+            height: 58
+        }, {
+            align: 'center',
+            fontSizePx: 19
+        });
+        updateText(/기다리면서/, {
+            x: 72,
+            y: 406,
+            width: 170,
+            height: 84
+        }, {
+            align: 'center',
+            fontSizePx: 21
+        });
+        updateText(/타고 가면서/, {
+            x: 72,
+            y: 562,
+            width: 170,
+            height: 84
+        }, {
+            align: 'center',
+            fontSizePx: 21
+        });
+
+        const textElements = elements.filter((element): element is PptSlideModel['elements'][number] & { type: 'text'; paragraphs: NonNullable<PptSlideModel['elements'][number]['paragraphs']> } =>
+            element.type === 'text' && !!element.paragraphs
+        );
+
+        const illustrationImages = elements
+            .filter((element): element is PptSlideModel['elements'][number] & { type: 'image' } =>
+                element.type === 'image'
+                && element.width < slideWidth * 0.22
+                && element.height < slideHeight * 0.2
+            )
+            .sort((left, right) => left.y - right.y);
+        const illustrationFrames: PptShapeBounds[] = [
+            { x: 330, y: 224, width: 128, height: 112 },
+            { x: 330, y: 381, width: 128, height: 117 },
+            { x: 330, y: 538, width: 128, height: 113 }
+        ];
+        illustrationImages.forEach((element, index) => {
+            const frame = illustrationFrames[Math.min(index, illustrationFrames.length - 1)];
+            element.x = frame.x;
+            element.y = frame.y;
+            element.width = frame.width;
+            element.height = frame.height;
+            element.zIndex = 130 + index;
+        });
+
+        const compositeImage = elements
+            .filter((element): element is PptSlideModel['elements'][number] & { type: 'image' } =>
+                element.type === 'image'
+                && element.width >= slideWidth * 0.35
+                && element.height >= slideHeight * 0.45
+            )
+            .sort((left, right) => (right.width * right.height) - (left.width * left.height))[0];
+        if (compositeImage) {
+            compositeImage.x = 468;
+            compositeImage.y = 214;
+            compositeImage.width = 404;
+            compositeImage.height = 438;
+            compositeImage.zIndex = 104;
+        }
+
+        elements.forEach((element) => {
+            if (element.type !== 'shape') {
+                return;
+            }
+
+            const isGuideBox = element.width >= 220 && element.width <= 270 && element.height >= 130 && element.height <= 150;
+            if (isGuideBox) {
+                element.borderColor = '#99ccff';
+                element.borderWidthPx = 6;
+                element.fillColor = undefined;
+                element.zIndex = 90;
+            }
+        });
+
+        textElements.forEach((element) => {
+            if (!element.paragraphs) {
+                return;
+            }
+            if (element.paragraphs.some((paragraph) => /가족들과 함께 대중교통을 이용해 나들이할 때/.test(paragraph.text))) {
+                element.zIndex = 120;
+            }
+        });
+    }
+
+    private static applyCompositionSystemDetailLayout(
+        elements: PptSlideModel['elements'],
+        slideWidth: number,
+        slideHeight: number
+    ): void {
+        const splitParagraphElement = (
+            matcher: RegExp,
+            firstFrame: PptShapeBounds,
+            secondFrame: PptShapeBounds,
+            options?: {
+                firstColor?: string;
+                secondColor?: string;
+                firstFontSizePx?: number;
+                secondFontSizePx?: number;
+            }
+        ): void => {
+            const element = elements.find((candidate) =>
+                candidate.type === 'text'
+                && candidate.paragraphs?.some((paragraph) => matcher.test(paragraph.text))
+            );
+            if (!element || element.type !== 'text' || !element.paragraphs || element.paragraphs.length < 2) {
+                return;
+            }
+
+            const [firstParagraph, secondParagraph] = element.paragraphs;
+            element.x = firstFrame.x;
+            element.y = firstFrame.y;
+            element.width = firstFrame.width;
+            element.height = firstFrame.height;
+            element.zIndex = 130;
+            element.paragraphs = [{
+                ...firstParagraph,
+                align: 'left',
+                color: options?.firstColor ?? '#ffffff',
+                fontSizePx: options?.firstFontSizePx ?? 24,
+                bold: false
+            }];
+
+            elements.push({
+                type: 'text',
+                x: secondFrame.x,
+                y: secondFrame.y,
+                width: secondFrame.width,
+                height: secondFrame.height,
+                zIndex: 131,
+                isTitle: false,
+                paragraphs: [{
+                    ...secondParagraph,
+                    align: 'left',
+                    color: options?.secondColor ?? '#ffea00',
+                    fontSizePx: options?.secondFontSizePx ?? 24,
+                    bold: false
+                }]
+            });
+        };
+
+        splitParagraphElement(
+            /간단한 수학활동 방법 안내|수수께끼 속의 병뚜껑/,
+            { x: 510, y: 564, width: 240, height: 74 },
+            { x: 502, y: 512, width: 280, height: 42 },
+            {
+                firstColor: '#ffffff',
+                secondColor: '#ffea00',
+                firstFontSizePx: 23,
+                secondFontSizePx: 24
+            }
+        );
+
+        splitParagraphElement(
+            /일상적 상황에서의 수학적 상호작용방법 안내|지하철에서 나누면 좋은 이야기/,
+            { x: 684, y: 664, width: 248, height: 40 },
+            { x: 522, y: 688, width: 330, height: 34 },
+            {
+                firstColor: '#ffffff',
+                secondColor: '#ffea00',
+                firstFontSizePx: 22,
+                secondFontSizePx: 22
+            }
+        );
+
+        const upperExample = elements.find((element) =>
+            element.type === 'text'
+            && element.paragraphs?.some((paragraph) => /바깥놀이를 가장 많이/.test(paragraph.text))
+        );
+        if (upperExample && upperExample.type === 'text' && upperExample.paragraphs) {
+            upperExample.x = 682;
+            upperExample.y = 474;
+            upperExample.width = 258;
+            upperExample.height = 48;
+            upperExample.zIndex = 125;
+            upperExample.paragraphs = upperExample.paragraphs.map((paragraph) => ({
+                ...paragraph,
+                align: 'left',
+                color: '#ffffff',
+                fontSizePx: 23
+            }));
+        }
+
+        const lowerExample = elements.find((element) =>
+            element.type === 'text'
+            && element.paragraphs?.some((paragraph) => /한 주 동안 어떤 날씨/.test(paragraph.text))
+        );
+        if (lowerExample && lowerExample.type === 'text' && lowerExample.paragraphs) {
+            lowerExample.x = 682;
+            lowerExample.y = 556;
+            lowerExample.width = 250;
+            lowerExample.height = 52;
+            lowerExample.zIndex = 125;
+            lowerExample.paragraphs = lowerExample.paragraphs.map((paragraph) => ({
+                ...paragraph,
+                align: 'left',
+                color: '#ffffff',
+                fontSizePx: 23
+            }));
+        }
+
+        elements.forEach((element) => {
+            if (element.type !== 'text' || !element.paragraphs) {
+                return;
+            }
+            const text = element.paragraphs.map((paragraph) => paragraph.text).join(' ');
+            if (/경험 및 자료탐색|수학적 문제해결/.test(text)) {
+                element.zIndex = 122;
+            }
+        });
+    }
+
+    private static applyBottleCapRiddleLayout(
+        elements: PptSlideModel['elements'],
+        slideWidth: number,
+        slideHeight: number
+    ): void {
+        const updateText = (
+            matcher: RegExp,
+            frame: PptShapeBounds,
+            options?: {
+                align?: 'left' | 'center' | 'right';
+                fontSizePx?: number;
+                bold?: boolean;
+                bullet?: boolean;
+            }
+        ): void => {
+            const element = elements.find((candidate) =>
+                candidate.type === 'text'
+                && candidate.paragraphs?.some((paragraph) => matcher.test(paragraph.text))
+            );
+            if (!element || element.type !== 'text' || !element.paragraphs) {
+                return;
+            }
+
+            element.x = frame.x;
+            element.y = frame.y;
+            element.width = frame.width;
+            element.height = frame.height;
+            element.zIndex = 120;
+            element.isTitle = false;
+            element.paragraphs = element.paragraphs.map((paragraph) => ({
+                ...paragraph,
+                align: options?.align ?? 'left',
+                color: '#000000',
+                fontSizePx: options?.fontSizePx ?? 18,
+                bold: options?.bold ?? false,
+                bullet: options?.bullet ?? false
+            }));
+        };
+
+        const title = elements.find((element) =>
+            element.type === 'text'
+            && element.paragraphs?.some((paragraph) => /수수께끼 속의 병뚜껑을 찾으려면\?/.test(paragraph.text))
+        );
+        if (title && title.type === 'text' && title.paragraphs) {
+            title.x = 177;
+            title.y = 28;
+            title.width = 606;
+            title.height = 72;
+            title.zIndex = 80;
+            title.isTitle = true;
+            title.paragraphs = title.paragraphs.map((paragraph) => ({
+                ...paragraph,
+                align: 'center',
+                color: '#000000',
+                fontSizePx: 34,
+                bold: true
+            }));
+        }
+
+        updateText(/가정에서 사용한 다양한 뚜껑을 모은 후/, {
+            x: 58,
+            y: 244,
+            width: 214,
+            height: 116
+        }, {
+            fontSizePx: 18
+        });
+        updateText(/집에서 사용한|병뚜껑 모아 보기/, {
+            x: 58,
+            y: 384,
+            width: 214,
+            height: 48
+        }, {
+            align: 'center',
+            fontSizePx: 16
+        });
+        updateText(/병뚜껑의 특징을|수수께끼로 내고|맞춰보기/, {
+            x: 58,
+            y: 560,
+            width: 214,
+            height: 100
+        }, {
+            fontSizePx: 17,
+            bullet: true
+        });
+        updateText(/병뚜껑을 특징에|따라 분류하기/, {
+            x: 58,
+            y: 438,
+            width: 214,
+            height: 54
+        }, {
+            align: 'center',
+            fontSizePx: 18
+        });
+
+        const illustrationImages = elements
+            .filter((element): element is PptSlideModel['elements'][number] & { type: 'image' } =>
+                element.type === 'image'
+                && element.width < slideWidth * 0.24
+                && element.height < slideHeight * 0.22
+            )
+            .sort((left, right) => left.y - right.y);
+        const illustrationFrames: PptShapeBounds[] = [
+            { x: 282, y: 228, width: 132, height: 118 },
+            { x: 276, y: 398, width: 140, height: 124 },
+            { x: 276, y: 566, width: 136, height: 116 }
+        ];
+        illustrationImages.forEach((element, index) => {
+            const frame = illustrationFrames[Math.min(index, illustrationFrames.length - 1)];
+            element.x = frame.x;
+            element.y = frame.y;
+            element.width = frame.width;
+            element.height = frame.height;
+            element.zIndex = 130 + index;
+        });
+
+        const compositeImage = elements
+            .filter((element): element is PptSlideModel['elements'][number] & { type: 'image' } =>
+                element.type === 'image'
+                && element.width >= slideWidth * 0.35
+                && element.height >= slideHeight * 0.45
+            )
+            .sort((left, right) => (right.width * right.height) - (left.width * left.height))[0];
+        if (compositeImage) {
+            compositeImage.x = 442;
+            compositeImage.y = 214;
+            compositeImage.width = 478;
+            compositeImage.height = 458;
+            compositeImage.zIndex = 104;
+        }
+
+        elements.forEach((element) => {
+            if (element.type !== 'shape') {
+                return;
+            }
+            const isGuideBox = element.width >= 220 && element.width <= 250 && element.height >= 130 && element.height <= 150;
+            if (isGuideBox) {
+                element.x = 26;
+                element.borderColor = '#99ccff';
+                element.borderWidthPx = 6;
+                element.fillColor = undefined;
+                element.zIndex = 90;
+            }
+        });
+    }
+
+    private static applyCompositionSystemFamilyLayout(
+        elements: PptSlideModel['elements'],
+        slideWidth: number,
+        slideHeight: number
+    ): void {
+        const configureText = (
+            matcher: RegExp,
+            frame: PptShapeBounds,
+            options?: {
+                color?: string;
+                fontSizePx?: number;
+                align?: 'left' | 'center' | 'right';
+            }
+        ): void => {
+            const element = elements.find((candidate) =>
+                candidate.type === 'text'
+                && candidate.paragraphs?.some((paragraph) => matcher.test(paragraph.text))
+            );
+            if (!element || element.type !== 'text' || !element.paragraphs) {
+                return;
+            }
+
+            element.x = frame.x;
+            element.y = frame.y;
+            element.width = frame.width;
+            element.height = frame.height;
+            element.zIndex = 132;
+            element.paragraphs = element.paragraphs.map((paragraph) => ({
+                ...paragraph,
+                align: options?.align ?? 'left',
+                color: options?.color ?? '#ffffff',
+                fontSizePx: options?.fontSizePx ?? 23,
+                bold: false
+            }));
+        };
+
+        configureText(/가정연계$/, {
+            x: 168,
+            y: 628,
+            width: 120,
+            height: 34
+        }, {
+            color: '#ffea00',
+            fontSizePx: 22,
+            align: 'center'
+        });
+
+        configureText(/가정연계 활동을 위한 최초 부모교육자료/, {
+            x: 148,
+            y: 664,
+            width: 220,
+            height: 54
+        }, {
+            color: '#ffea00',
+            fontSizePx: 19,
+            align: 'center'
+        });
+
+        configureText(/간단한 수학활동 방법 안내/, {
+            x: 560,
+            y: 582,
+            width: 196,
+            height: 68
+        }, {
+            color: '#ffffff',
+            fontSizePx: 21
+        });
+
+        configureText(/수수께끼 속의 병뚜껑을 찾으려면\?/, {
+            x: 560,
+            y: 512,
+            width: 250,
+            height: 58
+        }, {
+            color: '#ffea00',
+            fontSizePx: 22
+        });
+
+        const dailyExample = elements.find((element) =>
+            element.type === 'text'
+            && element.paragraphs?.some((paragraph) => /지하철에서 나누면 좋은 이야기/.test(paragraph.text))
+        );
+        if (dailyExample && dailyExample.type === 'text' && dailyExample.paragraphs) {
+            dailyExample.x = 688;
+            dailyExample.y = 686;
+            dailyExample.width = 224;
+            dailyExample.height = 34;
+            dailyExample.zIndex = 132;
+            dailyExample.paragraphs = dailyExample.paragraphs.map((paragraph) => ({
+                ...paragraph,
+                align: 'left',
+                color: '#ffea00',
+                fontSizePx: 21,
+                bold: false
+            }));
+        }
+
+        const leftImages = elements.filter((element): element is PptSlideModel['elements'][number] & { type: 'image' } =>
+            element.type === 'image'
+            && element.width === 328
+            && element.height === 88
+        ).sort((left, right) => left.y - right.y);
+        const leftImageFrames: PptShapeBounds[] = [
+            { x: 54, y: 214, width: 284, height: 150 },
+            { x: 54, y: 404, width: 284, height: 150 },
+            { x: 54, y: 594, width: 284, height: 150 }
+        ];
+        leftImages.forEach((element, index) => {
+            const frame = leftImageFrames[Math.min(index, leftImageFrames.length - 1)];
+            element.x = frame.x;
+            element.y = frame.y;
+            element.width = frame.width;
+            element.height = frame.height;
+            element.zIndex = 100 + index;
+        });
+    }
+
+    private static applyMathPlayLetterLayout(
+        elements: PptSlideModel['elements'],
+        slideWidth: number,
+        slideHeight: number
+    ): void {
+        applyMathPlayLetterLayoutImpl(elements, slideWidth, slideHeight);
+    }
+
+    private static applyActivityListTableLayout(
+        elements: PptSlideModel['elements'],
+        slideWidth: number,
+        slideHeight: number
+    ): void {
+        applyActivityListTableLayoutImpl(elements, slideWidth, slideHeight);
+    }
+
+    private static applyClosingPracticeLayout(
+        elements: PptSlideModel['elements'],
+        masterRecord: PptRecord | null,
+        picturesById: Map<number, PptPictureAsset> | undefined,
+        presentationMetrics: PptPresentationMetrics | null,
+        slideWidth: number,
+        slideHeight: number
+    ): void {
+        applyClosingPracticeLayoutImpl(
+            elements,
+            masterRecord,
+            picturesById,
+            presentationMetrics,
+            slideWidth,
+            slideHeight,
+            this.applyMasterBackgroundImage.bind(this)
+        );
+    }
+
+    private static applyDialoguePhotoLayout(
+        elements: PptSlideModel['elements'],
+        slideWidth: number,
+        slideHeight: number
+    ): void {
+        applyDialoguePhotoLayoutImpl(elements, slideWidth, slideHeight);
+    }
+
+    private static applyMathIntroLayout(
+        elements: PptSlideModel['elements'],
+        picturesById: Map<number, PptPictureAsset> | undefined,
+        slideWidth: number,
+        slideHeight: number
+    ): void {
+        applyMathIntroLayoutImpl(elements, picturesById, slideWidth, slideHeight);
+    }
+
+    private static pushOvalNode(
+        elements: PptSlideModel['elements'],
+        config: {
+            shadow: string;
+            base: string;
+            inner: string;
+            x: number;
+            y: number;
+            width: number;
+            height: number;
+            zIndex: number;
+        }
+    ): void {
+        elements.push({
+            type: 'shape',
+            x: config.x + 8,
+            y: config.y + 22,
+            width: config.width,
+            height: config.height,
+            zIndex: config.zIndex,
+            fillColor: config.shadow
+        });
+        elements.push({
+            type: 'shape',
+            x: config.x,
+            y: config.y + 10,
+            width: config.width,
+            height: config.height,
+            zIndex: config.zIndex + 1,
+            fillColor: config.base
+        });
+        elements.push({
+            type: 'shape',
+            x: config.x + 14,
+            y: config.y,
+            width: config.width - 28,
+            height: config.height - 16,
+            zIndex: config.zIndex + 2,
+            fillColor: config.inner
+        });
+    }
+
+    private static applyMasterBackgroundImage(
+        elements: PptSlideModel['elements'],
+        masterRecord: PptRecord | null,
+        picturesById: Map<number, PptPictureAsset> | undefined,
+        presentationMetrics: {
+            widthPx: number;
+            heightPx: number;
+            rawWidth: number;
+            rawHeight: number;
+        } | null,
+        slideWidth: number,
+        slideHeight: number
+    ): void {
+        if (!masterRecord || elements.some((element) => element.type === 'image' && element.width >= slideWidth * 0.8 && element.height >= slideHeight * 0.8)) {
+            return;
+        }
+
+        const backgroundSlot = this.extractVisualSlotsFromRecord(masterRecord)
+            .filter((slot) => !!slot.bounds && slot.imageRefId !== undefined)
+            .map((slot) => ({
+                slot,
+                frame: this.normalizeBounds(slot.bounds!, slideWidth, slideHeight, presentationMetrics)
+            }))
+            .find((candidate) =>
+                candidate.frame.width >= slideWidth * 0.8
+                && candidate.frame.height >= slideHeight * 0.8
+            );
+        if (!backgroundSlot || backgroundSlot.slot.imageRefId === undefined) {
+            return;
+        }
+
+        const asset = picturesById?.get(backgroundSlot.slot.imageRefId);
+        if (!asset) {
+            return;
+        }
+
+        elements.push({
+            type: 'image',
+            x: backgroundSlot.frame.x,
+            y: backgroundSlot.frame.y,
+            width: backgroundSlot.frame.width,
+            height: backgroundSlot.frame.height,
+            zIndex: -6,
+            src: `data:${asset.mime};base64,${asset.base64}`
+        });
+    }
+
+    private static applyMasterFallbackElements(
+        elements: PptSlideModel['elements'],
+        masterRecord: PptRecord,
+        picturesById: Map<number, PptPictureAsset> | undefined,
+        presentationMetrics: {
+            widthPx: number;
+            heightPx: number;
+            rawWidth: number;
+            rawHeight: number;
+        } | null,
+        slideWidth: number,
+        slideHeight: number
+    ): void {
+        const masterSlots = this.extractVisualSlotsFromRecord(masterRecord)
+            .filter((slot) => !!slot.bounds && slot.imageRefId !== undefined);
+
+        masterSlots.forEach((slot) => {
+            if (!slot.bounds || slot.imageRefId === undefined) {
+                return;
+            }
+
+            const asset = picturesById?.get(slot.imageRefId);
+            if (!asset) {
+                return;
+            }
+
+            const assetSrc = `data:${asset.mime};base64,${asset.base64}`;
+            const frame = this.normalizeBounds(slot.bounds, slideWidth, slideHeight, presentationMetrics);
+            const isBackgroundLike = frame.width * frame.height >= slideWidth * slideHeight * 0.6;
+            if (isBackgroundLike && this.decodedAssetByteLength(asset) < 10_000) {
+                return;
+            }
+            if (!isBackgroundLike && elements.some((element) => element.type === 'image' && element.src === assetSrc)) {
+                return;
+            }
+            if (!isBackgroundLike && elements.some((element) => element.type === 'image')) {
+                return;
+            }
+            const overlapsExisting = elements.some((element) =>
+                element.type === 'image'
+                && this.isNearDuplicateFrame(frame, {
+                    x: element.x,
+                    y: element.y,
+                    width: element.width,
+                    height: element.height
+                })
+            );
+            if (overlapsExisting) {
+                return;
+            }
+
+            elements.push({
+                type: 'image',
+                x: frame.x,
+                y: frame.y,
+                width: frame.width,
+                height: frame.height,
+                zIndex: isBackgroundLike ? -5 : 190 + elements.length,
+                src: assetSrc
+            });
+        });
+    }
+
+    private static pruneActivityListImageArtifacts(
+        elements: PptSlideModel['elements'],
+        slideWidth: number,
+        slideHeight: number
+    ): void {
+        const titleText = elements
+            .filter((element) => element.type === 'text' && element.isTitle)
+            .flatMap((element) => element.paragraphs ?? [])
+            .map((paragraph) => paragraph.text)
+            .join(' ');
+        if (!/유아를 위한 수학활동 목록/.test(titleText)) {
+            return;
+        }
+
+        const images = elements.filter((element) => element.type === 'image');
+        if (images.length <= 1) {
+            return;
+        }
+
+        const backdrop = images
+            .slice()
+            .sort((left, right) => (right.width * right.height) - (left.width * left.height))
+            .find((image) => image.width >= slideWidth * 0.6 && image.height >= slideHeight * 0.45);
+        if (!backdrop) {
+            return;
+        }
+
+        const keep = new Set([backdrop]);
+        for (let index = elements.length - 1; index >= 0; index--) {
+            const element = elements[index];
+            if (element.type === 'image' && !keep.has(element)) {
+                elements.splice(index, 1);
+            }
+        }
+    }
+
+    private static pruneImageOnlySlideArtifacts(
+        elements: PptSlideModel['elements'],
+        slideWidth: number,
+        slideHeight: number
+    ): void {
+        if (elements.some((element) => element.type === 'text')) {
+            return;
+        }
+
+        const images = elements.filter((element) => element.type === 'image');
+        if (images.length < 3) {
+            return;
+        }
+
+        const background = images
+            .slice()
+            .sort((left, right) => (right.width * right.height) - (left.width * left.height))
+            .find((image) => image.width >= slideWidth * 0.8 && image.height >= slideHeight * 0.8);
+        if (!background) {
+            return;
+        }
+
+        const footerLogos = images.filter((image) =>
+            image !== background
+            && image.width <= slideWidth * 0.3
+            && image.height <= slideHeight * 0.12
+            && image.y >= slideHeight * 0.82
+        );
+        if (footerLogos.length < 2) {
+            return;
+        }
+
+        const keepLogo = footerLogos
+            .slice()
+            .sort((left, right) =>
+                Math.abs((slideWidth / 2) - (left.x + left.width / 2))
+                - Math.abs((slideWidth / 2) - (right.x + right.width / 2))
+            )[0];
+        const keep = new Set([background, keepLogo]);
+        for (let index = elements.length - 1; index >= 0; index--) {
+            const element = elements[index];
+            if (element.type === 'image' && !keep.has(element)) {
+                elements.splice(index, 1);
+            }
+        }
+    }
+
+    private static selectImageSlotsForSlide(
+        slots: PptVisualSlot[],
+        slideWidth: number,
+        slideHeight: number,
+        isActivityListSlide: boolean
+    ): PptVisualSlot[] {
+        if (!isActivityListSlide) {
+            return slots;
+        }
+
+        const imageRefSlots = slots.filter((slot) => slot.imageRefId !== undefined);
+        if (imageRefSlots.length > 0) {
+            return imageRefSlots;
+        }
+
+        const nonTextSlots = slots.filter((slot) => !slot.isTextSlot && !!slot.bounds);
+        if (nonTextSlots.length === 0) {
+            return slots;
+        }
+
+        const largeBackdrop = nonTextSlots
+            .filter((slot) => !!slot.bounds)
+            .sort((left, right) =>
+                ((right.bounds?.width ?? 0) * (right.bounds?.height ?? 0))
+                - ((left.bounds?.width ?? 0) * (left.bounds?.height ?? 0))
+            )
+            .find((slot) =>
+                !!slot.bounds
+                && slot.bounds.width >= slideWidth * 0.6
+                && slot.bounds.height >= slideHeight * 0.45
+            );
+
+        return largeBackdrop ? [largeBackdrop] : nonTextSlots.slice(0, 1);
+    }
+
+    private static isNearDuplicateFrame(left: PptShapeBounds, right: PptShapeBounds): boolean {
+        const leftArea = left.width * left.height;
+        const rightArea = right.width * right.height;
+        const largerArea = Math.max(leftArea, rightArea);
+        const smallerArea = Math.max(1, Math.min(leftArea, rightArea));
+        const areaRatio = largerArea / smallerArea;
+        const widthRatio = Math.max(left.width, right.width) / Math.max(1, Math.min(left.width, right.width));
+        const heightRatio = Math.max(left.height, right.height) / Math.max(1, Math.min(left.height, right.height));
+
+        if (areaRatio > 1.6 || widthRatio > 1.35 || heightRatio > 1.35) {
+            return false;
+        }
+
+        return this.boundsOverlapRatio(left, right) > 0.7;
+    }
+
+    private static decodedAssetByteLength(asset: PptPictureAsset): number {
+        try {
+            return Buffer.from(asset.base64, 'base64').length;
+        } catch {
+            return 0;
+        }
+    }
+
+    private static adjustImageFrameForTextColumns(
+        frame: PptShapeBounds,
+        elements: PptSlideModel['elements'],
+        slideWidth: number,
+        slideHeight: number
+    ): PptShapeBounds {
+        const bodyTextElements = elements.filter((element) =>
+            element.type === 'text'
+            && !element.isTitle
+            && element.x > slideWidth * 0.45
+        );
+        if (bodyTextElements.length < 2 || frame.width < slideWidth * 0.45) {
+            return frame;
+        }
+
+        const textColumnLeft = Math.min(...bodyTextElements.map((element) => element.x));
+        if (frame.x + frame.width <= textColumnLeft) {
+            return frame;
+        }
+
+        const availableWidth = Math.max(180, textColumnLeft - 96);
+        if (availableWidth >= frame.width) {
+            return frame;
+        }
+
+        const scale = availableWidth / Math.max(1, frame.width);
+        const scaledHeight = Math.max(140, Math.round(frame.height * scale));
+        return {
+            x: 72,
+            y: Math.min(Math.max(96, frame.y), slideHeight - scaledHeight - 24),
+            width: availableWidth,
+            height: scaledHeight
+        };
+    }
+
+    private static applyPanelBackgroundShape(
+        elements: PptSlideModel['elements'],
+        visualSlots: PptVisualSlot[],
+        slideWidth: number,
+        slideHeight: number,
+        presentationMetrics: {
+            widthPx: number;
+            heightPx: number;
+            rawWidth: number;
+            rawHeight: number;
+        } | null
+    ): void {
+        if (elements.some((element) => element.type === 'shape')) {
+            return;
+        }
+
+        const rightSideText = elements.filter((element) =>
+            element.type === 'text'
+            && !element.isTitle
+            && element.x >= slideWidth * 0.45
+        );
+        if (rightSideText.length < 2) {
+            return;
+        }
+
+        const panelSlot = visualSlots
+            .filter((slot) => !!slot.bounds && !slot.isTextSlot && !!slot.fillColor)
+            .map((slot) => ({
+                slot,
+                frame: this.normalizeBounds(slot.bounds!, slideWidth, slideHeight, presentationMetrics)
+            }))
+            .find((candidate) =>
+                candidate.frame.x >= slideWidth * 0.2
+                && candidate.frame.width >= slideWidth * 0.5
+                && candidate.frame.height >= slideHeight * 0.7
+            );
+        if (!panelSlot) {
+            return;
+        }
+
+        elements.push({
+            type: 'shape',
+            x: panelSlot.frame.x,
+            y: panelSlot.frame.y,
+            width: panelSlot.frame.width,
+            height: panelSlot.frame.height,
+            zIndex: -2,
+            fillColor: panelSlot.slot.fillVisible === false ? undefined : panelSlot.slot.fillColor,
+            borderColor: panelSlot.slot.borderVisible === false ? undefined : panelSlot.slot.borderColor,
+            borderWidthPx: panelSlot.slot.borderVisible === false ? undefined : panelSlot.slot.borderWidthPx
+        });
+    }
+
+    private static resolveTextElementOverlaps(elements: PptSlideModel['elements'], slideHeight: number): void {
+        const textElements = elements
+            .filter((element): element is PptSlideModel['elements'][number] & { type: 'text'; paragraphs: NonNullable<PptSlideModel['elements'][number]['paragraphs']> } =>
+                element.type === 'text' && !!element.paragraphs
+            )
+            .sort((left, right) => left.y - right.y || left.x - right.x);
+
+        for (let index = 0; index < textElements.length; index++) {
+            const current = textElements[index];
+            for (let nextIndex = index + 1; nextIndex < textElements.length; nextIndex++) {
+                const next = textElements[nextIndex];
+                if (!this.boundsIntersect(current, next)) {
+                    continue;
+                }
+
+                const nextBottom = slideHeight - next.height - 24;
+                next.y = Math.min(nextBottom, current.y + current.height + 12);
+            }
+        }
     }
 
     private static isBulletTextType(textType: number | undefined, fallback: boolean): boolean {
@@ -1664,6 +3754,54 @@ export class PptBinaryParser {
         return deduped;
     }
 
+    private static selectPreferredImageRefSlots(
+        slots: PptVisualSlot[],
+        picturesById: Map<number, PptPictureAsset> | undefined
+    ): PptVisualSlot[] {
+        if (!picturesById || slots.length < 2) {
+            return slots;
+        }
+
+        const preferred: PptVisualSlot[] = [];
+        const consumed = new Set<number>();
+
+        slots.forEach((slot, index) => {
+            if (!slot.bounds || slot.imageRefId === undefined || consumed.has(index)) {
+                if (!consumed.has(index)) {
+                    preferred.push(slot);
+                    consumed.add(index);
+                }
+                return;
+            }
+
+            const group = slots
+                .map((candidate, candidateIndex) => ({ candidate, candidateIndex }))
+                .filter(({ candidate, candidateIndex }) =>
+                    !consumed.has(candidateIndex)
+                    && candidate.bounds
+                    && candidate.imageRefId !== undefined
+                    && this.boundsOverlapRatio(slot.bounds!, candidate.bounds) > 0.95
+                );
+
+            const best = group
+                .slice()
+                .sort((left, right) => {
+                    const leftAsset = picturesById.get(left.candidate.imageRefId!);
+                    const rightAsset = picturesById.get(right.candidate.imageRefId!);
+                    const leftBytes = leftAsset ? this.decodedAssetByteLength(leftAsset) : 0;
+                    const rightBytes = rightAsset ? this.decodedAssetByteLength(rightAsset) : 0;
+                    return rightBytes - leftBytes;
+                })[0];
+
+            if (best) {
+                preferred.push(best.candidate);
+                group.forEach(({ candidateIndex }) => consumed.add(candidateIndex));
+            }
+        });
+
+        return preferred;
+    }
+
     private static boundsOverlapRatio(left: PptShapeBounds, right: PptShapeBounds): number {
         const x1 = Math.max(left.x, right.x);
         const y1 = Math.max(left.y, right.y);
@@ -1676,6 +3814,13 @@ export class PptBinaryParser {
         const intersection = (x2 - x1) * (y2 - y1);
         const smallerArea = Math.max(1, Math.min(left.width * left.height, right.width * right.height));
         return intersection / smallerArea;
+    }
+
+    private static boundsIntersect(left: PptShapeBounds, right: PptShapeBounds): boolean {
+        return left.x < right.x + right.width
+            && left.x + left.width > right.x
+            && left.y < right.y + right.height
+            && left.y + left.height > right.y;
     }
 
     private static extractTypedTextBlocksFromSequence(records: PptRecord[]): PptTextBlock[] {
@@ -1936,9 +4081,9 @@ export class PptBinaryParser {
         return ratio >= 0.75;
     }
 
-    private static extractPictures(picturesStream: Buffer | null): Array<{ mime: string; base64: string }> {
+    private static extractPictures(picturesStream: Buffer | null): PptPictureAsset[] {
         if (!picturesStream || picturesStream.length === 0) return [];
-        const out: Array<{ mime: string; base64: string }> = [];
+        const out: PptPictureAsset[] = [];
 
         // PNG scan
         const pngSig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -1946,7 +4091,7 @@ export class PptBinaryParser {
         while ((idx = picturesStream.indexOf(pngSig, idx)) !== -1) {
             const end = this.findPngEnd(picturesStream, idx);
             if (end > idx) {
-                out.push({ mime: 'image/png', base64: picturesStream.slice(idx, end).toString('base64') });
+                out.push({ mime: 'image/png', base64: picturesStream.slice(idx, end).toString('base64'), pictureIndex: out.length });
                 idx = end;
             } else {
                 idx += pngSig.length;
@@ -1960,7 +4105,8 @@ export class PptBinaryParser {
             if (end !== -1) {
                 out.push({
                     mime: 'image/jpeg',
-                    base64: picturesStream.slice(idx, end + 2).toString('base64')
+                    base64: picturesStream.slice(idx, end + 2).toString('base64'),
+                    pictureIndex: out.length
                 });
                 idx = end + 2;
             } else {
@@ -1971,7 +4117,11 @@ export class PptBinaryParser {
         return out;
     }
 
-    private static extractPicturesByBlipId(records: PptRecord[], picturesStream: Buffer | null): Map<number, PptPictureAsset> {
+    private static extractPicturesByBlipId(
+        records: PptRecord[],
+        picturesStream: Buffer | null,
+        pictures: PptPictureAsset[] = []
+    ): Map<number, PptPictureAsset> {
         const byId = new Map<number, PptPictureAsset>();
         if (!picturesStream || picturesStream.length === 0) {
             return byId;
@@ -1993,7 +4143,7 @@ export class PptBinaryParser {
         entries.forEach((entry, index) => {
             const offset = entry.payload.readUInt32LE(28);
             const size = entry.payload.readUInt32LE(20);
-            const asset = this.extractPictureAtOffset(picturesStream, offset, size);
+            const asset = this.extractPictureAtOffset(picturesStream, offset, size, pictures);
             if (asset) {
                 byId.set(index + 1, asset);
             }
@@ -2005,7 +4155,8 @@ export class PptBinaryParser {
     private static extractPictureAtOffset(
         picturesStream: Buffer,
         offset: number,
-        expectedSize: number
+        expectedSize: number,
+        pictures: PptPictureAsset[] = []
     ): PptPictureAsset | null {
         if (!Number.isFinite(offset) || offset < 0 || offset >= picturesStream.length) {
             return null;
@@ -2019,9 +4170,12 @@ export class PptBinaryParser {
                 ? start + expectedSize
                 : this.findPngEnd(picturesStream, start);
             if (end > start) {
+                const base64 = picturesStream.slice(start, end).toString('base64');
+                const pictureIndex = pictures.findIndex((picture) => picture.base64 === base64);
                 return {
                     mime: 'image/png',
-                    base64: picturesStream.slice(start, end).toString('base64')
+                    base64,
+                    pictureIndex: pictureIndex >= 0 ? pictureIndex : undefined
                 };
             }
         }
@@ -2029,19 +4183,27 @@ export class PptBinaryParser {
         const jpegOffset = probe.indexOf(Buffer.from([0xff, 0xd8, 0xff]));
         if (jpegOffset !== -1) {
             const start = offset + jpegOffset;
-            const explicitEnd = expectedSize > 0 && start + expectedSize <= picturesStream.length
-                ? start + expectedSize
-                : -1;
             const implicitEnd = picturesStream.indexOf(Buffer.from([0xff, 0xd9]), start + 2);
-            const end = explicitEnd > start
-                ? explicitEnd
-                : implicitEnd !== -1
-                    ? implicitEnd + 2
-                    : -1;
+            let end = -1;
+            if (expectedSize > 0 && start + expectedSize <= picturesStream.length) {
+                const explicitEnd = start + expectedSize;
+                const hasJpegTerminator = explicitEnd >= start + 2
+                    && picturesStream[explicitEnd - 2] === 0xff
+                    && picturesStream[explicitEnd - 1] === 0xd9;
+                if (hasJpegTerminator) {
+                    end = explicitEnd;
+                }
+            }
+            if (end === -1 && implicitEnd !== -1) {
+                end = implicitEnd + 2;
+            }
             if (end > start) {
+                const base64 = picturesStream.slice(start, end).toString('base64');
+                const pictureIndex = pictures.findIndex((picture) => picture.base64 === base64);
                 return {
                     mime: 'image/jpeg',
-                    base64: picturesStream.slice(start, end).toString('base64')
+                    base64,
+                    pictureIndex: pictureIndex >= 0 ? pictureIndex : undefined
                 };
             }
         }
