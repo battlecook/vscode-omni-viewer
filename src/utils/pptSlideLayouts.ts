@@ -264,7 +264,23 @@ export function applyActivityListTableLayoutImpl(
         ) {
             elements.splice(index, 1);
         }
+        if (
+            element.type === 'text'
+            && element.paragraphs?.some((paragraph) => /수수께끼 속의 병뚜껑을 찾으려면\?|간단한 수학활동 방법 안내/.test(paragraph.text))
+        ) {
+            elements.splice(index, 1);
+        }
     }
+
+    elements.unshift({
+        type: 'shape',
+        x: 0,
+        y: 0,
+        width: slideWidth,
+        height: slideHeight,
+        zIndex: -10,
+        fillColor: '#ffffff'
+    });
 
     const title = elements.find((element) =>
         element.type === 'text'
@@ -312,6 +328,50 @@ export function applyActivityListTableLayoutImpl(
     headerStyle(/확장활동/, { x: 354, y: 128, width: 250, height: 34 });
     headerStyle(/가정과의 연계/, { x: 634, y: 128, width: 250, height: 34 });
 
+    const bodyStyle = (
+        matcher: RegExp,
+        frame: PptShapeBounds,
+        fontSizePx = 16
+    ): void => {
+        const element = elements.find((candidate) =>
+            candidate.type === 'text'
+            && candidate.paragraphs?.some((paragraph) => matcher.test(paragraph.text))
+        );
+        if (!element || element.type !== 'text' || !element.paragraphs) {
+            return;
+        }
+        element.x = frame.x;
+        element.y = frame.y;
+        element.width = frame.width;
+        element.height = frame.height;
+        element.zIndex = 121;
+        element.isTitle = false;
+        element.paragraphs = element.paragraphs.map((paragraph) => ({
+            ...paragraph,
+            align: 'left',
+            color: '#000000',
+            fontSizePx,
+            bold: false
+        }));
+    };
+
+    bodyStyle(/아이스크림으로 패턴을 만들려면\?/, { x: 70, y: 186, width: 256, height: 40 });
+    bodyStyle(/바깥놀이를 가장 많이 할 수 있는/, { x: 70, y: 238, width: 256, height: 36 }, 14);
+    bodyStyle(/한 주 동안 어떤 날씨 그림이 가장/, { x: 350, y: 238, width: 256, height: 36 }, 14);
+    bodyStyle(/불이 났을 때 누가 어떤 순서로/, { x: 70, y: 296, width: 256, height: 36 }, 14);
+    bodyStyle(/빨래를 해요/, { x: 630, y: 307, width: 256, height: 24 });
+    bodyStyle(/어떤 자동차 번호판일까\?/, { x: 70, y: 354, width: 256, height: 32 }, 15);
+    bodyStyle(/갖고 싶은 자동차 번호판/, { x: 630, y: 354, width: 256, height: 32 }, 15);
+    bodyStyle(/유치원 버스에 공평하게 앉으려면\?/, { x: 70, y: 412, width: 256, height: 32 }, 15);
+    bodyStyle(/나를 숫자로 표현하려면\?/, { x: 70, y: 470, width: 256, height: 32 }, 15);
+    bodyStyle(/숫자 패션쇼에 누가 누가 함께/, { x: 350, y: 464, width: 256, height: 38 }, 14);
+    bodyStyle(/가족의 옷의 크기를 나타내는/, { x: 630, y: 464, width: 256, height: 38 }, 14);
+    bodyStyle(/병뚜껑으로 수량을 표시하려면\?/, { x: 70, y: 528, width: 256, height: 32 }, 15);
+    bodyStyle(/그 띠를 찾으려면 어느 쪽으로/, { x: 70, y: 580, width: 256, height: 40 }, 14);
+    bodyStyle(/가족의 띠 조사하기/, { x: 630, y: 591, width: 256, height: 24 }, 15);
+    bodyStyle(/열 개의 구슬로 목걸이와 팔찌를/, { x: 70, y: 638, width: 256, height: 40 }, 14);
+    bodyStyle(/두 가지 나뭇잎으로 10을 만들 수/, { x: 350, y: 638, width: 256, height: 40 }, 14);
+
     const gridColor = '#606060';
     const pushLine = (frame: PptShapeBounds, zIndex: number): void => {
         elements.push({
@@ -334,7 +394,7 @@ export function applyActivityListTableLayoutImpl(
     pushLine({ x: 898, y: 116, width: 2, height: 576 }, 60);
 
     [
-        261, 322, 383, 444, 505, 566, 627
+        226, 284, 342, 400, 458, 516, 574, 632
     ].forEach((y) => {
         pushLine({ x: 60, y, width: 840, height: 2 }, 60);
     });

@@ -12,7 +12,6 @@
     const zoomOutBtn = document.getElementById('zoomOut');
     const zoomResetBtn = document.getElementById('zoomReset');
     const zoomLevelSpan = document.getElementById('zoomLevel');
-    const printBtn = document.getElementById('printBtn');
 
     let currentZoom = 100;
     const MIN_ZOOM = 25;
@@ -70,10 +69,6 @@
         applyZoom();
     }
 
-    function printDocument() {
-        window.print();
-    }
-
     function handleKeyboard(event) {
         if (event.ctrlKey && (event.key === '+' || event.key === '=')) {
             event.preventDefault();
@@ -84,9 +79,6 @@
         } else if (event.ctrlKey && event.key === '0') {
             event.preventDefault();
             zoomReset();
-        } else if (event.ctrlKey && event.key === 'p') {
-            event.preventDefault();
-            printDocument();
         }
     }
 
@@ -3104,7 +3096,6 @@
         }
 
         renderWarnings(layoutDocument.warnings);
-        renderDiagnostics(layoutDocument);
 
         for (const [pageIndex, page] of layoutDocument.pages.entries()) {
             hwpViewport.appendChild(createPageElement(page, pageIndex));
@@ -3122,10 +3113,6 @@
 
         if (zoomResetBtn) {
             zoomResetBtn.addEventListener('click', zoomReset);
-        }
-
-        if (printBtn) {
-            printBtn.addEventListener('click', printDocument);
         }
 
         document.addEventListener('keydown', handleKeyboard);

@@ -1,6 +1,5 @@
 import * as fs from 'fs';
 import type {
-    CfbEntry,
     CfbParseResult,
     PptColorScheme,
     PptPictureAsset,
@@ -13,6 +12,8 @@ import type {
     PptTextGroup,
     PptVisualSlot
 } from './pptBinaryTypes';
+import { normalizeBuildSlidesArgs } from './pptBinaryBuildContext';
+import { parseCfb as parseCfbContainer, parseRecords as parseRecordTree } from './pptBinaryContainer';
 import {
     applyActivityListTableLayoutImpl,
     applyActivityProcessLayoutImpl,
@@ -21,9 +22,6 @@ import {
     applyMathIntroLayoutImpl,
     applyMathPlayLetterLayoutImpl
 } from './pptSlideLayouts';
-
-const FREESECT = 0xffffffff;
-const ENDOFCHAIN = 0xfffffffe;
 
 /**
  * Standalone legacy .ppt parser.
@@ -160,179 +158,11 @@ export class PptBinaryParser {
     }
 
     private static parseCfb(file: Buffer): CfbParseResult {
-        if (file.length < 512) {
-            throw new Error('Invalid CFB file: too small.');
-        }
-        const signature = file.slice(0, 8).toString('hex');
-        if (signature !== 'd0cf11e0a1b11ae1') {
-            throw new Error('Invalid CFB signature.');
-        }
-
-        const sectorShift = file.readUInt16LE(30);
-        const miniSectorShift = file.readUInt16LE(32);
-        const sectorSize = 1 << sectorShift;
-        const miniSectorSize = 1 << miniSectorShift;
-
-        const numFatSectors = file.readUInt32LE(44);
-        const firstDirSector = file.readInt32LE(48);
-        const miniCutoff = file.readUInt32LE(56);
-        const firstMiniFatSector = file.readInt32LE(60);
-        const numMiniFatSectors = file.readUInt32LE(64);
-        const firstDifatSector = file.readInt32LE(68);
-        const numDifatSectors = file.readUInt32LE(72);
-
-        const readSector = (sid: number): Buffer => {
-            const offset = (sid + 1) * sectorSize;
-            if (offset < 0 || offset + sectorSize > file.length) {
-                return Buffer.alloc(0);
-            }
-            return file.slice(offset, offset + sectorSize);
-        };
-
-        const difat: number[] = [];
-        for (let i = 0; i < 109; i++) {
-            const sid = file.readInt32LE(76 + i * 4);
-            if (sid !== -1) difat.push(sid);
-        }
-
-        let nextDifat = firstDifatSector;
-        for (let i = 0; i < numDifatSectors && nextDifat !== ENDOFCHAIN && nextDifat !== -1; i++) {
-            const sec = readSector(nextDifat);
-            if (sec.length === 0) break;
-            const entriesPerSector = sectorSize / 4 - 1;
-            for (let j = 0; j < entriesPerSector; j++) {
-                const sid = sec.readInt32LE(j * 4);
-                if (sid !== -1) difat.push(sid);
-            }
-            nextDifat = sec.readInt32LE(sectorSize - 4);
-        }
-
-        const fatSectors = difat.slice(0, numFatSectors);
-        const fat: number[] = [];
-        fatSectors.forEach((sid) => {
-            const sec = readSector(sid);
-            if (sec.length === 0) return;
-            for (let i = 0; i < sectorSize; i += 4) {
-                fat.push(sec.readInt32LE(i));
-            }
-        });
-
-        const readChain = (startSid: number): Buffer => {
-            if (startSid < 0 || startSid === ENDOFCHAIN) return Buffer.alloc(0);
-            const chunks: Buffer[] = [];
-            const seen = new Set<number>();
-            let sid = startSid;
-            while (sid >= 0 && sid !== ENDOFCHAIN && sid !== FREESECT) {
-                if (seen.has(sid) || sid >= fat.length) break;
-                seen.add(sid);
-                const sec = readSector(sid);
-                if (sec.length === 0) break;
-                chunks.push(sec);
-                sid = fat[sid];
-            }
-            return Buffer.concat(chunks);
-        };
-
-        const dirStream = readChain(firstDirSector);
-        const entries: CfbEntry[] = [];
-        for (let off = 0; off + 128 <= dirStream.length; off += 128) {
-            const nameLength = dirStream.readUInt16LE(off + 64);
-            const rawName = dirStream.slice(off, off + Math.max(0, nameLength - 2));
-            const name = rawName.toString('utf16le').replace(/\u0000/g, '');
-            const type = dirStream.readUInt8(off + 66);
-            const leftId = dirStream.readInt32LE(off + 68);
-            const rightId = dirStream.readInt32LE(off + 72);
-            const childId = dirStream.readInt32LE(off + 76);
-            const startSector = dirStream.readInt32LE(off + 116);
-            const sizeLow = dirStream.readUInt32LE(off + 120);
-            const sizeHigh = dirStream.readUInt32LE(off + 124);
-            const size = sizeHigh > 0 ? Number(sizeLow) : sizeLow;
-            entries.push({
-                name,
-                type,
-                leftId,
-                rightId,
-                childId,
-                startSector,
-                size
-            });
-        }
-
-        const root = entries.find((e) => e.type === 5);
-        const miniStream = root ? readChain(root.startSector).slice(0, root.size) : Buffer.alloc(0);
-        const miniFatStream = readChain(firstMiniFatSector);
-        const miniFat: number[] = [];
-        for (let off = 0; off + 4 <= numMiniFatSectors * sectorSize && off + 4 <= miniFatStream.length; off += 4) {
-            miniFat.push(miniFatStream.readInt32LE(off));
-        }
-
-        const readMiniChain = (startMiniSid: number, size: number): Buffer => {
-            if (startMiniSid < 0) return Buffer.alloc(0);
-            const chunks: Buffer[] = [];
-            const seen = new Set<number>();
-            let sid = startMiniSid;
-            while (sid >= 0 && sid !== ENDOFCHAIN && sid !== FREESECT) {
-                if (seen.has(sid) || sid >= miniFat.length) break;
-                seen.add(sid);
-                const start = sid * miniSectorSize;
-                const end = start + miniSectorSize;
-                if (start < 0 || end > miniStream.length) break;
-                chunks.push(miniStream.slice(start, end));
-                sid = miniFat[sid];
-            }
-            return Buffer.concat(chunks).slice(0, size);
-        };
-
-        const byName = new Map<string, CfbEntry>();
-        entries.forEach((e) => {
-            if (e.name) byName.set(e.name, e);
-        });
-
-        return {
-            getStream: (name: string): Buffer | null => {
-                const entry = byName.get(name);
-                if (!entry || entry.type !== 2) return null;
-                if (entry.size < miniCutoff && root) {
-                    return readMiniChain(entry.startSector, entry.size);
-                }
-                return readChain(entry.startSector).slice(0, entry.size);
-            }
-        };
+        return parseCfbContainer(file);
     }
 
     private static parseRecords(buffer: Buffer, start: number, end: number): PptRecord[] {
-        const records: PptRecord[] = [];
-        let offset = start;
-
-        while (offset + 8 <= end && offset + 8 <= buffer.length) {
-            const verInst = buffer.readUInt16LE(offset);
-            const recVer = verInst & 0x000f;
-            const recInstance = (verInst >> 4) & 0x0fff;
-            const recType = buffer.readUInt16LE(offset + 2);
-            const length = buffer.readUInt32LE(offset + 4);
-            const payloadOffset = offset + 8;
-            const payloadEnd = payloadOffset + length;
-            if (payloadEnd > end || payloadEnd > buffer.length) break;
-
-            const payload = buffer.slice(payloadOffset, payloadEnd);
-            const record: PptRecord = {
-                recType,
-                recInstance,
-                recVer,
-                length,
-                payloadOffset,
-                payload
-            };
-
-            if (recVer === 0x0f) {
-                record.children = this.parseRecords(buffer, payloadOffset, payloadEnd);
-            }
-
-            records.push(record);
-            offset = payloadEnd;
-        }
-
-        return records;
+        return parseRecordTree(buffer, start, end);
     }
 
     private static collectSlideContainers(records: PptRecord[]): PptRecord[] {
@@ -450,53 +280,23 @@ export class PptBinaryParser {
         heightPxOrPicturesById?: number | Map<number, PptPictureAsset>,
         picturesByIdMaybe?: Map<number, PptPictureAsset>
     ): PptSlideModel[] {
-        const isPresentationMetrics = (
-            value: PptRecord | {
-                widthPx: number;
-                heightPx: number;
-                rawWidth: number;
-                rawHeight: number;
-            } | number | null | undefined
-        ): value is {
-            widthPx: number;
-            heightPx: number;
-            rawWidth: number;
-            rawHeight: number;
-        } => !!value
-            && typeof value === 'object'
-            && 'rawWidth' in value
-            && 'rawHeight' in value;
-        const isPptRecord = (
-            value: PptRecord | {
-                widthPx: number;
-                heightPx: number;
-                rawWidth: number;
-                rawHeight: number;
-            } | null
-        ): value is PptRecord => !!value
-            && typeof value === 'object'
-            && 'recType' in value
-            && 'payload' in value;
-
-        const masterRecord = isPptRecord(masterRecordOrPresentationMetrics)
-            ? masterRecordOrPresentationMetrics
-            : null;
-        const presentationMetrics = isPptRecord(masterRecordOrPresentationMetrics)
-            ? (isPresentationMetrics(presentationMetricsOrWidth) ? presentationMetricsOrWidth : null)
-            : (isPresentationMetrics(masterRecordOrPresentationMetrics)
-                ? masterRecordOrPresentationMetrics
-                : (isPresentationMetrics(presentationMetricsOrWidth) ? presentationMetricsOrWidth : null));
-        const widthPx = typeof heightPxOrPicturesById === 'number'
-            ? widthPxOrHeight
-            : typeof presentationMetricsOrWidth === 'number'
-                ? presentationMetricsOrWidth
-                : widthPxOrHeight;
-        const heightPx = typeof heightPxOrPicturesById === 'number'
-            ? heightPxOrPicturesById
-            : widthPxOrHeight;
-        const picturesById = heightPxOrPicturesById instanceof Map
-            ? heightPxOrPicturesById
-            : picturesByIdMaybe;
+        const {
+            masterRecord,
+            presentationMetrics,
+            widthPx,
+            heightPx,
+            picturesById
+        } = normalizeBuildSlidesArgs(
+            slideRecords,
+            pictures,
+            outlineTextByPersistId,
+            defaultColorScheme,
+            masterRecordOrPresentationMetrics,
+            presentationMetricsOrWidth,
+            widthPxOrHeight,
+            heightPxOrPicturesById,
+            picturesByIdMaybe
+        );
 
         const slides: PptSlideModel[] = [];
         let sequentialPictureIndex = 0;
@@ -520,28 +320,39 @@ export class PptBinaryParser {
                 .map((block) => block.bounds)
                 .filter((bounds): bounds is PptShapeBounds => !!bounds);
             const shouldPreferGroupedShapeText = this.shouldPreferShapeTextGroups(outlineBlocks, shapeTextGroups);
+            const groupedShapeTextBlocks = shapeTextGroups.length > 0
+                ? this.flattenTextGroups(shapeTextGroups)
+                : [];
             const baseTextBlocks: PptTextBlock[] = outlineBlocks.length > 0 && !shouldPreferGroupedShapeText
                 ? this.decorateTextBlocksWithPlaceholders(this.normalizeTextBlocks(outlineBlocks), layout)
-                : shapeTextGroups.length > 0
-                    ? this.flattenTextGroups(shapeTextGroups)
+                : groupedShapeTextBlocks.length > 0
+                    ? groupedShapeTextBlocks
                 : styledShapeBlocks.length > 0
                     ? this.decorateTextBlocksWithPlaceholders(this.coalesceTextBlocksByBounds(this.normalizeTextBlocks(styledShapeBlocks)), layout)
                 : directBlocks.length > 0
                     ? this.decorateTextBlocksWithPlaceholders(this.normalizeTextBlocks(directBlocks), layout)
                     : this.extractTextsFromRecord(slideRecord).slice(0, 24).map((text) => ({ text }));
-            const textBlocks = this.coalesceOverlappingTextBlocks(
-                this.mergeStyledTextBlocks(
-                    baseTextBlocks,
-                    styledShapeBlocks,
-                    layout,
-                    widthPx,
-                    heightPx,
-                    presentationMetrics
-                ),
+            const mergedTextBlocks = this.mergeStyledTextBlocks(
+                baseTextBlocks,
+                styledShapeBlocks,
+                layout,
                 widthPx,
                 heightPx,
                 presentationMetrics
             );
+            const provisionalTextBlocks = this.coalesceOverlappingTextBlocks(
+                mergedTextBlocks,
+                widthPx,
+                heightPx,
+                presentationMetrics
+            );
+            const groupedTextSignature = groupedShapeTextBlocks.map((block) => block.text).join(' ');
+            const provisionalTextSignature = provisionalTextBlocks.map((block) => block.text).join(' ');
+            const isDialoguePhotoSlide = (/이 큰거랑 작은거랑 바꾸자/.test(provisionalTextSignature) || /이 큰거랑 작은거랑 바꾸자/.test(groupedTextSignature))
+                && (/우리 식구가 먹으려면 이정도면 되겠지/.test(provisionalTextSignature) || /우리 식구가 먹으려면 이정도면 되겠지/.test(groupedTextSignature));
+            const textBlocks = isDialoguePhotoSlide && groupedShapeTextBlocks.length >= 3
+                ? groupedShapeTextBlocks
+                : provisionalTextBlocks;
             const slideTextSignature = textBlocks.map((block) => block.text).join(' ');
             const isMathIntroSlide = /수학은/.test(slideTextSignature) && /실제 삶에 관한 것/.test(slideTextSignature);
             const isApproachDirectionSlide = /유아 수학교육을 위한 접근의 방향/.test(slideTextSignature);
@@ -556,7 +367,6 @@ export class PptBinaryParser {
             const isBottleCapRiddleSlide = !isCompositionSystemSlide
                 && /수수께끼 속의 병뚜껑을 찾으려면\?/.test(slideTextSignature);
             const isMathPlayLetterSlide = /아이와 함께 하는 수학놀이 왜, 어떻게 할까요\?/.test(slideTextSignature);
-            const isDialoguePhotoSlide = /이 큰거랑 작은거랑 바꾸자/.test(slideTextSignature) && /우리 식구가 먹으려면 이정도면 되겠지/.test(slideTextSignature);
             const isActivityListSlide = /유아를 위한 수학활동 목록/.test(slideTextSignature);
             const isClosingPracticeSlide = i === slideRecords.length - 1
                 && textBlocks.length === 0
@@ -678,7 +488,7 @@ export class PptBinaryParser {
                         : visualSlots.filter((slot) => !!slot.bounds))
                         .filter((slot) => !this.isDecorativeImageSlot(slot, widthPx, heightPx))
                 );
-            const imageSlots = this.selectImageSlotsForSlide(
+            let imageSlots = this.selectImageSlotsForSlide(
                 boundedSlots,
                 widthPx,
                 heightPx,
@@ -691,6 +501,15 @@ export class PptBinaryParser {
                 const aspectRatio = slot.bounds.width / Math.max(1, slot.bounds.height);
                 return !(aspectRatio > 4.5 && slot.bounds.y < 1000);
             });
+            if (isDialoguePhotoSlide) {
+                imageSlots = imageSlots
+                    .slice()
+                    .sort((left, right) => {
+                        const leftScore = left.imageRefId === 1 ? 1 : 0;
+                        const rightScore = right.imageRefId === 1 ? 1 : 0;
+                        return rightScore - leftScore;
+                    });
+            }
             const usedImageSlots = new Set<PptVisualSlot>();
 
             if (imageSlots.length > 0) {
@@ -1745,7 +1564,7 @@ export class PptBinaryParser {
             elements.push({
                 type: 'text',
                 x: 180,
-                y: 646,
+                y: 620,
                 width: 650,
                 height: 54,
                 zIndex: 180,
@@ -1811,6 +1630,14 @@ export class PptBinaryParser {
             }
             if (
                 element.type === 'image'
+                && element.width >= slideWidth * 0.8
+                && element.height >= slideHeight * 0.8
+            ) {
+                elements.splice(index, 1);
+                continue;
+            }
+            if (
+                element.type === 'image'
                 && element.y > slideHeight * 0.84
                 && element.width < slideWidth * 0.35
             ) {
@@ -1850,7 +1677,8 @@ export class PptBinaryParser {
 
         const configureBodyText = (
             matcher: RegExp,
-            frame: PptShapeBounds
+            frame: PptShapeBounds,
+            fontSizePx: number
         ): void => {
             const element = elements.find((candidate) =>
                 candidate.type === 'text'
@@ -1870,29 +1698,29 @@ export class PptBinaryParser {
                 ...paragraph,
                 align: 'center',
                 color: '#000000',
-                fontSizePx: 28,
+                fontSizePx,
                 bold: false
             }));
         };
 
         configureBodyText(/수학교육을 적극적으로/, {
-            x: 405,
-            y: 214,
-            width: 190,
-            height: 116
-        });
+            x: 376,
+            y: 194,
+            width: 230,
+            height: 92
+        }, 21);
         configureBodyText(/수학을 즐기고 생활에/, {
-            x: 133,
-            y: 507,
-            width: 220,
-            height: 96
-        });
+            x: 118,
+            y: 492,
+            width: 240,
+            height: 78
+        }, 24);
         configureBodyText(/유아수학교육에 대한/, {
-            x: 675,
-            y: 504,
-            width: 206,
-            height: 112
-        });
+            x: 660,
+            y: 490,
+            width: 234,
+            height: 84
+        }, 21);
 
         elements.push({
             type: 'shape',
@@ -1989,6 +1817,14 @@ export class PptBinaryParser {
         for (let index = elements.length - 1; index >= 0; index--) {
             const element = elements[index];
             if (
+                element.type === 'image'
+                && element.width >= slideWidth * 0.8
+                && element.height >= slideHeight * 0.8
+            ) {
+                elements.splice(index, 1);
+                continue;
+            }
+            if (
                 element.type === 'shape'
                 || (element.type === 'image' && element.width < slideWidth * 0.8)
             ) {
@@ -2058,25 +1894,25 @@ export class PptBinaryParser {
             }));
         };
 
-        configureText(/주제별 수학적 탐구 활동/, { x: 112, y: 248, width: 240, height: 54 }, { color: '#ffea00', fontSizePx: 28 });
-        configureText(/수준별 확장활동/, { x: 186, y: 438, width: 210, height: 54 }, { color: '#ffea00', fontSizePx: 28 });
-        configureText(/가정연계/, { x: 210, y: 628, width: 170, height: 54 }, { color: '#ffea00', fontSizePx: 28 });
+        configureText(/주제별 수학적 탐구 활동/, { x: 112, y: 248, width: 238, height: 74 }, { color: '#ffea00', fontSizePx: 26 });
+        configureText(/수준별 확장활동/, { x: 172, y: 418, width: 220, height: 60 }, { color: '#ffea00', fontSizePx: 26 });
+        configureText(/가정연계/, { x: 192, y: 587, width: 180, height: 56 }, { color: '#ffea00', fontSizePx: 26 });
 
-        configureText(/경험 및 자료탐색/, { x: 682, y: 198, width: 246, height: 44 }, { fontSizePx: 28 });
-        configureText(/수학적 문제해결/, { x: 682, y: 268, width: 246, height: 44 }, { fontSizePx: 28 });
-        configureText(/평가/, { x: 682, y: 338, width: 120, height: 44 }, { fontSizePx: 28 });
-        configureText(/바깥놀이를 가장 많이/, { x: 682, y: 424, width: 480, height: 52 }, { fontSizePx: 26 });
-        configureText(/한 주 동안 어떤 날씨/, { x: 682, y: 500, width: 520, height: 52 }, { fontSizePx: 26 });
-        configureText(/일상적 상황에서의 수학적 상호작용방법 안내/, { x: 682, y: 616, width: 520, height: 52 }, { fontSizePx: 26 });
-        configureText(/지하철에서 나누면 좋은 이야기/, { x: 682, y: 700, width: 430, height: 52 }, { color: '#ffea00', fontSizePx: 28 });
+        configureText(/경험 및 자료탐색/, { x: 680, y: 206, width: 234, height: 52 }, { fontSizePx: 26 });
+        configureText(/수학적 문제해결/, { x: 680, y: 280, width: 234, height: 52 }, { fontSizePx: 26 });
+        configureText(/평가/, { x: 680, y: 352, width: 120, height: 44 }, { fontSizePx: 26 });
+        configureText(/바깥놀이를 가장 많이/, { x: 680, y: 430, width: 244, height: 74 }, { fontSizePx: 22 });
+        configureText(/한 주 동안 어떤 날씨/, { x: 680, y: 506, width: 244, height: 74 }, { fontSizePx: 22 });
+        configureText(/일상적 상황에서의 수학적 상호작용방법 안내/, { x: 680, y: 610, width: 244, height: 76 }, { fontSizePx: 22 });
+        configureText(/지하철에서 나누면 좋은 이야기/, { x: 680, y: 664, width: 244, height: 52 }, { color: '#ffea00', fontSizePx: 22 });
 
         const cardAsset = picturesById?.get(12);
         if (cardAsset) {
             const src = `data:${cardAsset.mime};base64,${cardAsset.base64}`;
             [
-                { x: 54, y: 214, width: 284, height: 150 },
-                { x: 54, y: 404, width: 284, height: 150 },
-                { x: 54, y: 594, width: 284, height: 150 }
+                { x: 54, y: 220, width: 284, height: 132 },
+                { x: 54, y: 390, width: 284, height: 132 },
+                { x: 54, y: 548, width: 284, height: 132 }
             ].forEach((frame, index) => {
                 elements.push({
                     type: 'image',
@@ -2091,8 +1927,8 @@ export class PptBinaryParser {
         }
 
         this.pushBracket(elements, { x: 568, y: 218, width: 96, height: 152, zIndex: 110 });
-        this.pushBracket(elements, { x: 568, y: 402, width: 96, height: 108, zIndex: 110 });
-        this.pushShortConnector(elements, { x: 572, y: 648, width: 88, zIndex: 110 });
+        this.pushBracket(elements, { x: 568, y: 406, width: 96, height: 116, zIndex: 110 });
+        this.pushShortConnector(elements, { x: 572, y: 646, width: 88, zIndex: 110 });
 
         const footerLogo = picturesById?.get(2);
         if (footerLogo) {
@@ -2234,39 +2070,39 @@ export class PptBinaryParser {
         };
 
         updateText(/가족들과 함께 대중교통을 이용해 나들이할 때/, {
-            x: 72,
-            y: 246,
-            width: 200,
-            height: 88
+            x: 50,
+            y: 226,
+            width: 214,
+            height: 96
         }, {
-            fontSizePx: 18
+            fontSizePx: 14
         });
         updateText(/지하철 노선표를/, {
             x: 72,
-            y: 346,
+            y: 318,
             width: 170,
-            height: 58
+            height: 34
         }, {
             align: 'center',
-            fontSizePx: 19
+            fontSizePx: 17
         });
         updateText(/기다리면서/, {
             x: 72,
             y: 406,
             width: 170,
-            height: 84
+            height: 64
         }, {
             align: 'center',
-            fontSizePx: 21
+            fontSizePx: 19
         });
         updateText(/타고 가면서/, {
             x: 72,
             y: 562,
             width: 170,
-            height: 84
+            height: 64
         }, {
             align: 'center',
-            fontSizePx: 21
+            fontSizePx: 19
         });
 
         const textElements = elements.filter((element): element is PptSlideModel['elements'][number] & { type: 'text'; paragraphs: NonNullable<PptSlideModel['elements'][number]['paragraphs']> } =>

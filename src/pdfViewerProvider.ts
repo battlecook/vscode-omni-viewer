@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { FileUtils } from './utils/fileUtils';
 import { TemplateUtils } from './utils/templateUtils';
 import { MessageHandler } from './utils/messageHandler';
+import { configureWebview, createReadonlyDocument, renderErrorHtml, rerouteIfNeeded } from './viewerProviderUtils';
 
 export class PdfViewerProvider implements vscode.CustomReadonlyEditorProvider {
     public static readonly viewType = 'omni-viewer.pdfViewer';
@@ -14,7 +14,7 @@ export class PdfViewerProvider implements vscode.CustomReadonlyEditorProvider {
         _openContext: vscode.CustomDocumentOpenContext,
         _token: vscode.CancellationToken
     ): Promise<vscode.CustomDocument> {
-        return { uri, dispose: () => {} };
+        return createReadonlyDocument(uri);
     }
 
     public async resolveCustomEditor(
@@ -22,17 +22,14 @@ export class PdfViewerProvider implements vscode.CustomReadonlyEditorProvider {
         webviewPanel: vscode.WebviewPanel,
         _token: vscode.CancellationToken
     ): Promise<void> {
-        webviewPanel.webview.options = TemplateUtils.getWebviewOptions(this.context);
+        configureWebview(this.context, webviewPanel);
 
         const pdfUri = document.uri;
         const pdfPath = pdfUri.fsPath;
         const pdfFileName = path.basename(pdfPath);
 
         try {
-            const detection = await FileUtils.detectViewerType(pdfPath, PdfViewerProvider.viewType);
-            if (detection.viewType && detection.viewType !== PdfViewerProvider.viewType) {
-                await vscode.commands.executeCommand('vscode.openWith', pdfUri, detection.viewType);
-                webviewPanel.dispose();
+            if (await rerouteIfNeeded(pdfUri, PdfViewerProvider.viewType, webviewPanel)) {
                 return;
             }
 
@@ -57,46 +54,12 @@ export class PdfViewerProvider implements vscode.CustomReadonlyEditorProvider {
             MessageHandler.setupMessageListener(webviewPanel.webview, document.uri);
         } catch (error) {
             console.error('Error setting up PDF viewer:', error);
-
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-            webviewPanel.webview.html = this.getErrorHtml(pdfFileName, errorMessage);
+            webviewPanel.webview.html = renderErrorHtml(pdfFileName, errorMessage, {
+                title: 'Failed to load PDF file',
+                message: 'Unable to load the PDF file due to an error:',
+                icon: '📄'
+            });
         }
-    }
-
-    private getErrorHtml(fileName: string, errorMessage: string): string {
-        return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Viewer Error - ${fileName}</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: var(--vscode-editor-background);
-            color: var(--vscode-editor-foreground);
-            margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            padding: 20px;
-        }
-        .error-container { max-width: 500px; }
-        .error-icon { font-size: 48px; margin-bottom: 20px; }
-        .error-title { font-size: 24px; font-weight: 600; margin-bottom: 10px; color: var(--vscode-errorForeground); }
-        .error-message { font-size: 14px; line-height: 1.5; margin-bottom: 20px; }
-        .file-name { font-family: 'Monaco', 'Menlo', monospace; background: var(--vscode-textBlockQuote-background); padding: 8px 12px; border-radius: 4px; margin: 10px 0; }
-    </style>
-</head>
-<body>
-    <div class="error-container">
-        <div class="error-icon">📄</div>
-        <div class="error-title">Failed to load PDF file</div>
-        <div class="file-name">${fileName}</div>
-        <div class="error-message">${errorMessage}</div>
-    </div>
-</body>
-</html>`;
     }
 }

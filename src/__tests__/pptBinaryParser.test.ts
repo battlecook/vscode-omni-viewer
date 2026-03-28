@@ -564,6 +564,15 @@ describe('PptBinaryParser incremental primitives', () => {
                 height: 43,
                 zIndex: 4,
                 src: 'data:image/png;base64,old'
+            },
+            {
+                type: 'image',
+                x: 0,
+                y: 0,
+                width: 960,
+                height: 720,
+                zIndex: -6,
+                src: 'data:image/jpeg;base64,background'
             }
         ];
 
@@ -582,6 +591,40 @@ describe('PptBinaryParser incremental primitives', () => {
         expect(title.y).toBe(38);
         expect(title.paragraphs[0].color).toBe('#ffea00');
 
+        const topCard = elements.find((element: any) =>
+            element.type === 'text'
+            && element.paragraphs?.[0]?.text === '수학교육을 적극적으로'
+        ) as any;
+        const rightCard = elements.find((element: any) =>
+            element.type === 'text'
+            && element.paragraphs?.[0]?.text === '유아수학교육에 대한'
+        ) as any;
+        const leftCard = elements.find((element: any) =>
+            element.type === 'text'
+            && element.paragraphs?.[0]?.text === '수학을 즐기고 생활에'
+        ) as any;
+        expect(topCard).toEqual(expect.objectContaining({
+            x: 376,
+            y: 194,
+            width: 230,
+            height: 92
+        }));
+        expect(topCard.paragraphs[0].fontSizePx).toBe(21);
+        expect(rightCard).toEqual(expect.objectContaining({
+            x: 660,
+            y: 490,
+            width: 234,
+            height: 84
+        }));
+        expect(rightCard.paragraphs[0].fontSizePx).toBe(21);
+        expect(leftCard).toEqual(expect.objectContaining({
+            x: 118,
+            y: 492,
+            width: 240,
+            height: 78
+        }));
+        expect(leftCard.paragraphs[0].fontSizePx).toBe(24);
+
         expect(elements.some((element: any) =>
             element.type === 'shape'
             && element.x === 38
@@ -599,6 +642,11 @@ describe('PptBinaryParser incremental primitives', () => {
             element.type === 'image'
             && element.x === 384
             && element.y === 655
+        )).toBe(false);
+        expect(elements.some((element: any) =>
+            element.type === 'image'
+            && element.width === 960
+            && element.height === 720
         )).toBe(false);
     });
 
@@ -878,6 +926,76 @@ describe('PptBinaryParser incremental primitives', () => {
         )).toBe(true);
     });
 
+    it('places approach-direction footer guidance above the logo area', () => {
+        const elements = [
+            {
+                type: 'text',
+                x: 180,
+                y: 32,
+                width: 620,
+                height: 66,
+                zIndex: 0,
+                paragraphs: [{ text: '유아 수학교육을 위한 접근의 방향', level: 0, bullet: false }]
+            },
+            {
+                type: 'text',
+                x: 92,
+                y: 228,
+                width: 270,
+                height: 54,
+                zIndex: 1,
+                paragraphs: [{ text: '탈맥락적 학습상황', level: 0, bullet: false }]
+            },
+            {
+                type: 'text',
+                x: 588,
+                y: 228,
+                width: 286,
+                height: 54,
+                zIndex: 2,
+                paragraphs: [{ text: '일상적 경험에 기초', level: 0, bullet: false }]
+            },
+            {
+                type: 'text',
+                x: 86,
+                y: 404,
+                width: 284,
+                height: 52,
+                zIndex: 3,
+                paragraphs: [{ text: '구조화된 교구 중심', level: 0, bullet: false }]
+            },
+            {
+                type: 'text',
+                x: 586,
+                y: 376,
+                width: 290,
+                height: 92,
+                zIndex: 4,
+                paragraphs: [{ text: '사회적 상호작용을 통한 문제해결 중심', level: 0, bullet: false }]
+            }
+        ];
+
+        (PptBinaryParser as any).applyApproachDirectionLayout(
+            elements,
+            [{ text: '일상적 생활경험에 기초하여 사회적 상호작용을 격려하는 문제해결활동으로 접근' }],
+            new Map(),
+            960,
+            720
+        );
+
+        const footer = elements.find((element: any) =>
+            element.type === 'text'
+            && element.paragraphs?.[0]?.text === '일상적 생활경험에 기초하여 사회적 상호작용을 격려하는 문제해결활동으로 접근'
+        );
+
+        expect(footer).toEqual(expect.objectContaining({
+            x: 180,
+            y: 620,
+            width: 650,
+            height: 54
+        }));
+    });
+
     it('rebuilds composition-system slides with themed cards, connectors, and footer logo', () => {
         const elements = [
             {
@@ -969,6 +1087,15 @@ describe('PptBinaryParser incremental primitives', () => {
                 height: 40,
                 zIndex: 9,
                 paragraphs: [{ text: '가정연계', level: 0, bullet: false }]
+            },
+            {
+                type: 'image',
+                x: 0,
+                y: 0,
+                width: 960,
+                height: 720,
+                zIndex: -6,
+                src: 'data:image/jpeg;base64,background'
             }
         ];
 
@@ -985,10 +1112,39 @@ describe('PptBinaryParser incremental primitives', () => {
         );
 
         const title = elements.find((element: any) => element.type === 'text' && element.isTitle) as any;
+        const topCard = elements.find((element: any) =>
+            element.type === 'text' && element.paragraphs?.[0]?.text === '주제별 수학적 탐구 활동'
+        ) as any;
+        const middleCard = elements.find((element: any) =>
+            element.type === 'text' && element.paragraphs?.[0]?.text === '수준별 확장활동'
+        ) as any;
+        const bottomCard = elements.find((element: any) =>
+            element.type === 'text' && element.paragraphs?.[0]?.text === '가정연계'
+        ) as any;
+        const topExample = elements.find((element: any) =>
+            element.type === 'text' && element.paragraphs?.[0]?.text === '예) 바깥놀이를 가장 많이 할 수 있는 주간은?(II)'
+        ) as any;
+        const bottomGuide = elements.find((element: any) =>
+            element.type === 'text' && element.paragraphs?.[0]?.text === '일상적 상황에서의 수학적 상호작용방법 안내'
+        ) as any;
+        const footerExample = elements.find((element: any) =>
+            element.type === 'text' && element.paragraphs?.[0]?.text === '예) 지하철에서 나누면 좋은 이야기'
+        ) as any;
         expect(title.x).toBe(300);
         expect(title.y).toBe(34);
         expect(title.paragraphs[0].color).toBe('#ffea00');
-        expect(elements.filter((element: any) => element.type === 'image' && element.width === 284)).toHaveLength(3);
+        expect(topCard).toMatchObject({ x: 112, y: 248, width: 238, height: 74 });
+        expect(middleCard).toMatchObject({ x: 172, y: 418, width: 220, height: 60 });
+        expect(bottomCard).toMatchObject({ x: 192, y: 587, width: 180, height: 56 });
+        expect(topExample).toMatchObject({ x: 680, y: 430, width: 244, height: 74 });
+        expect(bottomGuide).toMatchObject({ x: 680, y: 610, width: 244, height: 76 });
+        expect(footerExample).toMatchObject({ x: 680, y: 664, width: 244, height: 52 });
+        expect(elements.filter((element: any) => element.type === 'image' && element.width === 284 && element.height === 132)).toHaveLength(3);
+        expect(elements.some((element: any) =>
+            element.type === 'image'
+            && element.width === 960
+            && element.height === 720
+        )).toBe(false);
         expect(elements.filter((element: any) => element.type === 'shape' && element.fillColor === '#ffffff')).not.toHaveLength(0);
         expect(elements.some((element: any) =>
             element.type === 'image'
@@ -1122,12 +1278,29 @@ describe('PptBinaryParser incremental primitives', () => {
         const composite = elements.find((element: any) =>
             element.type === 'image' && element.width === 404
         ) as any;
+        const mapLabel = elements.find((element: any) =>
+            element.type === 'text' && element.paragraphs?.some((paragraph: any) => paragraph.text === '지하철 노선표를')
+        ) as any;
+        const waitingLabel = elements.find((element: any) =>
+            element.type === 'text' && element.paragraphs?.some((paragraph: any) => paragraph.text === '기다리면서')
+        ) as any;
+        const ridingLabel = elements.find((element: any) =>
+            element.type === 'text' && element.paragraphs?.some((paragraph: any) => paragraph.text === '타고 가면서')
+        ) as any;
 
         expect(title.y).toBe(28);
         expect(title.isTitle).toBe(true);
-        expect(intro.x).toBe(72);
-        expect(intro.width).toBe(200);
-        expect(intro.y).toBe(246);
+        expect(intro.x).toBe(50);
+        expect(intro.width).toBe(214);
+        expect(intro.y).toBe(226);
+        expect(intro.height).toBe(96);
+        expect(intro.paragraphs[0].fontSizePx).toBe(14);
+        expect(mapLabel.y).toBe(318);
+        expect(mapLabel.height).toBe(34);
+        expect(waitingLabel.y).toBe(406);
+        expect(waitingLabel.height).toBe(64);
+        expect(ridingLabel.y).toBe(562);
+        expect(ridingLabel.height).toBe(64);
         expect(topImage.x).toBe(330);
         expect(composite.x).toBe(468);
         expect(composite.y).toBe(214);
@@ -1565,7 +1738,14 @@ describe('PptBinaryParser incremental primitives', () => {
         const title = elements.find((element: any) =>
             element.type === 'text' && element.isTitle
         ) as any;
+        const background = elements.find((element: any) =>
+            element.type === 'shape'
+            && element.fillColor === '#ffffff'
+            && element.width === 960
+            && element.height === 720
+        ) as any;
         expect(title.height).toBe(58);
+        expect(background).toBeTruthy();
     });
 
     it('rebuilds the closing practice slide with the themed background, title, and centered footer logo', () => {
