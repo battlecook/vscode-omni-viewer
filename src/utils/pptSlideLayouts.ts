@@ -255,33 +255,18 @@ export function applyActivityListTableLayoutImpl(
     slideWidth: number,
     slideHeight: number
 ): void {
+    // Remove known noise text
     for (let index = elements.length - 1; index >= 0; index--) {
         const element = elements[index];
         if (
-            element.type === 'image'
-            && element.width >= slideWidth * 0.7
-            && element.height >= slideHeight * 0.7
-        ) {
-            elements.splice(index, 1);
-        }
-        if (
             element.type === 'text'
-            && element.paragraphs?.some((paragraph) => /수수께끼 속의 병뚜껑을 찾으려면\?|간단한 수학활동 방법 안내/.test(paragraph.text))
+            && element.paragraphs?.some((paragraph) => /수수께끼 속의 병뚜껑을 찾으려면\?|간단한 수학활동 방법 안내|지하철을 탈 때 나누면 좋은 이야기/.test(paragraph.text))
         ) {
             elements.splice(index, 1);
         }
     }
 
-    elements.unshift({
-        type: 'shape',
-        x: 0,
-        y: 0,
-        width: slideWidth,
-        height: slideHeight,
-        zIndex: -10,
-        fillColor: '#ffffff'
-    });
-
+    // --- Title ---
     const title = elements.find((element) =>
         element.type === 'text'
         && element.paragraphs?.some((paragraph) => /유아를 위한 수학활동 목록/.test(paragraph.text))
@@ -302,102 +287,143 @@ export function applyActivityListTableLayoutImpl(
         }));
     }
 
-    const headerStyle = (matcher: RegExp, frame: PptShapeBounds): void => {
-        const element = elements.find((candidate) =>
-            candidate.type === 'text'
-            && candidate.paragraphs?.some((paragraph) => matcher.test(paragraph.text))
+    // --- Identify header and body text cells ---
+    const headerPatterns = [/수학활동명/, /확장활동/, /가정과의 연계/];
+    const isHeader = (el: PptSlideModel['elements'][0]): boolean =>
+        el.type === 'text'
+        && el !== title
+        && el.paragraphs?.some((p) => headerPatterns.some((re) => re.test(p.text))) === true;
+
+    const headers = elements.filter(isHeader);
+    const dataCells = elements.filter(
+        (el) => el.type === 'text' && !el.isTitle && el !== title && !isHeader(el)
+    );
+
+    // --- Grid constants ---
+    const tableLeft = 60;
+    const tableWidth = 840;
+    const colWidth = Math.floor(tableWidth / 3);
+    const colXs = [tableLeft, tableLeft + colWidth, tableLeft + colWidth * 2];
+    const headerY = 116;
+    const headerHeight = 52;
+    const lineHeight = 26;
+    const avgCharWidth = 13;
+    const cellPadding = 6;
+    const gridLineWidth = 2;
+
+    // --- Style and position headers ---
+    headers.forEach((el) => {
+        const col = headerPatterns.findIndex((re) =>
+            el.paragraphs?.some((p) => re.test(p.text))
         );
-        if (!element || element.type !== 'text' || !element.paragraphs) {
-            return;
+        if (col === -1) return;
+        el.x = colXs[col];
+        el.y = headerY;
+        el.width = colWidth;
+        el.height = headerHeight;
+        el.zIndex = 121;
+        if (el.type === 'text' && el.paragraphs) {
+            el.paragraphs = el.paragraphs.map((p) => ({
+                ...p,
+                align: 'center',
+                color: '#000000',
+                fontSizePx: 22,
+                bold: true
+            }));
         }
-        element.x = frame.x;
-        element.y = frame.y;
-        element.width = frame.width;
-        element.height = frame.height;
-        element.zIndex = 121;
-        element.paragraphs = element.paragraphs.map((paragraph) => ({
-            ...paragraph,
-            align: 'center',
-            color: '#000000',
-            fontSizePx: 22,
-            bold: true
-        }));
-    };
+    });
 
-    headerStyle(/수학활동명/, { x: 74, y: 128, width: 250, height: 34 });
-    headerStyle(/확장활동/, { x: 354, y: 128, width: 250, height: 34 });
-    headerStyle(/가정과의 연계/, { x: 634, y: 128, width: 250, height: 34 });
+    // --- Classify data cells into columns and build rows ---
+    const classify = (el: PptSlideModel['elements'][0]): number =>
+        el.x < slideWidth * 0.3 ? 0 : el.x < slideWidth * 0.6 ? 1 : 2;
 
-    const bodyStyle = (
-        matcher: RegExp,
-        frame: PptShapeBounds,
-        fontSizePx = 16
-    ): void => {
-        const element = elements.find((candidate) =>
-            candidate.type === 'text'
-            && candidate.paragraphs?.some((paragraph) => matcher.test(paragraph.text))
-        );
-        if (!element || element.type !== 'text' || !element.paragraphs) {
-            return;
+    // Sort by zIndex to preserve reading order
+    dataCells.sort((a, b) => a.zIndex - b.zIndex);
+
+    type CellOrNull = PptSlideModel['elements'][0] | null;
+    const rows: CellOrNull[][] = [];
+    let currentRow: CellOrNull[] = [null, null, null];
+    let lastCol = -1;
+
+    for (const cell of dataCells) {
+        const col = classify(cell);
+        if (col <= lastCol) {
+            rows.push(currentRow);
+            currentRow = [null, null, null];
         }
-        element.x = frame.x;
-        element.y = frame.y;
-        element.width = frame.width;
-        element.height = frame.height;
-        element.zIndex = 121;
-        element.isTitle = false;
-        element.paragraphs = element.paragraphs.map((paragraph) => ({
-            ...paragraph,
-            align: 'left',
-            color: '#000000',
-            fontSizePx,
-            bold: false
-        }));
-    };
+        currentRow[col] = cell;
+        lastCol = col;
+    }
+    if (currentRow.some((c) => c !== null)) {
+        rows.push(currentRow);
+    }
 
-    bodyStyle(/아이스크림으로 패턴을 만들려면\?/, { x: 70, y: 186, width: 256, height: 40 });
-    bodyStyle(/바깥놀이를 가장 많이 할 수 있는/, { x: 70, y: 238, width: 256, height: 36 }, 14);
-    bodyStyle(/한 주 동안 어떤 날씨 그림이 가장/, { x: 350, y: 238, width: 256, height: 36 }, 14);
-    bodyStyle(/불이 났을 때 누가 어떤 순서로/, { x: 70, y: 296, width: 256, height: 36 }, 14);
-    bodyStyle(/빨래를 해요/, { x: 630, y: 307, width: 256, height: 24 });
-    bodyStyle(/어떤 자동차 번호판일까\?/, { x: 70, y: 354, width: 256, height: 32 }, 15);
-    bodyStyle(/갖고 싶은 자동차 번호판/, { x: 630, y: 354, width: 256, height: 32 }, 15);
-    bodyStyle(/유치원 버스에 공평하게 앉으려면\?/, { x: 70, y: 412, width: 256, height: 32 }, 15);
-    bodyStyle(/나를 숫자로 표현하려면\?/, { x: 70, y: 470, width: 256, height: 32 }, 15);
-    bodyStyle(/숫자 패션쇼에 누가 누가 함께/, { x: 350, y: 464, width: 256, height: 38 }, 14);
-    bodyStyle(/가족의 옷의 크기를 나타내는/, { x: 630, y: 464, width: 256, height: 38 }, 14);
-    bodyStyle(/병뚜껑으로 수량을 표시하려면\?/, { x: 70, y: 528, width: 256, height: 32 }, 15);
-    bodyStyle(/그 띠를 찾으려면 어느 쪽으로/, { x: 70, y: 580, width: 256, height: 40 }, 14);
-    bodyStyle(/가족의 띠 조사하기/, { x: 630, y: 591, width: 256, height: 24 }, 15);
-    bodyStyle(/열 개의 구슬로 목걸이와 팔찌를/, { x: 70, y: 638, width: 256, height: 40 }, 14);
-    bodyStyle(/두 가지 나뭇잎으로 10을 만들 수/, { x: 350, y: 638, width: 256, height: 40 }, 14);
+    // --- Position data rows ---
+    let y = headerY + headerHeight + gridLineWidth;
+    const rowYs: number[] = [];
 
+    for (const row of rows) {
+        rowYs.push(y);
+        let maxHeight = 36;
+        for (const cell of row) {
+            if (!cell || cell.type !== 'text') continue;
+            const lines = cell.paragraphs?.reduce((sum, p) => {
+                const len = p.text?.length || 0;
+                const charsPerLine = Math.max(1, Math.floor((colWidth - cellPadding * 2) / avgCharWidth));
+                return sum + Math.max(1, Math.ceil(len / charsPerLine));
+            }, 0) ?? 1;
+            maxHeight = Math.max(maxHeight, lines * lineHeight + cellPadding * 2);
+        }
+
+        for (let col = 0; col < 3; col++) {
+            const cell = row[col];
+            if (!cell) continue;
+            cell.x = colXs[col] + cellPadding;
+            cell.y = y + cellPadding;
+            cell.width = colWidth - cellPadding * 2;
+            cell.height = maxHeight - cellPadding * 2;
+            cell.zIndex = 121;
+            if (cell.type === 'text' && cell.paragraphs) {
+                cell.paragraphs = cell.paragraphs.map((p) => ({
+                    ...p,
+                    align: 'left',
+                    color: '#000000',
+                    fontSizePx: 15,
+                    bold: false
+                }));
+            }
+        }
+        y += maxHeight;
+    }
+
+    // --- Draw grid lines ---
     const gridColor = '#606060';
-    const pushLine = (frame: PptShapeBounds, zIndex: number): void => {
+    const tableBottom = y;
+    const tableHeight = tableBottom - headerY;
+    const pushLine = (frame: PptShapeBounds): void => {
         elements.push({
             type: 'shape',
             x: frame.x,
             y: frame.y,
             width: frame.width,
             height: frame.height,
-            zIndex,
+            zIndex: 60,
             fillColor: gridColor
         });
     };
 
-    pushLine({ x: 60, y: 116, width: 840, height: 2 }, 60);
-    pushLine({ x: 60, y: 168, width: 840, height: 2 }, 60);
-    pushLine({ x: 60, y: 690, width: 840, height: 2 }, 60);
-    pushLine({ x: 60, y: 116, width: 2, height: 576 }, 60);
-    pushLine({ x: 340, y: 116, width: 2, height: 576 }, 60);
-    pushLine({ x: 620, y: 116, width: 2, height: 576 }, 60);
-    pushLine({ x: 898, y: 116, width: 2, height: 576 }, 60);
-
-    [
-        226, 284, 342, 400, 458, 516, 574, 632
-    ].forEach((y) => {
-        pushLine({ x: 60, y, width: 840, height: 2 }, 60);
-    });
+    // Outer border
+    pushLine({ x: tableLeft, y: headerY, width: tableWidth, height: gridLineWidth });
+    pushLine({ x: tableLeft, y: headerY + headerHeight, width: tableWidth, height: gridLineWidth });
+    pushLine({ x: tableLeft, y: tableBottom, width: tableWidth, height: gridLineWidth });
+    // Vertical lines
+    for (const cx of [tableLeft, ...colXs.slice(1), tableLeft + tableWidth]) {
+        pushLine({ x: cx, y: headerY, width: gridLineWidth, height: tableHeight + gridLineWidth });
+    }
+    // Horizontal row separators
+    for (const ry of rowYs.slice(1)) {
+        pushLine({ x: tableLeft, y: ry, width: tableWidth, height: gridLineWidth });
+    }
 }
 
 export function applyClosingPracticeLayoutImpl(
@@ -501,24 +527,33 @@ export function applyDialoguePhotoLayoutImpl(
         )
         .sort((left, right) => left.y - right.y);
 
-    const frames: PptShapeBounds[] = [
-        { x: 544, y: 208, width: 290, height: 170 },
-        { x: 544, y: 384, width: 290, height: 136 },
-        { x: 544, y: 534, width: 290, height: 154 }
-    ];
+    const textX = 544;
+    const textWidth = 290;
+    const fontSize = 22;
+    const lineHeight = 30;
+    const avgCharWidth = 14;
+    const charsPerLine = Math.max(1, Math.floor(textWidth / avgCharWidth));
+    const gap = 12;
+    let currentY = 208;
 
     textElements.forEach((element, index) => {
-        const frame = frames[Math.min(index, frames.length - 1)];
-        element.x = frame.x;
-        element.y = frame.y;
-        element.width = frame.width;
-        element.height = frame.height;
+        const estimatedLines = element.paragraphs.reduce((sum, p) => {
+            return sum + Math.max(1, Math.ceil((p.text?.length || 0) / charsPerLine));
+        }, 0);
+        const contentHeight = estimatedLines * lineHeight;
+
+        element.x = textX;
+        element.y = currentY;
+        element.width = textWidth;
+        element.height = contentHeight;
         element.zIndex = 120 + index;
         element.paragraphs = element.paragraphs.map((paragraph) => ({
             ...paragraph,
             color: '#000000',
-            fontSizePx: 22
+            fontSizePx: fontSize
         }));
+
+        currentY += contentHeight + gap;
     });
 }
 

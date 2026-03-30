@@ -586,11 +586,24 @@
         stage.style.setProperty('display', 'block', 'important');
         stage.style.setProperty('position', 'relative', 'important');
         slideEl.style.setProperty('min-height', `${stageHeight + 56}px`, 'important');
-        stage.style.background = slide.backgroundColor || '#ffffff';
+        stage.style.backgroundColor = slide.backgroundColor || '#ffffff';
         stage.style.border = '1px solid rgba(255,255,255,0.15)';
         const fallbackTextColor = getReadableTextColor(slide.backgroundColor || '#ffffff');
 
         const elements = Array.isArray(slide.elements) ? [...slide.elements] : [];
+
+        // Promote full-size background images from negative z-index to 0 so
+        // they render as visible child elements above the parent background.
+        elements.forEach((el) => {
+            if (
+                el.type === 'image' && el.src
+                && el.width >= stageWidth * 0.8 && el.height >= stageHeight * 0.8
+                && (el.zIndex || 0) < 0
+            ) {
+                el.zIndex = 0;
+            }
+        });
+
         elements.sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
 
         elements.forEach((element) => {

@@ -14,14 +14,6 @@ import type {
 } from './pptBinaryTypes';
 import { normalizeBuildSlidesArgs } from './pptBinaryBuildContext';
 import { parseCfb as parseCfbContainer, parseRecords as parseRecordTree } from './pptBinaryContainer';
-import {
-    applyActivityListTableLayoutImpl,
-    applyActivityProcessLayoutImpl,
-    applyClosingPracticeLayoutImpl,
-    applyDialoguePhotoLayoutImpl,
-    applyMathIntroLayoutImpl,
-    applyMathPlayLetterLayoutImpl
-} from './pptSlideLayouts';
 
 /**
  * Standalone legacy .ppt parser.
@@ -305,17 +297,19 @@ export class PptBinaryParser {
             const outlineBlocks = outlineTextByPersistId.get(slideRecord.recInstance) ?? [];
             const colorScheme = this.extractSlideColorScheme(slideRecord) ?? defaultColorScheme;
             const layout = this.extractSlideLayoutInfo(slideRecord);
+            const spContainerCounter = { value: 0 };
             const visualSlots = this.decorateVisualSlotsWithPlaceholders(
-                this.extractVisualSlotsFromRecord(slideRecord),
+                this.extractVisualSlotsFromRecord(slideRecord, spContainerCounter),
                 layout
             );
+            // Reset counter so both extractions share the same DFS index space
+            spContainerCounter.value = 0;
             const shapeTextGroups = this.decorateTextGroupsWithPlaceholders(
-                this.extractShapeTextGroupsFromRecord(slideRecord),
+                this.extractShapeTextGroupsFromRecord(slideRecord, spContainerCounter),
                 layout
             );
             const directBlocks = this.extractTypedTextBlocksFromRecord(slideRecord);
             const styledShapeBlocks = this.extractStyledTextBlocksFromShapes(slideRecord);
-            const hasStyledTitleArt = styledShapeBlocks.some((block) => /수학교육활동|유아를 위한/.test(block.text));
             const styledBounds = styledShapeBlocks
                 .map((block) => block.bounds)
                 .filter((bounds): bounds is PptShapeBounds => !!bounds);
@@ -323,6 +317,49 @@ export class PptBinaryParser {
             const groupedShapeTextBlocks = shapeTextGroups.length > 0
                 ? this.flattenTextGroups(shapeTextGroups)
                 : [];
+            // Enrich outline blocks with SpContainer bounds by matching content
+            if (outlineBlocks.length > 0 && groupedShapeTextBlocks.length > 0) {
+                const normalizedOutline = this.normalizeTextBlocks(outlineBlocks);
+                const usedGroupIndices = new Set<number>();
+                normalizedOutline.forEach((block) => {
+                    if (block.bounds) {
+                        return;
+                    }
+                    const blockText = block.text.replace(/\s+/g, '');
+                    const match = { block: null as PptTextBlock | null, index: -1, score: 0 };
+                    groupedShapeTextBlocks.forEach((grouped, groupIndex) => {
+                        if (usedGroupIndices.has(groupIndex)) {
+                            return;
+                        }
+                        const groupedText = grouped.text.replace(/\s+/g, '');
+                        if (blockText === groupedText) {
+                            match.block = grouped;
+                            match.index = groupIndex;
+                            match.score = 1;
+                        } else if (match.score < 0.5 && blockText.length > 4 && groupedText.length > 4) {
+                            if (blockText.includes(groupedText) || groupedText.includes(blockText)) {
+                                match.block = grouped;
+                                match.index = groupIndex;
+                                match.score = 0.5;
+                            }
+                        }
+                    });
+                    if (match.block && match.index >= 0) {
+                        block.bounds = match.block.bounds;
+                        block.spContainerIndex = match.block.spContainerIndex;
+                        if (!block.fillColor && match.block.fillColor) {
+                            block.fillColor = match.block.fillColor;
+                        }
+                        if (!block.borderColor && match.block.borderColor) {
+                            block.borderColor = match.block.borderColor;
+                        }
+                        if (match.block.borderWidthPx !== undefined && block.borderWidthPx === undefined) {
+                            block.borderWidthPx = match.block.borderWidthPx;
+                        }
+                        usedGroupIndices.add(match.index);
+                    }
+                });
+            }
             const baseTextBlocks: PptTextBlock[] = outlineBlocks.length > 0 && !shouldPreferGroupedShapeText
                 ? this.decorateTextBlocksWithPlaceholders(this.normalizeTextBlocks(outlineBlocks), layout)
                 : groupedShapeTextBlocks.length > 0
@@ -346,32 +383,7 @@ export class PptBinaryParser {
                 heightPx,
                 presentationMetrics
             );
-            const groupedTextSignature = groupedShapeTextBlocks.map((block) => block.text).join(' ');
-            const provisionalTextSignature = provisionalTextBlocks.map((block) => block.text).join(' ');
-            const isDialoguePhotoSlide = (/이 큰거랑 작은거랑 바꾸자/.test(provisionalTextSignature) || /이 큰거랑 작은거랑 바꾸자/.test(groupedTextSignature))
-                && (/우리 식구가 먹으려면 이정도면 되겠지/.test(provisionalTextSignature) || /우리 식구가 먹으려면 이정도면 되겠지/.test(groupedTextSignature));
-            const textBlocks = isDialoguePhotoSlide && groupedShapeTextBlocks.length >= 3
-                ? groupedShapeTextBlocks
-                : provisionalTextBlocks;
-            const slideTextSignature = textBlocks.map((block) => block.text).join(' ');
-            const isMathIntroSlide = /수학은/.test(slideTextSignature) && /실제 삶에 관한 것/.test(slideTextSignature);
-            const isApproachDirectionSlide = /유아 수학교육을 위한 접근의 방향/.test(slideTextSignature);
-            const isPurposeSlide = /자료집 개발의 목적/.test(slideTextSignature);
-            const isActivityProcessSlide = /활동 구성과정/.test(slideTextSignature);
-            const isCompositionSystemSlide = /활동의 구성 체제/.test(slideTextSignature);
-            const isCompositionSystemDetailSlide = isCompositionSystemSlide
-                && /수수께끼 속의 병뚜껑|간단한 수학활동 방법 안내/.test(slideTextSignature);
-            const isCompositionSystemFamilySlide = isCompositionSystemSlide
-                && /가정연계 활동을 위한 최초 부모교육자료/.test(slideTextSignature);
-            const isSubwayStorySlide = /지하철을 탈 때 나누면 좋은 이야기/.test(slideTextSignature);
-            const isBottleCapRiddleSlide = !isCompositionSystemSlide
-                && /수수께끼 속의 병뚜껑을 찾으려면\?/.test(slideTextSignature);
-            const isMathPlayLetterSlide = /아이와 함께 하는 수학놀이 왜, 어떻게 할까요\?/.test(slideTextSignature);
-            const isActivityListSlide = /유아를 위한 수학활동 목록/.test(slideTextSignature);
-            const isClosingPracticeSlide = i === slideRecords.length - 1
-                && textBlocks.length === 0
-                && visualSlots.length === 1
-                && visualSlots[0].imageRefId === 2;
+            const textBlocks = provisionalTextBlocks;
             const elements: PptSlideModel['elements'] = [];
             const titleBlocks = textBlocks.filter((block) => {
                 const role = this.classifyPlaceholderType(block.placeholderType);
@@ -394,17 +406,10 @@ export class PptBinaryParser {
                             && !block.bounds
                             && block.text.length <= 60
                             && !block.text.includes('\r'));
-                    const defaultTextColor = isMathIntroSlide && isTitle
-                        ? '#ffffff'
-                        : isTitle
-                            ? colorScheme?.titleColor
-                            : colorScheme?.textColor;
-                    const coverTitleFrame = hasStyledTitleArt
-                        ? this.computeCoverTitleFrame(block, widthPx, heightPx)
-                        : null;
-                    const effectiveFontSize = coverTitleFrame
-                        ? this.computeCoverTitleFontSize(block)
-                        : block.fontSizePx;
+                    const defaultTextColor = isTitle
+                        ? colorScheme?.titleColor
+                        : colorScheme?.textColor;
+                    const effectiveFontSize = block.fontSizePx;
                     const paragraphs = this.createParagraphsFromText(
                         block.text,
                         this.isBulletTextType(block.textType, !isTitle) && placeholderRole !== 'subtitle',
@@ -429,13 +434,12 @@ export class PptBinaryParser {
                     );
                     const candidateFrame = block.bounds
                         ? this.normalizeBounds(block.bounds, widthPx, heightPx, presentationMetrics)
-                        : (coverTitleFrame ?? frame);
+                        : frame;
                     const panelFrame = rightPanelFrames?.get(block);
+                    const hasSpContainerBounds = block.bounds && block.spContainerIndex !== undefined;
                     const positionedFrame = panelFrame
                         ? panelFrame
-                        : coverTitleFrame
-                        ? coverTitleFrame
-                        : isActivityListSlide && block.bounds
+                        : hasSpContainerBounds
                             ? candidateFrame
                         : block.bounds
                         ? this.resolveTextFrame(
@@ -447,10 +451,19 @@ export class PptBinaryParser {
                             placedTextFrames
                         )
                         : frame;
-                    const contentHeight = paragraphs.length * 40;
+                    const estimatedLineHeight = 30;
+                    const avgCharWidthPx = 16;
+                    const bulletPrefixPx = paragraphs.some((p) => p.bullet) ? 30 : 0;
+                    const containerWidth = Math.max(positionedFrame.width - 4 - bulletPrefixPx, 40);
+                    const charsPerLine = Math.max(1, Math.floor(containerWidth / avgCharWidthPx));
+                    const estimatedLines = paragraphs.reduce((sum, p) => {
+                        const textLength = p.text?.length || 0;
+                        return sum + Math.max(1, Math.ceil(textLength / charsPerLine));
+                    }, 0);
+                    const contentHeight = estimatedLines * estimatedLineHeight;
                     const height = isTitle
                         ? Math.max(positionedFrame.height, 72, contentHeight)
-                        : Math.max(Math.min(positionedFrame.height, Math.max(36, contentHeight)), 36);
+                        : Math.max(positionedFrame.height, contentHeight, 36);
 
                     elements.push({
                         type: 'text',
@@ -458,23 +471,18 @@ export class PptBinaryParser {
                         y: positionedFrame.y,
                         width: positionedFrame.width,
                         height,
-                        zIndex: idx,
+                        zIndex: block.spContainerIndex ?? idx,
                         isTitle,
                         paragraphs,
                         fillColor: block.fillVisible === false ? undefined : block.fillColor,
                         borderColor: block.borderVisible === false ? undefined : block.borderColor,
-                        borderWidthPx: block.borderVisible === false ? undefined : block.borderWidthPx,
-                        textStylePreset: coverTitleFrame
-                            ? (/유아를 위한/.test(block.text) ? 'cover-subtitle' : 'cover-title')
-                            : undefined
+                        borderWidthPx: block.borderVisible === false ? undefined : block.borderWidthPx
                     });
                     placedTextFrames.push(positionedFrame);
                 });
             }
 
-            if (!isActivityListSlide) {
-                this.resolveTextElementOverlaps(elements, heightPx);
-            }
+            this.resolveTextElementOverlaps(elements, heightPx);
 
             // Minimal image support: use discovered picture/object frames when available.
             const preferredSlots = visualSlots.filter((slot) =>
@@ -493,7 +501,7 @@ export class PptBinaryParser {
                 boundedSlots,
                 widthPx,
                 heightPx,
-                isActivityListSlide
+                false
             ).filter((slot) => {
                 if (!slot.bounds || slot.imageRefId !== undefined || boundedSlots.length < 4) {
                     return true;
@@ -502,15 +510,6 @@ export class PptBinaryParser {
                 const aspectRatio = slot.bounds.width / Math.max(1, slot.bounds.height);
                 return !(aspectRatio > 4.5 && slot.bounds.y < 1000);
             });
-            if (isDialoguePhotoSlide) {
-                imageSlots = imageSlots
-                    .slice()
-                    .sort((left, right) => {
-                        const leftScore = left.imageRefId === 1 ? 1 : 0;
-                        const rightScore = right.imageRefId === 1 ? 1 : 0;
-                        return rightScore - leftScore;
-                    });
-            }
             const usedImageSlots = new Set<PptVisualSlot>();
 
             if (imageSlots.length > 0) {
@@ -518,12 +517,6 @@ export class PptBinaryParser {
                 const sequentialBaseIndex = sequentialPictureIndex;
                 let highestPictureIndexUsed = sequentialPictureIndex - 1;
                 imageSlots.forEach((slot) => {
-                    if (isPurposeSlide && slot.imageRefId === undefined) {
-                        return;
-                    }
-                    if (isApproachDirectionSlide && slot.imageRefId === 15) {
-                        return;
-                    }
                     const img = (slot.imageRefId !== undefined
                         ? picturesById?.get(slot.imageRefId)
                         : undefined) ?? pictures[sequentialBaseIndex + fallbackImageIndex++];
@@ -533,7 +526,7 @@ export class PptBinaryParser {
 
                     const scaledImageFrame = this.normalizeBounds(slot.bounds, widthPx, heightPx, presentationMetrics);
                     const imageFrame = this.adjustImageFrameForTextColumns(
-                        this.adjustLegacyImageFrame(slot, scaledImageFrame, widthPx, heightPx, isMathIntroSlide),
+                        this.adjustLegacyImageFrame(slot, scaledImageFrame, widthPx, heightPx, false),
                         elements,
                         widthPx,
                         heightPx
@@ -544,7 +537,7 @@ export class PptBinaryParser {
                         y: imageFrame.y,
                         width: imageFrame.width,
                         height: imageFrame.height,
-                        zIndex: 100 + elements.length,
+                        zIndex: slot.spContainerIndex ?? (100 + elements.length),
                         src: `data:${img.mime};base64,${img.base64}`
                     });
                     usedImageSlots.add(slot);
@@ -556,7 +549,7 @@ export class PptBinaryParser {
                     sequentialPictureIndex + fallbackImageIndex,
                     highestPictureIndexUsed + 1
                 );
-            } else if (!isPurposeSlide) {
+            } else {
                 const img = pictures[sequentialPictureIndex++];
                 if (img) {
                     elements.push({
@@ -594,16 +587,6 @@ export class PptBinaryParser {
                     return;
                 }
                 if (
-                    hasStyledTitleArt
-                    && !slot.imageRefId
-                    && slot.fillColor
-                    && !slot.borderColor
-                    && shapeFrame.y < heightPx * 0.35
-                    && shapeFrame.height < heightPx * 0.2
-                ) {
-                    return;
-                }
-                if (
                     !slot.imageRefId
                     && styledBounds.some((bounds) => this.boundsOverlapRatio(shapeFrame, this.normalizeBounds(bounds, widthPx, heightPx, presentationMetrics)) > 0.7)
                 ) {
@@ -626,7 +609,7 @@ export class PptBinaryParser {
                     y: shapeFrame.y,
                     width: shapeFrame.width,
                     height: shapeFrame.height,
-                    zIndex: isBackgroundLikeShape ? -2 : 50 + index,
+                    zIndex: isBackgroundLikeShape ? -2 : (slot.spContainerIndex ?? (50 + index)),
                     fillColor: slot.fillVisible === false ? undefined : slot.fillColor,
                     borderColor: slot.borderVisible === false ? undefined : slot.borderColor,
                     borderWidthPx: slot.borderVisible === false ? undefined : slot.borderWidthPx
@@ -635,63 +618,13 @@ export class PptBinaryParser {
 
             this.applyPanelBackgroundShape(elements, visualSlots, widthPx, heightPx, presentationMetrics);
             this.resolveTextImageOverlaps(elements, widthPx, heightPx);
-
-            if (isDialoguePhotoSlide) {
-                this.applyDialoguePhotoLayout(elements, widthPx, heightPx);
-            }
-
-            if (isMathIntroSlide) {
-                this.applyMathIntroLayout(elements, picturesById, widthPx, heightPx);
-            }
-
-            if (isApproachDirectionSlide) {
-                this.applyMasterDecorativeElements(elements, picturesById, widthPx, heightPx);
-                this.applyApproachDirectionLayout(elements, styledShapeBlocks, picturesById, widthPx, heightPx);
-            }
-
-            if (isPurposeSlide) {
-                this.applyPurposeLayout(elements, masterRecord, picturesById, presentationMetrics, widthPx, heightPx);
-            }
-
-            if (isActivityProcessSlide) {
-                this.applyActivityProcessLayout(elements, styledShapeBlocks, masterRecord, picturesById, presentationMetrics, widthPx, heightPx);
-            }
-
-            if (isCompositionSystemSlide) {
-                this.applyCompositionSystemLayout(elements, masterRecord, picturesById, presentationMetrics, widthPx, heightPx);
-            }
-
-            if (isCompositionSystemDetailSlide) {
-                this.applyCompositionSystemDetailLayout(elements, widthPx, heightPx);
-            }
-
-            if (isCompositionSystemFamilySlide) {
-                this.applyCompositionSystemFamilyLayout(elements, widthPx, heightPx);
-            }
-
-            if (isSubwayStorySlide) {
-                this.applySubwayStoryLayout(elements, widthPx, heightPx);
-            }
-
-            if (isBottleCapRiddleSlide) {
-                this.applyBottleCapRiddleLayout(elements, widthPx, heightPx);
-            }
-
-            if (isMathPlayLetterSlide) {
-                this.applyMathPlayLetterLayout(elements, widthPx, heightPx);
-            }
-
-            if (isActivityListSlide) {
-                this.applyActivityListTableLayout(elements, widthPx, heightPx);
-            }
-
-            if (isClosingPracticeSlide) {
-                this.applyClosingPracticeLayout(elements, masterRecord, picturesById, presentationMetrics, widthPx, heightPx);
-            }
+            this.resolveTextElementOverlaps(elements, heightPx);
 
             if (textBlocks.length === 0 && elements.filter((element) => element.type === 'image').length <= 1 && masterRecord) {
                 this.applyMasterFallbackElements(elements, masterRecord, picturesById, presentationMetrics, widthPx, heightPx);
             }
+
+            this.applyMasterBackgroundImage(elements, masterRecord, picturesById, presentationMetrics, widthPx, heightPx);
 
             this.pruneActivityListImageArtifacts(elements, widthPx, heightPx);
             this.pruneImageOnlySlideArtifacts(elements, widthPx, heightPx);
@@ -700,19 +633,7 @@ export class PptBinaryParser {
                 slideNumber: i + 1,
                 widthPx,
                 heightPx,
-                backgroundColor: isApproachDirectionSlide
-                    ? '#0458d7'
-                    : isPurposeSlide
-                        ? '#0458d7'
-                    : isActivityProcessSlide
-                        ? '#0458d7'
-                    : isCompositionSystemSlide
-                        ? '#0458d7'
-                    : hasStyledTitleArt
-                    ? '#0458d7'
-                    : isMathIntroSlide
-                        ? '#0458d7'
-                    : colorScheme?.backgroundColor || '#ffffff',
+                backgroundColor: colorScheme?.backgroundColor || '#ffffff',
                 elements
             });
         }
@@ -1126,7 +1047,8 @@ export class PptBinaryParser {
                     color: titleCandidate.color ?? group.blocks[0]?.color,
                     fontSizePx: titleCandidate.fontSizePx ?? group.blocks[0]?.fontSizePx,
                     fillVisible: titleCandidate.fillVisible ?? group.fillVisible,
-                    borderVisible: titleCandidate.borderVisible ?? group.borderVisible
+                    borderVisible: titleCandidate.borderVisible ?? group.borderVisible,
+                    spContainerIndex: group.spContainerIndex
                 });
                 flattened.push({
                     text: bodyCandidates.map((block) => block.text).join('\r'),
@@ -1139,7 +1061,8 @@ export class PptBinaryParser {
                     borderColor: bodyCandidates[0].borderColor ?? group.borderColor,
                     borderWidthPx: bodyCandidates[0].borderWidthPx ?? group.borderWidthPx,
                     fillVisible: bodyCandidates[0].fillVisible ?? group.fillVisible,
-                    borderVisible: bodyCandidates[0].borderVisible ?? group.borderVisible
+                    borderVisible: bodyCandidates[0].borderVisible ?? group.borderVisible,
+                    spContainerIndex: group.spContainerIndex
                 });
                 return;
             }
@@ -1155,7 +1078,8 @@ export class PptBinaryParser {
                 borderColor: normalizedBlocks[0].borderColor ?? group.borderColor,
                 borderWidthPx: normalizedBlocks[0].borderWidthPx ?? group.borderWidthPx,
                 fillVisible: normalizedBlocks[0].fillVisible ?? group.fillVisible,
-                borderVisible: normalizedBlocks[0].borderVisible ?? group.borderVisible
+                borderVisible: normalizedBlocks[0].borderVisible ?? group.borderVisible,
+                spContainerIndex: group.spContainerIndex
             });
         });
 
@@ -1315,44 +1239,6 @@ export class PptBinaryParser {
         return isWideTopBanner && hasReasonableTitleLength && !block.text.includes('•');
     }
 
-    private static computeCoverTitleFrame(
-        block: PptTextBlock,
-        slideWidth: number,
-        slideHeight: number
-    ): PptShapeBounds | null {
-        if (/유아를 위한/.test(block.text)) {
-            return {
-                x: Math.round(slideWidth * 0.18),
-                y: Math.round(slideHeight * 0.05),
-                width: Math.round(slideWidth * 0.64),
-                height: Math.round(slideHeight * 0.14)
-            };
-        }
-
-        if (/수학교육활동/.test(block.text)) {
-            return {
-                x: Math.round(slideWidth * 0.16),
-                y: Math.round(slideHeight * 0.145),
-                width: Math.round(slideWidth * 0.7),
-                height: Math.round(slideHeight * 0.2)
-            };
-        }
-
-        return null;
-    }
-
-    private static computeCoverTitleFontSize(block: PptTextBlock): number | undefined {
-        if (/유아를 위한/.test(block.text)) {
-            return 64;
-        }
-
-        if (/수학교육활동/.test(block.text)) {
-            return 122;
-        }
-
-        return block.fontSizePx;
-    }
-
     private static isDecorativeImageSlot(
         slot: PptVisualSlot,
         slideWidth: number,
@@ -1452,1207 +1338,6 @@ export class PptBinaryParser {
         }
 
         return frame;
-    }
-
-    private static applyMasterDecorativeElements(
-        elements: PptSlideModel['elements'],
-        picturesById: Map<number, PptPictureAsset> | undefined,
-        slideWidth: number,
-        slideHeight: number
-    ): void {
-        const footerLogo = picturesById?.get(2);
-        if (footerLogo) {
-            const hasFooterLogo = elements.some((element) =>
-                element.type === 'image'
-                && element.y > slideHeight * 0.84
-                && element.width < slideWidth * 0.35
-            );
-            if (!hasFooterLogo) {
-                elements.push({
-                    type: 'image',
-                    x: Math.round(slideWidth * 0.4),
-                    y: Math.round(slideHeight * 0.91),
-                    width: Math.round(slideWidth * 0.2),
-                    height: Math.round(slideHeight * 0.06),
-                    zIndex: 220,
-                    src: `data:${footerLogo.mime};base64,${footerLogo.base64}`
-                });
-            }
-        }
-    }
-
-    private static applyApproachDirectionLayout(
-        elements: PptSlideModel['elements'],
-        styledShapeBlocks: PptTextBlock[],
-        picturesById: Map<number, PptPictureAsset> | undefined,
-        slideWidth: number,
-        slideHeight: number
-    ): void {
-        elements.push({
-            type: 'shape',
-            x: 38,
-            y: 25,
-            width: 882,
-            height: 88,
-            zIndex: -1,
-            fillColor: '#5f8fdf'
-        });
-
-        const title = elements.find((element) =>
-            element.type === 'text'
-            && element.paragraphs?.some((paragraph) => /유아 수학교육을 위한 접근의 방향/.test(paragraph.text))
-        );
-        if (title && title.type === 'text' && title.paragraphs) {
-            title.x = 170;
-            title.y = 32;
-            title.width = 620;
-            title.height = 66;
-            title.isTitle = true;
-            title.paragraphs = title.paragraphs.map((paragraph) => ({
-                ...paragraph,
-                align: 'center',
-                color: '#ffea00',
-                fontSizePx: 46,
-                bold: true
-            }));
-        }
-
-        elements.forEach((element) => {
-            if (element.type !== 'text' || !element.paragraphs) {
-                return;
-            }
-            const text = element.paragraphs.map((paragraph) => paragraph.text).join(' ');
-            if (/유아 수학교육을 위한 접근의 방향/.test(text)) {
-                return;
-            }
-            if (/일상적 생활경험에 기초하여 사회적 상호작용을 격려하는 문제해결활동으로 접근/.test(text)) {
-                return;
-            }
-
-            if (/탈맥락적 학습상황/.test(text)) {
-                element.x = 92;
-                element.y = 228;
-                element.width = 270;
-                element.height = 54;
-            } else if (/일상적 경험에 기초/.test(text)) {
-                element.x = 588;
-                element.y = 228;
-                element.width = 286;
-                element.height = 54;
-            } else if (/구조화된 교구 중심/.test(text)) {
-                element.x = 86;
-                element.y = 404;
-                element.width = 284;
-                element.height = 52;
-            } else if (/사회적 상호작용/.test(text)) {
-                element.x = 586;
-                element.y = 376;
-                element.width = 290;
-                element.height = 92;
-            }
-
-            const isLeftCard = element.x < slideWidth * 0.5;
-            element.paragraphs = element.paragraphs.map((paragraph) => ({
-                ...paragraph,
-                align: 'center',
-                color: isLeftCard ? '#ffffff' : '#ffea00',
-                fontSizePx: text.includes('사회적 상호작용') ? 33 : 31,
-                bold: true
-            }));
-        });
-
-        const footerText = styledShapeBlocks.find((block) => /일상적 생활경험에 기초하여 사회적 상호작용을 격려하는 문제해결활동으로 접근/.test(block.text));
-        if (footerText) {
-            elements.push({
-                type: 'text',
-                x: 180,
-                y: 620,
-                width: 650,
-                height: 54,
-                zIndex: 180,
-                paragraphs: [{
-                    text: '일상적 생활경험에 기초하여 사회적 상호작용을 격려하는 문제해결활동으로 접근',
-                    level: 0,
-                    bullet: false,
-                    align: 'center',
-                    color: '#ffea00',
-                    fontSizePx: 24
-                }]
-            });
-        }
-
-        for (let index = elements.length - 1; index >= 0; index--) {
-            const element = elements[index];
-            if (
-                element.type === 'image'
-                && element.y > slideHeight * 0.84
-                && element.width < slideWidth * 0.35
-            ) {
-                elements.splice(index, 1);
-            }
-        }
-
-        const footerLogo = picturesById?.get(2);
-        if (footerLogo) {
-            elements.push({
-                type: 'image',
-                x: 18,
-                y: 670,
-                width: 160,
-                height: 49,
-                zIndex: 181,
-                src: `data:${footerLogo.mime};base64,${footerLogo.base64}`
-            });
-        }
-    }
-
-    private static applyPurposeLayout(
-        elements: PptSlideModel['elements'],
-        masterRecord: PptRecord | null,
-        picturesById: Map<number, PptPictureAsset> | undefined,
-        presentationMetrics: {
-            widthPx: number;
-            heightPx: number;
-            rawWidth: number;
-            rawHeight: number;
-        } | null,
-        slideWidth: number,
-        slideHeight: number
-    ): void {
-        this.applyMasterBackgroundImage(elements, masterRecord, picturesById, presentationMetrics, slideWidth, slideHeight);
-
-        for (let index = elements.length - 1; index >= 0; index--) {
-            const element = elements[index];
-            if (
-                element.type === 'shape'
-                && element.y < slideHeight * 0.2
-                && element.width < slideWidth * 0.08
-            ) {
-                elements.splice(index, 1);
-            }
-            if (
-                element.type === 'image'
-                && element.width >= slideWidth * 0.8
-                && element.height >= slideHeight * 0.8
-            ) {
-                elements.splice(index, 1);
-                continue;
-            }
-            if (
-                element.type === 'image'
-                && element.y > slideHeight * 0.84
-                && element.width < slideWidth * 0.35
-            ) {
-                elements.splice(index, 1);
-            }
-        }
-
-        elements.push({
-            type: 'shape',
-            x: 38,
-            y: 25,
-            width: 882,
-            height: 88,
-            zIndex: -1,
-            fillColor: '#5f8fdf'
-        });
-
-        const title = elements.find((element) =>
-            element.type === 'text'
-            && element.paragraphs?.some((paragraph) => /자료집 개발의 목적/.test(paragraph.text))
-        );
-        if (title && title.type === 'text' && title.paragraphs) {
-            title.x = 245;
-            title.y = 38;
-            title.width = 470;
-            title.height = 64;
-            title.zIndex = 60;
-            title.isTitle = true;
-            title.paragraphs = title.paragraphs.map((paragraph) => ({
-                ...paragraph,
-                align: 'center',
-                color: '#ffea00',
-                fontSizePx: 52,
-                bold: true
-            }));
-        }
-
-        const configureBodyText = (
-            matcher: RegExp,
-            frame: PptShapeBounds,
-            fontSizePx: number
-        ): void => {
-            const element = elements.find((candidate) =>
-                candidate.type === 'text'
-                && candidate.paragraphs?.some((paragraph) => matcher.test(paragraph.text))
-            );
-            if (!element || element.type !== 'text' || !element.paragraphs) {
-                return;
-            }
-
-            element.x = frame.x;
-            element.y = frame.y;
-            element.width = frame.width;
-            element.height = frame.height;
-            element.zIndex = 40;
-            element.isTitle = false;
-            element.paragraphs = element.paragraphs.map((paragraph) => ({
-                ...paragraph,
-                align: 'center',
-                color: '#000000',
-                fontSizePx,
-                bold: false
-            }));
-        };
-
-        configureBodyText(/수학교육을 적극적으로/, {
-            x: 376,
-            y: 194,
-            width: 230,
-            height: 92
-        }, 21);
-        configureBodyText(/수학을 즐기고 생활에/, {
-            x: 118,
-            y: 492,
-            width: 240,
-            height: 78
-        }, 24);
-        configureBodyText(/유아수학교육에 대한/, {
-            x: 660,
-            y: 490,
-            width: 234,
-            height: 84
-        }, 21);
-
-        elements.push({
-            type: 'shape',
-            x: 146,
-            y: 276,
-            width: 668,
-            height: 250,
-            zIndex: 12,
-            borderColor: '#ffffff',
-            borderWidthPx: 8
-        });
-
-        this.pushOvalNode(elements, {
-            shadow: '#6f8f2d',
-            base: '#a4c950',
-            inner: '#ffffff',
-            x: 334,
-            y: 182,
-            width: 314,
-            height: 92,
-            zIndex: 18
-        });
-        this.pushOvalNode(elements, {
-            shadow: '#3f6ba5',
-            base: '#5f8fca',
-            inner: '#ffffff',
-            x: 78,
-            y: 478,
-            width: 320,
-            height: 98,
-            zIndex: 18
-        });
-        this.pushOvalNode(elements, {
-            shadow: '#b95713',
-            base: '#cb7136',
-            inner: '#ffffff',
-            x: 618,
-            y: 478,
-            width: 318,
-            height: 98,
-            zIndex: 18
-        });
-
-        const footerLogo = picturesById?.get(2);
-        if (footerLogo) {
-            elements.push({
-                type: 'image',
-                x: 18,
-                y: 670,
-                width: 160,
-                height: 49,
-                zIndex: 181,
-                src: `data:${footerLogo.mime};base64,${footerLogo.base64}`
-            });
-        }
-    }
-
-    private static applyActivityProcessLayout(
-        elements: PptSlideModel['elements'],
-        styledShapeBlocks: PptTextBlock[],
-        masterRecord: PptRecord | null,
-        picturesById: Map<number, PptPictureAsset> | undefined,
-        presentationMetrics: PptPresentationMetrics | null,
-        slideWidth: number,
-        slideHeight: number
-    ): void {
-        applyActivityProcessLayoutImpl(
-            elements,
-            styledShapeBlocks,
-            masterRecord,
-            picturesById,
-            presentationMetrics,
-            slideWidth,
-            slideHeight,
-            this.applyMasterBackgroundImage.bind(this)
-        );
-    }
-
-    private static applyCompositionSystemLayout(
-        elements: PptSlideModel['elements'],
-        masterRecord: PptRecord | null,
-        picturesById: Map<number, PptPictureAsset> | undefined,
-        presentationMetrics: {
-            widthPx: number;
-            heightPx: number;
-            rawWidth: number;
-            rawHeight: number;
-        } | null,
-        slideWidth: number,
-        slideHeight: number
-    ): void {
-        this.applyMasterBackgroundImage(elements, masterRecord, picturesById, presentationMetrics, slideWidth, slideHeight);
-
-        for (let index = elements.length - 1; index >= 0; index--) {
-            const element = elements[index];
-            if (
-                element.type === 'image'
-                && element.width >= slideWidth * 0.8
-                && element.height >= slideHeight * 0.8
-            ) {
-                elements.splice(index, 1);
-                continue;
-            }
-            if (
-                element.type === 'shape'
-                || (element.type === 'image' && element.width < slideWidth * 0.8)
-            ) {
-                elements.splice(index, 1);
-            }
-        }
-
-        elements.push({
-            type: 'shape',
-            x: 38,
-            y: 25,
-            width: 882,
-            height: 88,
-            zIndex: -1,
-            fillColor: '#5f8fdf'
-        });
-
-        const title = elements.find((element) =>
-            element.type === 'text'
-            && element.paragraphs?.some((paragraph) => /활동의 구성 체제/.test(paragraph.text))
-        );
-        if (title && title.type === 'text' && title.paragraphs) {
-            title.x = 300;
-            title.y = 34;
-            title.width = 360;
-            title.height = 64;
-            title.zIndex = 80;
-            title.isTitle = true;
-            title.paragraphs = title.paragraphs.map((paragraph) => ({
-                ...paragraph,
-                align: 'center',
-                color: '#ffea00',
-                fontSizePx: 46,
-                bold: true
-            }));
-        }
-
-        const configureText = (
-            matcher: RegExp,
-            frame: PptShapeBounds,
-            options?: {
-                color?: string;
-                fontSizePx?: number;
-                bold?: boolean;
-            }
-        ): void => {
-            const element = elements.find((candidate) =>
-                candidate.type === 'text'
-                && candidate.paragraphs?.some((paragraph) => matcher.test(paragraph.text))
-            );
-            if (!element || element.type !== 'text' || !element.paragraphs) {
-                return;
-            }
-
-            element.x = frame.x;
-            element.y = frame.y;
-            element.width = frame.width;
-            element.height = frame.height;
-            element.zIndex = 130;
-            element.isTitle = false;
-            element.paragraphs = element.paragraphs.map((paragraph) => ({
-                ...paragraph,
-                align: 'left',
-                color: options?.color ?? '#ffffff',
-                fontSizePx: options?.fontSizePx ?? 28,
-                bold: options?.bold ?? false
-            }));
-        };
-
-        configureText(/주제별 수학적 탐구 활동/, { x: 112, y: 248, width: 238, height: 74 }, { color: '#ffea00', fontSizePx: 26 });
-        configureText(/수준별 확장활동/, { x: 172, y: 418, width: 220, height: 60 }, { color: '#ffea00', fontSizePx: 26 });
-        configureText(/가정연계/, { x: 192, y: 587, width: 180, height: 56 }, { color: '#ffea00', fontSizePx: 26 });
-
-        configureText(/경험 및 자료탐색/, { x: 680, y: 206, width: 234, height: 52 }, { fontSizePx: 26 });
-        configureText(/수학적 문제해결/, { x: 680, y: 280, width: 234, height: 52 }, { fontSizePx: 26 });
-        configureText(/평가/, { x: 680, y: 352, width: 120, height: 44 }, { fontSizePx: 26 });
-        configureText(/바깥놀이를 가장 많이/, { x: 680, y: 430, width: 244, height: 74 }, { fontSizePx: 22 });
-        configureText(/한 주 동안 어떤 날씨/, { x: 680, y: 506, width: 244, height: 74 }, { fontSizePx: 22 });
-        configureText(/일상적 상황에서의 수학적 상호작용방법 안내/, { x: 680, y: 610, width: 244, height: 76 }, { fontSizePx: 22 });
-        configureText(/지하철에서 나누면 좋은 이야기/, { x: 680, y: 664, width: 244, height: 52 }, { color: '#ffea00', fontSizePx: 22 });
-
-        const cardAsset = picturesById?.get(12);
-        if (cardAsset) {
-            const src = `data:${cardAsset.mime};base64,${cardAsset.base64}`;
-            [
-                { x: 54, y: 220, width: 284, height: 132 },
-                { x: 54, y: 390, width: 284, height: 132 },
-                { x: 54, y: 548, width: 284, height: 132 }
-            ].forEach((frame, index) => {
-                elements.push({
-                    type: 'image',
-                    x: frame.x,
-                    y: frame.y,
-                    width: frame.width,
-                    height: frame.height,
-                    zIndex: 100 + index,
-                    src
-                });
-            });
-        }
-
-        this.pushBracket(elements, { x: 568, y: 218, width: 96, height: 152, zIndex: 110 });
-        this.pushBracket(elements, { x: 568, y: 406, width: 96, height: 116, zIndex: 110 });
-        this.pushShortConnector(elements, { x: 572, y: 646, width: 88, zIndex: 110 });
-
-        const footerLogo = picturesById?.get(2);
-        if (footerLogo) {
-            elements.push({
-                type: 'image',
-                x: 18,
-                y: 670,
-                width: 160,
-                height: 49,
-                zIndex: 181,
-                src: `data:${footerLogo.mime};base64,${footerLogo.base64}`
-            });
-        }
-    }
-
-    private static pushBracket(
-        elements: PptSlideModel['elements'],
-        frame: {
-            x: number;
-            y: number;
-            width: number;
-            height: number;
-            zIndex: number;
-        }
-    ): void {
-        elements.push({
-            type: 'shape',
-            x: frame.x,
-            y: frame.y,
-            width: 6,
-            height: frame.height,
-            zIndex: frame.zIndex,
-            fillColor: '#ffffff'
-        });
-        elements.push({
-            type: 'shape',
-            x: frame.x,
-            y: frame.y,
-            width: frame.width,
-            height: 6,
-            zIndex: frame.zIndex,
-            fillColor: '#ffffff'
-        });
-        elements.push({
-            type: 'shape',
-            x: frame.x,
-            y: frame.y + Math.round(frame.height / 2) - 3,
-            width: frame.width,
-            height: 6,
-            zIndex: frame.zIndex,
-            fillColor: '#ffffff'
-        });
-        elements.push({
-            type: 'shape',
-            x: frame.x,
-            y: frame.y + frame.height - 6,
-            width: frame.width,
-            height: 6,
-            zIndex: frame.zIndex,
-            fillColor: '#ffffff'
-        });
-    }
-
-    private static pushShortConnector(
-        elements: PptSlideModel['elements'],
-        frame: {
-            x: number;
-            y: number;
-            width: number;
-            zIndex: number;
-        }
-    ): void {
-        elements.push({
-            type: 'shape',
-            x: frame.x,
-            y: frame.y,
-            width: frame.width,
-            height: 6,
-            zIndex: frame.zIndex,
-            fillColor: '#ffffff'
-        });
-    }
-
-    private static applySubwayStoryLayout(
-        elements: PptSlideModel['elements'],
-        slideWidth: number,
-        slideHeight: number
-    ): void {
-        const title = elements.find((element) =>
-            element.type === 'text'
-            && element.paragraphs?.some((paragraph) => /지하철을 탈 때 나누면 좋은 이야기/.test(paragraph.text))
-        );
-        if (title && title.type === 'text' && title.paragraphs) {
-            title.x = 178;
-            title.y = 28;
-            title.width = 605;
-            title.height = 72;
-            title.zIndex = 80;
-            title.isTitle = true;
-            title.paragraphs = title.paragraphs.map((paragraph) => ({
-                ...paragraph,
-                align: 'center',
-                color: '#000000',
-                fontSizePx: 34,
-                bold: true
-            }));
-        }
-
-        const updateText = (
-            matcher: RegExp,
-            frame: PptShapeBounds,
-            options?: {
-                align?: 'left' | 'center' | 'right';
-                fontSizePx?: number;
-                bold?: boolean;
-            }
-        ): void => {
-            const element = elements.find((candidate) =>
-                candidate.type === 'text'
-                && candidate.paragraphs?.some((paragraph) => matcher.test(paragraph.text))
-            );
-            if (!element || element.type !== 'text' || !element.paragraphs) {
-                return;
-            }
-
-            element.x = frame.x;
-            element.y = frame.y;
-            element.width = frame.width;
-            element.height = frame.height;
-            element.zIndex = 120;
-            element.isTitle = false;
-            element.paragraphs = element.paragraphs.map((paragraph) => ({
-                ...paragraph,
-                align: options?.align ?? 'left',
-                color: '#000000',
-                fontSizePx: options?.fontSizePx ?? 22,
-                bold: options?.bold ?? false
-            }));
-        };
-
-        updateText(/가족들과 함께 대중교통을 이용해 나들이할 때/, {
-            x: 50,
-            y: 226,
-            width: 214,
-            height: 96
-        }, {
-            fontSizePx: 14
-        });
-        updateText(/지하철 노선표를/, {
-            x: 72,
-            y: 318,
-            width: 170,
-            height: 34
-        }, {
-            align: 'center',
-            fontSizePx: 17
-        });
-        updateText(/기다리면서/, {
-            x: 72,
-            y: 406,
-            width: 170,
-            height: 64
-        }, {
-            align: 'center',
-            fontSizePx: 19
-        });
-        updateText(/타고 가면서/, {
-            x: 72,
-            y: 562,
-            width: 170,
-            height: 64
-        }, {
-            align: 'center',
-            fontSizePx: 19
-        });
-
-        const textElements = elements.filter((element): element is PptSlideModel['elements'][number] & { type: 'text'; paragraphs: NonNullable<PptSlideModel['elements'][number]['paragraphs']> } =>
-            element.type === 'text' && !!element.paragraphs
-        );
-
-        const illustrationImages = elements
-            .filter((element): element is PptSlideModel['elements'][number] & { type: 'image' } =>
-                element.type === 'image'
-                && element.width < slideWidth * 0.22
-                && element.height < slideHeight * 0.2
-            )
-            .sort((left, right) => left.y - right.y);
-        const illustrationFrames: PptShapeBounds[] = [
-            { x: 330, y: 224, width: 128, height: 112 },
-            { x: 330, y: 381, width: 128, height: 117 },
-            { x: 330, y: 538, width: 128, height: 113 }
-        ];
-        illustrationImages.forEach((element, index) => {
-            const frame = illustrationFrames[Math.min(index, illustrationFrames.length - 1)];
-            element.x = frame.x;
-            element.y = frame.y;
-            element.width = frame.width;
-            element.height = frame.height;
-            element.zIndex = 130 + index;
-        });
-
-        const compositeImage = elements
-            .filter((element): element is PptSlideModel['elements'][number] & { type: 'image' } =>
-                element.type === 'image'
-                && element.width >= slideWidth * 0.35
-                && element.height >= slideHeight * 0.45
-            )
-            .sort((left, right) => (right.width * right.height) - (left.width * left.height))[0];
-        if (compositeImage) {
-            compositeImage.x = 468;
-            compositeImage.y = 214;
-            compositeImage.width = 404;
-            compositeImage.height = 438;
-            compositeImage.zIndex = 104;
-        }
-
-        elements.forEach((element) => {
-            if (element.type !== 'shape') {
-                return;
-            }
-
-            const isGuideBox = element.width >= 220 && element.width <= 270 && element.height >= 130 && element.height <= 150;
-            if (isGuideBox) {
-                element.borderColor = '#99ccff';
-                element.borderWidthPx = 6;
-                element.fillColor = undefined;
-                element.zIndex = 90;
-            }
-        });
-
-        textElements.forEach((element) => {
-            if (!element.paragraphs) {
-                return;
-            }
-            if (element.paragraphs.some((paragraph) => /가족들과 함께 대중교통을 이용해 나들이할 때/.test(paragraph.text))) {
-                element.zIndex = 120;
-            }
-        });
-    }
-
-    private static applyCompositionSystemDetailLayout(
-        elements: PptSlideModel['elements'],
-        slideWidth: number,
-        slideHeight: number
-    ): void {
-        const splitParagraphElement = (
-            matcher: RegExp,
-            firstFrame: PptShapeBounds,
-            secondFrame: PptShapeBounds,
-            options?: {
-                firstColor?: string;
-                secondColor?: string;
-                firstFontSizePx?: number;
-                secondFontSizePx?: number;
-            }
-        ): void => {
-            const element = elements.find((candidate) =>
-                candidate.type === 'text'
-                && candidate.paragraphs?.some((paragraph) => matcher.test(paragraph.text))
-            );
-            if (!element || element.type !== 'text' || !element.paragraphs || element.paragraphs.length < 2) {
-                return;
-            }
-
-            const [firstParagraph, secondParagraph] = element.paragraphs;
-            element.x = firstFrame.x;
-            element.y = firstFrame.y;
-            element.width = firstFrame.width;
-            element.height = firstFrame.height;
-            element.zIndex = 130;
-            element.paragraphs = [{
-                ...firstParagraph,
-                align: 'left',
-                color: options?.firstColor ?? '#ffffff',
-                fontSizePx: options?.firstFontSizePx ?? 24,
-                bold: false
-            }];
-
-            elements.push({
-                type: 'text',
-                x: secondFrame.x,
-                y: secondFrame.y,
-                width: secondFrame.width,
-                height: secondFrame.height,
-                zIndex: 131,
-                isTitle: false,
-                paragraphs: [{
-                    ...secondParagraph,
-                    align: 'left',
-                    color: options?.secondColor ?? '#ffea00',
-                    fontSizePx: options?.secondFontSizePx ?? 24,
-                    bold: false
-                }]
-            });
-        };
-
-        splitParagraphElement(
-            /간단한 수학활동 방법 안내|수수께끼 속의 병뚜껑/,
-            { x: 510, y: 564, width: 240, height: 74 },
-            { x: 502, y: 512, width: 280, height: 42 },
-            {
-                firstColor: '#ffffff',
-                secondColor: '#ffea00',
-                firstFontSizePx: 23,
-                secondFontSizePx: 24
-            }
-        );
-
-        splitParagraphElement(
-            /일상적 상황에서의 수학적 상호작용방법 안내|지하철에서 나누면 좋은 이야기/,
-            { x: 684, y: 664, width: 248, height: 40 },
-            { x: 522, y: 688, width: 330, height: 34 },
-            {
-                firstColor: '#ffffff',
-                secondColor: '#ffea00',
-                firstFontSizePx: 22,
-                secondFontSizePx: 22
-            }
-        );
-
-        const upperExample = elements.find((element) =>
-            element.type === 'text'
-            && element.paragraphs?.some((paragraph) => /바깥놀이를 가장 많이/.test(paragraph.text))
-        );
-        if (upperExample && upperExample.type === 'text' && upperExample.paragraphs) {
-            upperExample.x = 682;
-            upperExample.y = 474;
-            upperExample.width = 258;
-            upperExample.height = 48;
-            upperExample.zIndex = 125;
-            upperExample.paragraphs = upperExample.paragraphs.map((paragraph) => ({
-                ...paragraph,
-                align: 'left',
-                color: '#ffffff',
-                fontSizePx: 23
-            }));
-        }
-
-        const lowerExample = elements.find((element) =>
-            element.type === 'text'
-            && element.paragraphs?.some((paragraph) => /한 주 동안 어떤 날씨/.test(paragraph.text))
-        );
-        if (lowerExample && lowerExample.type === 'text' && lowerExample.paragraphs) {
-            lowerExample.x = 682;
-            lowerExample.y = 556;
-            lowerExample.width = 250;
-            lowerExample.height = 52;
-            lowerExample.zIndex = 125;
-            lowerExample.paragraphs = lowerExample.paragraphs.map((paragraph) => ({
-                ...paragraph,
-                align: 'left',
-                color: '#ffffff',
-                fontSizePx: 23
-            }));
-        }
-
-        elements.forEach((element) => {
-            if (element.type !== 'text' || !element.paragraphs) {
-                return;
-            }
-            const text = element.paragraphs.map((paragraph) => paragraph.text).join(' ');
-            if (/경험 및 자료탐색|수학적 문제해결/.test(text)) {
-                element.zIndex = 122;
-            }
-        });
-    }
-
-    private static applyBottleCapRiddleLayout(
-        elements: PptSlideModel['elements'],
-        slideWidth: number,
-        slideHeight: number
-    ): void {
-        const updateText = (
-            matcher: RegExp,
-            frame: PptShapeBounds,
-            options?: {
-                align?: 'left' | 'center' | 'right';
-                fontSizePx?: number;
-                bold?: boolean;
-                bullet?: boolean;
-            }
-        ): void => {
-            const element = elements.find((candidate) =>
-                candidate.type === 'text'
-                && candidate.paragraphs?.some((paragraph) => matcher.test(paragraph.text))
-            );
-            if (!element || element.type !== 'text' || !element.paragraphs) {
-                return;
-            }
-
-            element.x = frame.x;
-            element.y = frame.y;
-            element.width = frame.width;
-            element.height = frame.height;
-            element.zIndex = 120;
-            element.isTitle = false;
-            element.paragraphs = element.paragraphs.map((paragraph) => ({
-                ...paragraph,
-                align: options?.align ?? 'left',
-                color: '#000000',
-                fontSizePx: options?.fontSizePx ?? 18,
-                bold: options?.bold ?? false,
-                bullet: options?.bullet ?? false
-            }));
-        };
-
-        const title = elements.find((element) =>
-            element.type === 'text'
-            && element.paragraphs?.some((paragraph) => /수수께끼 속의 병뚜껑을 찾으려면\?/.test(paragraph.text))
-        );
-        if (title && title.type === 'text' && title.paragraphs) {
-            title.x = 177;
-            title.y = 28;
-            title.width = 606;
-            title.height = 72;
-            title.zIndex = 80;
-            title.isTitle = true;
-            title.paragraphs = title.paragraphs.map((paragraph) => ({
-                ...paragraph,
-                align: 'center',
-                color: '#000000',
-                fontSizePx: 34,
-                bold: true
-            }));
-        }
-
-        updateText(/가정에서 사용한 다양한 뚜껑을 모은 후/, {
-            x: 58,
-            y: 244,
-            width: 214,
-            height: 116
-        }, {
-            fontSizePx: 18
-        });
-        updateText(/집에서 사용한|병뚜껑 모아 보기/, {
-            x: 58,
-            y: 384,
-            width: 214,
-            height: 48
-        }, {
-            align: 'center',
-            fontSizePx: 16
-        });
-        updateText(/병뚜껑의 특징을|수수께끼로 내고|맞춰보기/, {
-            x: 58,
-            y: 560,
-            width: 214,
-            height: 100
-        }, {
-            fontSizePx: 17,
-            bullet: true
-        });
-        updateText(/병뚜껑을 특징에|따라 분류하기/, {
-            x: 58,
-            y: 438,
-            width: 214,
-            height: 54
-        }, {
-            align: 'center',
-            fontSizePx: 18
-        });
-
-        const illustrationImages = elements
-            .filter((element): element is PptSlideModel['elements'][number] & { type: 'image' } =>
-                element.type === 'image'
-                && element.width < slideWidth * 0.24
-                && element.height < slideHeight * 0.22
-            )
-            .sort((left, right) => left.y - right.y);
-        const illustrationFrames: PptShapeBounds[] = [
-            { x: 282, y: 228, width: 132, height: 118 },
-            { x: 276, y: 398, width: 140, height: 124 },
-            { x: 276, y: 566, width: 136, height: 116 }
-        ];
-        illustrationImages.forEach((element, index) => {
-            const frame = illustrationFrames[Math.min(index, illustrationFrames.length - 1)];
-            element.x = frame.x;
-            element.y = frame.y;
-            element.width = frame.width;
-            element.height = frame.height;
-            element.zIndex = 130 + index;
-        });
-
-        const compositeImage = elements
-            .filter((element): element is PptSlideModel['elements'][number] & { type: 'image' } =>
-                element.type === 'image'
-                && element.width >= slideWidth * 0.35
-                && element.height >= slideHeight * 0.45
-            )
-            .sort((left, right) => (right.width * right.height) - (left.width * left.height))[0];
-        if (compositeImage) {
-            compositeImage.x = 442;
-            compositeImage.y = 214;
-            compositeImage.width = 478;
-            compositeImage.height = 458;
-            compositeImage.zIndex = 104;
-        }
-
-        elements.forEach((element) => {
-            if (element.type !== 'shape') {
-                return;
-            }
-            const isGuideBox = element.width >= 220 && element.width <= 250 && element.height >= 130 && element.height <= 150;
-            if (isGuideBox) {
-                element.x = 26;
-                element.borderColor = '#99ccff';
-                element.borderWidthPx = 6;
-                element.fillColor = undefined;
-                element.zIndex = 90;
-            }
-        });
-    }
-
-    private static applyCompositionSystemFamilyLayout(
-        elements: PptSlideModel['elements'],
-        slideWidth: number,
-        slideHeight: number
-    ): void {
-        const configureText = (
-            matcher: RegExp,
-            frame: PptShapeBounds,
-            options?: {
-                color?: string;
-                fontSizePx?: number;
-                align?: 'left' | 'center' | 'right';
-            }
-        ): void => {
-            const element = elements.find((candidate) =>
-                candidate.type === 'text'
-                && candidate.paragraphs?.some((paragraph) => matcher.test(paragraph.text))
-            );
-            if (!element || element.type !== 'text' || !element.paragraphs) {
-                return;
-            }
-
-            element.x = frame.x;
-            element.y = frame.y;
-            element.width = frame.width;
-            element.height = frame.height;
-            element.zIndex = 132;
-            element.paragraphs = element.paragraphs.map((paragraph) => ({
-                ...paragraph,
-                align: options?.align ?? 'left',
-                color: options?.color ?? '#ffffff',
-                fontSizePx: options?.fontSizePx ?? 23,
-                bold: false
-            }));
-        };
-
-        configureText(/가정연계$/, {
-            x: 168,
-            y: 628,
-            width: 120,
-            height: 34
-        }, {
-            color: '#ffea00',
-            fontSizePx: 22,
-            align: 'center'
-        });
-
-        configureText(/가정연계 활동을 위한 최초 부모교육자료/, {
-            x: 148,
-            y: 664,
-            width: 220,
-            height: 54
-        }, {
-            color: '#ffea00',
-            fontSizePx: 19,
-            align: 'center'
-        });
-
-        configureText(/간단한 수학활동 방법 안내/, {
-            x: 560,
-            y: 582,
-            width: 196,
-            height: 68
-        }, {
-            color: '#ffffff',
-            fontSizePx: 21
-        });
-
-        configureText(/수수께끼 속의 병뚜껑을 찾으려면\?/, {
-            x: 560,
-            y: 512,
-            width: 250,
-            height: 58
-        }, {
-            color: '#ffea00',
-            fontSizePx: 22
-        });
-
-        const dailyExample = elements.find((element) =>
-            element.type === 'text'
-            && element.paragraphs?.some((paragraph) => /지하철에서 나누면 좋은 이야기/.test(paragraph.text))
-        );
-        if (dailyExample && dailyExample.type === 'text' && dailyExample.paragraphs) {
-            dailyExample.x = 688;
-            dailyExample.y = 686;
-            dailyExample.width = 224;
-            dailyExample.height = 34;
-            dailyExample.zIndex = 132;
-            dailyExample.paragraphs = dailyExample.paragraphs.map((paragraph) => ({
-                ...paragraph,
-                align: 'left',
-                color: '#ffea00',
-                fontSizePx: 21,
-                bold: false
-            }));
-        }
-
-        const leftImages = elements.filter((element): element is PptSlideModel['elements'][number] & { type: 'image' } =>
-            element.type === 'image'
-            && element.width === 328
-            && element.height === 88
-        ).sort((left, right) => left.y - right.y);
-        const leftImageFrames: PptShapeBounds[] = [
-            { x: 54, y: 214, width: 284, height: 150 },
-            { x: 54, y: 404, width: 284, height: 150 },
-            { x: 54, y: 594, width: 284, height: 150 }
-        ];
-        leftImages.forEach((element, index) => {
-            const frame = leftImageFrames[Math.min(index, leftImageFrames.length - 1)];
-            element.x = frame.x;
-            element.y = frame.y;
-            element.width = frame.width;
-            element.height = frame.height;
-            element.zIndex = 100 + index;
-        });
-    }
-
-    private static applyMathPlayLetterLayout(
-        elements: PptSlideModel['elements'],
-        slideWidth: number,
-        slideHeight: number
-    ): void {
-        applyMathPlayLetterLayoutImpl(elements, slideWidth, slideHeight);
-    }
-
-    private static applyActivityListTableLayout(
-        elements: PptSlideModel['elements'],
-        slideWidth: number,
-        slideHeight: number
-    ): void {
-        applyActivityListTableLayoutImpl(elements, slideWidth, slideHeight);
-    }
-
-    private static applyClosingPracticeLayout(
-        elements: PptSlideModel['elements'],
-        masterRecord: PptRecord | null,
-        picturesById: Map<number, PptPictureAsset> | undefined,
-        presentationMetrics: PptPresentationMetrics | null,
-        slideWidth: number,
-        slideHeight: number
-    ): void {
-        applyClosingPracticeLayoutImpl(
-            elements,
-            masterRecord,
-            picturesById,
-            presentationMetrics,
-            slideWidth,
-            slideHeight,
-            this.applyMasterBackgroundImage.bind(this)
-        );
-    }
-
-    private static applyDialoguePhotoLayout(
-        elements: PptSlideModel['elements'],
-        slideWidth: number,
-        slideHeight: number
-    ): void {
-        applyDialoguePhotoLayoutImpl(elements, slideWidth, slideHeight);
-    }
-
-    private static applyMathIntroLayout(
-        elements: PptSlideModel['elements'],
-        picturesById: Map<number, PptPictureAsset> | undefined,
-        slideWidth: number,
-        slideHeight: number
-    ): void {
-        applyMathIntroLayoutImpl(elements, picturesById, slideWidth, slideHeight);
-    }
-
-    private static pushOvalNode(
-        elements: PptSlideModel['elements'],
-        config: {
-            shadow: string;
-            base: string;
-            inner: string;
-            x: number;
-            y: number;
-            width: number;
-            height: number;
-            zIndex: number;
-        }
-    ): void {
-        elements.push({
-            type: 'shape',
-            x: config.x + 8,
-            y: config.y + 22,
-            width: config.width,
-            height: config.height,
-            zIndex: config.zIndex,
-            fillColor: config.shadow
-        });
-        elements.push({
-            type: 'shape',
-            x: config.x,
-            y: config.y + 10,
-            width: config.width,
-            height: config.height,
-            zIndex: config.zIndex + 1,
-            fillColor: config.base
-        });
-        elements.push({
-            type: 'shape',
-            x: config.x + 14,
-            y: config.y,
-            width: config.width - 28,
-            height: config.height - 16,
-            zIndex: config.zIndex + 2,
-            fillColor: config.inner
-        });
     }
 
     private static applyMasterBackgroundImage(
@@ -3219,12 +1904,14 @@ export class PptBinaryParser {
         return blocks.filter((block) => block.textType !== 2);
     }
 
-    private static extractShapeTextGroupsFromRecord(record: PptRecord): PptTextGroup[] {
+    private static extractShapeTextGroupsFromRecord(record: PptRecord, counter?: { value: number }): PptTextGroup[] {
         const groups: PptTextGroup[] = [];
+        const spIndex = counter ?? { value: 0 };
 
         const visit = (list: PptRecord[], insideShapeContainer = false): void => {
             for (const child of list) {
                 if (child.recType === 0xf004 && child.children && child.children.length > 0) {
+                    const currentIndex = spIndex.value++;
                     const hasClientTextbox = child.children.some((entry) => entry.recType === 0xf00d);
                     if (hasClientTextbox) {
                         const groupBlocks = this.extractTypedTextBlocksFromSequence(child.children);
@@ -3232,6 +1919,7 @@ export class PptBinaryParser {
                             groups.push({
                                 blocks: groupBlocks,
                                 bounds: this.extractShapeBoundsFromSpContainer(child),
+                                spContainerIndex: currentIndex,
                                 ...this.extractShapeStyleFromSpContainer(child)
                             });
                         }
@@ -3338,12 +2026,14 @@ export class PptBinaryParser {
         });
     }
 
-    private static extractVisualSlotsFromRecord(record: PptRecord): PptVisualSlot[] {
+    private static extractVisualSlotsFromRecord(record: PptRecord, counter?: { value: number }): PptVisualSlot[] {
         const slots: PptVisualSlot[] = [];
+        const spIndex = counter ?? { value: 0 };
 
         const visit = (list: PptRecord[]): void => {
             for (const child of list) {
                 if (child.recType === 0xf004 && child.children && child.children.length > 0) {
+                    const currentIndex = spIndex.value++;
                     const hasClientTextbox = child.children.some((entry) => entry.recType === 0xf00d);
                     if (!hasClientTextbox) {
                         const bounds = this.extractShapeBoundsFromSpContainer(child);
@@ -3353,7 +2043,8 @@ export class PptBinaryParser {
                                 bounds,
                                 imageRefId: this.extractShapeImageRefFromSpContainer(child),
                                 ...style,
-                                isTextSlot: false
+                                isTextSlot: false,
+                                spContainerIndex: currentIndex
                             });
                         }
                     } else {
@@ -3364,7 +2055,8 @@ export class PptBinaryParser {
                                 bounds,
                                 imageRefId: this.extractShapeImageRefFromSpContainer(child),
                                 ...style,
-                                isTextSlot: true
+                                isTextSlot: true,
+                                spContainerIndex: currentIndex
                             });
                         }
                     }
@@ -3643,6 +2335,13 @@ export class PptBinaryParser {
             return slots;
         }
 
+        // Count how many blip IDs share the same content to detect master/template images.
+        const assetContentFrequency = new Map<string, number>();
+        for (const [, asset] of picturesById.entries()) {
+            const sig = asset.base64.substring(0, 200);
+            assetContentFrequency.set(sig, (assetContentFrequency.get(sig) || 0) + 1);
+        }
+
         const preferred: PptVisualSlot[] = [];
         const consumed = new Set<number>();
 
@@ -3669,6 +2368,12 @@ export class PptBinaryParser {
                 .sort((left, right) => {
                     const leftAsset = picturesById.get(left.candidate.imageRefId!);
                     const rightAsset = picturesById.get(right.candidate.imageRefId!);
+                    const leftFreq = leftAsset ? (assetContentFrequency.get(leftAsset.base64.substring(0, 200)) || 1) : 1;
+                    const rightFreq = rightAsset ? (assetContentFrequency.get(rightAsset.base64.substring(0, 200)) || 1) : 1;
+                    // Prefer unique (low frequency) images over master/template (high frequency) duplicates.
+                    if (leftFreq !== rightFreq) {
+                        return leftFreq - rightFreq;
+                    }
                     const leftBytes = leftAsset ? this.decodedAssetByteLength(leftAsset) : 0;
                     const rightBytes = rightAsset ? this.decodedAssetByteLength(rightAsset) : 0;
                     return rightBytes - leftBytes;
@@ -3982,16 +2687,16 @@ export class PptBinaryParser {
         // JPEG scan
         idx = 0;
         while ((idx = picturesStream.indexOf(Buffer.from([0xff, 0xd8]), idx)) !== -1) {
-            const end = picturesStream.indexOf(Buffer.from([0xff, 0xd9]), idx + 2);
-            if (end !== -1) {
+            const end = this.findJpegEnd(picturesStream, idx);
+            if (end > idx) {
                 out.push({
                     mime: 'image/jpeg',
-                    base64: picturesStream.slice(idx, end + 2).toString('base64'),
+                    base64: picturesStream.slice(idx, end).toString('base64'),
                     pictureIndex: out.length
                 });
-                idx = end + 2;
+                idx = end;
             } else {
-                break;
+                idx += 2;
             }
         }
 
@@ -4064,19 +2769,28 @@ export class PptBinaryParser {
         const jpegOffset = probe.indexOf(Buffer.from([0xff, 0xd8, 0xff]));
         if (jpegOffset !== -1) {
             const start = offset + jpegOffset;
-            const implicitEnd = picturesStream.indexOf(Buffer.from([0xff, 0xd9]), start + 2);
             let end = -1;
-            if (expectedSize > 0 && start + expectedSize <= picturesStream.length) {
-                const explicitEnd = start + expectedSize;
-                const hasJpegTerminator = explicitEnd >= start + 2
-                    && picturesStream[explicitEnd - 2] === 0xff
-                    && picturesStream[explicitEnd - 1] === 0xd9;
-                if (hasJpegTerminator) {
-                    end = explicitEnd;
+            // Try to determine the BLIP record boundary from its OfficeArt header.
+            // The BStoreEntry offset points to the start of the BLIP record which
+            // has an 8-byte header (ver/type 4 bytes + length 4 bytes).
+            if (offset + 8 <= picturesStream.length) {
+                const recType = picturesStream.readUInt16LE(offset + 2);
+                if (recType >= 0xf018 && recType <= 0xf117) {
+                    const recLen = picturesStream.readUInt32LE(offset + 4);
+                    const blipEnd = offset + 8 + recLen;
+                    if (blipEnd <= picturesStream.length && blipEnd > start) {
+                        // Scan backwards from the BLIP end to find the FFD9 terminator
+                        for (let scan = blipEnd - 2; scan >= start + 2; scan--) {
+                            if (picturesStream[scan] === 0xff && picturesStream[scan + 1] === 0xd9) {
+                                end = scan + 2;
+                                break;
+                            }
+                        }
+                    }
                 }
             }
-            if (end === -1 && implicitEnd !== -1) {
-                end = implicitEnd + 2;
+            if (end === -1) {
+                end = this.findJpegEnd(picturesStream, start);
             }
             if (end > start) {
                 const base64 = picturesStream.slice(start, end).toString('base64');
@@ -4090,6 +2804,49 @@ export class PptBinaryParser {
         }
 
         return null;
+    }
+
+    /**
+     * Walk JPEG marker segments to find the real EOI (FFD9), avoiding false
+     * end markers embedded inside metadata segments like Photoshop APP13.
+     */
+    private static findJpegEnd(buf: Buffer, start: number): number {
+        let pos = start + 2; // skip SOI (FFD8)
+        while (pos < buf.length - 1) {
+            if (buf[pos] !== 0xff) { pos++; continue; }
+            const marker = buf[pos + 1];
+            // Byte-stuffed 0xFF00 or padding 0xFFFF — skip
+            if (marker === 0x00 || marker === 0xff) { pos++; continue; }
+            // EOI
+            if (marker === 0xd9) return pos + 2;
+            // SOS (FFDA) — entropy-coded data follows; scan for next marker
+            if (marker === 0xda) {
+                if (pos + 3 >= buf.length) return -1;
+                const sosLen = buf.readUInt16BE(pos + 2);
+                let scan = pos + 2 + sosLen;
+                while (scan < buf.length - 1) {
+                    if (buf[scan] === 0xff) {
+                        const m = buf[scan + 1];
+                        if (m === 0xd9) return scan + 2;
+                        if (m === 0x00) { scan += 2; continue; } // stuffed byte
+                        if (m >= 0xd0 && m <= 0xd7) { scan += 2; continue; } // RST markers
+                        // Another marker (e.g. DHT, SOS in multi-scan JPEG) —
+                        // resume the main segment-walking loop from here.
+                        pos = scan;
+                        break;
+                    }
+                    scan++;
+                }
+                if (scan >= buf.length - 1) return -1;
+                continue;
+            }
+            // Variable-length segment: read length and skip
+            if (pos + 3 >= buf.length) return -1;
+            const segLen = buf.readUInt16BE(pos + 2);
+            if (segLen < 2) return -1;
+            pos += 2 + segLen;
+        }
+        return -1;
     }
 
     private static findPngEnd(buf: Buffer, start: number): number {

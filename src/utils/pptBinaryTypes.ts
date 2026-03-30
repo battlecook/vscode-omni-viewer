@@ -41,6 +41,7 @@ export interface PptTextBlock {
     borderWidthPx?: number;
     fillVisible?: boolean;
     borderVisible?: boolean;
+    spContainerIndex?: number;
 }
 
 export interface PptTextGroup {
@@ -52,6 +53,7 @@ export interface PptTextGroup {
     borderWidthPx?: number;
     fillVisible?: boolean;
     borderVisible?: boolean;
+    spContainerIndex?: number;
 }
 
 export interface PptVisualSlot {
@@ -64,6 +66,7 @@ export interface PptVisualSlot {
     borderWidthPx?: number;
     fillVisible?: boolean;
     borderVisible?: boolean;
+    spContainerIndex?: number;
 }
 
 export interface PptColorScheme {
@@ -116,6 +119,7 @@ export interface PptSlideElement {
     borderColor?: string;
     borderWidthPx?: number;
     textStylePreset?: string;
+    rotateDeg?: number;
 }
 
 export interface PptSlideModel {
