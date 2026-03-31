@@ -394,6 +394,7 @@ export class PptBinaryParser {
                 return role !== 'title' && role !== 'subtitle' && !this.isLikelyTitleBlock(block, widthPx, heightPx, presentationMetrics);
             });
             const placedTextFrames: PptShapeBounds[] = [];
+            const fixedElements = new Set<PptSlideModel['elements'][number]>();
             const rightPanelFrames = this.computeRightPanelTextFrames(textBlocks, widthPx, heightPx, presentationMetrics);
 
             if (textBlocks.length > 0) {
@@ -461,11 +462,13 @@ export class PptBinaryParser {
                         return sum + Math.max(1, Math.ceil(textLength / charsPerLine));
                     }, 0);
                     const contentHeight = estimatedLines * estimatedLineHeight;
-                    const height = isTitle
-                        ? Math.max(positionedFrame.height, 72, contentHeight)
-                        : Math.max(positionedFrame.height, contentHeight, 36);
+                    const height = hasSpContainerBounds
+                        ? positionedFrame.height
+                        : isTitle
+                            ? Math.max(positionedFrame.height, 72, contentHeight)
+                            : Math.max(positionedFrame.height, contentHeight, 36);
 
-                    elements.push({
+                    const el: PptSlideModel['elements'][number] = {
                         type: 'text',
                         x: positionedFrame.x,
                         y: positionedFrame.y,
@@ -477,12 +480,16 @@ export class PptBinaryParser {
                         fillColor: block.fillVisible === false ? undefined : block.fillColor,
                         borderColor: block.borderVisible === false ? undefined : block.borderColor,
                         borderWidthPx: block.borderVisible === false ? undefined : block.borderWidthPx
-                    });
+                    };
+                    elements.push(el);
+                    if (hasSpContainerBounds) {
+                        fixedElements.add(el);
+                    }
                     placedTextFrames.push(positionedFrame);
                 });
             }
 
-            this.resolveTextElementOverlaps(elements, heightPx);
+            this.resolveTextElementOverlaps(elements, heightPx, fixedElements);
 
             // Minimal image support: use discovered picture/object frames when available.
             const preferredSlots = visualSlots.filter((slot) =>
@@ -618,7 +625,7 @@ export class PptBinaryParser {
 
             this.applyPanelBackgroundShape(elements, visualSlots, widthPx, heightPx, presentationMetrics);
             this.resolveTextImageOverlaps(elements, widthPx, heightPx);
-            this.resolveTextElementOverlaps(elements, heightPx);
+            this.resolveTextElementOverlaps(elements, heightPx, fixedElements);
 
             if (textBlocks.length === 0 && elements.filter((element) => element.type === 'image').length <= 1 && masterRecord) {
                 this.applyMasterFallbackElements(elements, masterRecord, picturesById, presentationMetrics, widthPx, heightPx);
@@ -1680,7 +1687,11 @@ export class PptBinaryParser {
         });
     }
 
-    private static resolveTextElementOverlaps(elements: PptSlideModel['elements'], slideHeight: number): void {
+    private static resolveTextElementOverlaps(
+        elements: PptSlideModel['elements'],
+        slideHeight: number,
+        fixedElements?: Set<PptSlideModel['elements'][number]>
+    ): void {
         const textElements = elements
             .filter((element): element is PptSlideModel['elements'][number] & { type: 'text'; paragraphs: NonNullable<PptSlideModel['elements'][number]['paragraphs']> } =>
                 element.type === 'text' && !!element.paragraphs
@@ -1691,7 +1702,14 @@ export class PptBinaryParser {
             const current = textElements[index];
             for (let nextIndex = index + 1; nextIndex < textElements.length; nextIndex++) {
                 const next = textElements[nextIndex];
+                if (fixedElements?.has(next)) {
+                    continue;
+                }
                 if (!this.boundsIntersect(current, next)) {
+                    continue;
+                }
+                const overlapY = (current.y + current.height) - next.y;
+                if (overlapY <= 2) {
                     continue;
                 }
 
@@ -1711,6 +1729,9 @@ export class PptBinaryParser {
         for (const text of textElements) {
             for (const image of imageElements) {
                 if (!this.boundsIntersect(text, image)) {
+                    continue;
+                }
+                if (text.zIndex > image.zIndex) {
                     continue;
                 }
 
