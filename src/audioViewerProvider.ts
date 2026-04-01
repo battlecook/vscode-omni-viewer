@@ -29,24 +29,49 @@ export class AudioViewerProvider implements vscode.CustomReadonlyEditorProvider 
         const audioPath = audioUri.fsPath;
         const audioFileName = path.basename(audioPath);
 
+        // Add the file's parent directory to localResourceRoots so the webview can load the file
+        const fileDir = vscode.Uri.file(path.dirname(audioPath));
+        const existingRoots = webviewPanel.webview.options.localResourceRoots || [];
+        webviewPanel.webview.options = {
+            ...webviewPanel.webview.options,
+            enableScripts: true,
+            localResourceRoots: [...existingRoots, fileDir]
+        };
+
         try {
             if (await rerouteIfNeeded(audioUri, AudioViewerProvider.viewType, webviewPanel)) {
                 return;
             }
 
-            const mimeType = FileUtils.getAudioMimeType(audioPath);
-            const audioData = await FileUtils.fileToDataUrl(audioPath, mimeType);
+            const largeFile = await FileUtils.isLargeFile(audioPath);
             const metadata = await FileUtils.getAudioMetadata(audioPath);
+
+            // Use webview URI instead of data URL (eliminates base64 overhead)
+            const webviewUri = webviewPanel.webview.asWebviewUri(audioUri).toString();
 
             const html = await TemplateUtils.loadTemplate(this.context, 'audio/audioViewer.html', {
                 fileName: audioFileName,
-                audioSrc: audioData,
-                metadata: JSON.stringify(metadata)
+                audioSrc: webviewUri,
+                metadata: JSON.stringify(metadata),
+                isLargeFile: String(largeFile)
             });
 
             webviewPanel.webview.html = html;
 
-            MessageHandler.setupMessageListener(webviewPanel.webview, document.uri);
+            // Set up message listener with custom handler for peak requests
+            MessageHandler.setupMessageListener(webviewPanel.webview, document.uri, {
+                requestPeaks: async () => {
+                    await this.handlePeakRequest(audioPath, webviewPanel);
+                },
+                requestSpectrogramChunks: async () => {
+                    await this.handleSpectrogramChunkRequest(audioPath, webviewPanel);
+                }
+            });
+
+            // For large files, proactively compute and send peaks
+            if (largeFile) {
+                this.handlePeakRequest(audioPath, webviewPanel);
+            }
 
         } catch (error) {
             console.error('Error setting up audio viewer:', error);
@@ -55,6 +80,67 @@ export class AudioViewerProvider implements vscode.CustomReadonlyEditorProvider 
                 title: 'Failed to load audio file',
                 message: 'Unable to load the audio file due to an error:',
                 icon: '🎵'
+            });
+        }
+    }
+
+    private async handleSpectrogramChunkRequest(audioPath: string, webviewPanel: vscode.WebviewPanel): Promise<void> {
+        try {
+            await FileUtils.streamWavPcmChunks(
+                audioPath,
+                (data, chunkIndex, totalChunks, sampleRate, channels) => {
+                    webviewPanel.webview.postMessage({
+                        type: 'pcmChunk',
+                        data: Array.from(data),
+                        chunkIndex,
+                        totalChunks,
+                        sampleRate,
+                        channels
+                    });
+                },
+                () => {
+                    webviewPanel.webview.postMessage({ type: 'pcmChunkEnd' });
+                }
+            );
+        } catch (err) {
+            console.error('Error streaming PCM chunks:', err);
+            webviewPanel.webview.postMessage({ type: 'pcmChunkEnd' });
+        }
+    }
+
+    private async handlePeakRequest(audioPath: string, webviewPanel: vscode.WebviewPanel): Promise<void> {
+        try {
+            // Check cache first
+            let peakData = await FileUtils.loadCachedPeaks(this.context, audioPath);
+
+            if (!peakData) {
+                // Compute peaks
+                peakData = await FileUtils.computeAudioPeaks(audioPath);
+                if (peakData) {
+                    await FileUtils.savePeakCache(this.context, audioPath, peakData);
+                }
+            }
+
+            if (peakData) {
+                webviewPanel.webview.postMessage({
+                    type: 'peakData',
+                    peaks: peakData.peaks,
+                    duration: peakData.duration
+                });
+            } else {
+                // No peaks available (compressed format) - tell webview to decode normally
+                webviewPanel.webview.postMessage({
+                    type: 'peakData',
+                    peaks: null,
+                    duration: null
+                });
+            }
+        } catch (err) {
+            console.error('Error computing peaks:', err);
+            webviewPanel.webview.postMessage({
+                type: 'peakData',
+                peaks: null,
+                duration: null
             });
         }
     }

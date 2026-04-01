@@ -11,7 +11,13 @@ import {
     getAudioMimeType as resolveAudioMimeType,
     getFileSize as readFileSize,
     getImageMimeType as resolveImageMimeType,
-    getVideoMimeType as resolveVideoMimeType
+    getVideoMimeType as resolveVideoMimeType,
+    isLargeFile as checkIsLargeFile,
+    computeAudioPeaks as computeFilePeaks,
+    loadCachedPeaks as loadFileCachedPeaks,
+    savePeakCache as saveFilePeakCache,
+    streamWavPcmChunks as streamWavPcmChunksImpl,
+    PeakData
 } from './fileUtils/media';
 import {
     getDelimitedFileDelimiter as detectDelimitedFileDelimiter,
@@ -206,6 +212,30 @@ export class FileUtils {
         fileSize?: string;
     }> {
         return readAudioMetadata(filePath);
+    }
+
+    public static async isLargeFile(filePath: string, threshold?: number): Promise<boolean> {
+        return checkIsLargeFile(filePath, threshold);
+    }
+
+    public static async computeAudioPeaks(filePath: string): Promise<PeakData | null> {
+        return computeFilePeaks(filePath);
+    }
+
+    public static async loadCachedPeaks(context: import('vscode').ExtensionContext, filePath: string): Promise<PeakData | null> {
+        return loadFileCachedPeaks(context, filePath);
+    }
+
+    public static async savePeakCache(context: import('vscode').ExtensionContext, filePath: string, peakData: PeakData): Promise<void> {
+        return saveFilePeakCache(context, filePath, peakData);
+    }
+
+    public static async streamWavPcmChunks(
+        filePath: string,
+        onChunk: (data: Float32Array, chunkIndex: number, totalChunks: number, sampleRate: number, channels: number) => void,
+        onEnd: () => void
+    ): Promise<void> {
+        return streamWavPcmChunksImpl(filePath, onChunk, onEnd);
     }
 
     public static async readCsvFile(filePath: string): Promise<{

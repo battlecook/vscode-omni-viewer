@@ -21,7 +21,10 @@ export const DOMUtils = {
             bitDepthInfo: document.getElementById('bitDepthInfo'),
             fileSizeInfo: document.getElementById('fileSizeInfo'),
             formatInfo: document.getElementById('formatInfo'),
-            downloadBtn: document.getElementById('downloadBtn')
+            downloadBtn: document.getElementById('downloadBtn'),
+            zoomIn: document.getElementById('zoomIn'),
+            zoomOut: document.getElementById('zoomOut'),
+            zoomLevel: document.getElementById('zoomLevel')
         };
     },
 
@@ -34,6 +37,19 @@ export const DOMUtils = {
             }
         } catch (error) {
             console.warn('Error parsing metadata:', error);
+        }
+        return {};
+    },
+
+    // Get viewer configuration (isLargeFile, etc.)
+    getViewerConfig: () => {
+        try {
+            const configScript = document.getElementById('viewer-config');
+            if (configScript && configScript.textContent) {
+                return JSON.parse(configScript.textContent);
+            }
+        } catch (error) {
+            console.warn('Error parsing viewer config:', error);
         }
         return {};
     }

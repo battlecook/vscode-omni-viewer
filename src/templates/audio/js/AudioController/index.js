@@ -12,7 +12,8 @@ export class AudioController {
         this.vscode = acquireVsCodeApi();
         this.audioSrc = '{{audioSrc}}';
         this.audioMetadata = DOMUtils.getMetadata();
-        
+        this.isLargeFile = DOMUtils.getViewerConfig().isLargeFile || false;
+
         // Initialize state
         this.state = {
             wavesurfer: null,
@@ -26,6 +27,8 @@ export class AudioController {
             selectedRegionId: null,
             regionStartOverlay: null,
             regionEndOverlay: null,
+            isLargeFile: this.isLargeFile,
+            zoomLevel: 1,
             elements: DOMUtils.getElements()
         };
 
@@ -51,25 +54,32 @@ export class AudioController {
     async initAudioViewer() {
         try {
             AudioUtils.log('Initializing audio viewer...');
-            AudioUtils.log('Audio source length: ' + this.audioSrc.length);
+            AudioUtils.log('Audio source: ' + this.audioSrc.substring(0, 100));
+            AudioUtils.log('Large file mode: ' + this.isLargeFile);
 
             // Clear any existing regions from DOM first
             this.regionManager.clearRegionsFromDOM();
 
             this.state.wavesurfer = this.waveSurferManager.create();
-            
+
             const loadAudio = async () => {
                 try {
                     this.state.isSetupComplete = false;
-                    
+
                     // Clear existing regions before loading new audio
                     this.regionManager.clearAllRegions();
-                    
-                    await this.state.wavesurfer.load(this.audioSrc);
-                    
+
+                    if (this.isLargeFile) {
+                        // Large file mode: wait for peaks from extension, or load without full decode
+                        await this.loadLargeFile();
+                    } else {
+                        // Small file mode: standard load (WaveSurfer decodes fully)
+                        await this.state.wavesurfer.load(this.audioSrc);
+                    }
+
                     await new Promise(resolve => setTimeout(resolve, 100));
                     this.audioContextManager.checkState();
-                    
+
                 } catch (error) {
                     console.error('Error loading audio:', error);
                     AudioUtils.showStatus('Error loading audio: ' + error.message, this.state.elements.status);
@@ -92,11 +102,11 @@ export class AudioController {
                     if (e.type === 'keydown' && e.code === 'Space') {
                         return;
                     }
-                    
+
                     document.removeEventListener('click', handleUserInteraction);
                     document.removeEventListener('keydown', handleUserInteraction);
                     document.removeEventListener('touchstart', handleUserInteraction);
-                    
+
                     try {
                         await this.audioContextManager.initialize();
                     } catch (error) {
@@ -110,33 +120,38 @@ export class AudioController {
                 document.addEventListener('touchstart', handleUserInteraction);
             };
 
-            // 키보드 이벤트를 먼저 등록하여 사용자가 바로 스페이스바를 사용할 수 있도록 함
             this.eventManager.setupKeyboardEvents();
-            
+
             preloadAudio();
-            
+
             const setupAfterDecode = async () => {
                 if (this.state.isSetupComplete) return;
-                
+
                 console.log('Setting up audio viewer after decode...');
                 this.state.isSetupComplete = true;
-                
+
                 await this.pluginManager.setupSpectrogram();
                 await this.pluginManager.setupTimeline();
-                await this.pluginManager.setupRegions();
+
+                // Skip region setup for large files (requires full decoded data for extraction)
+                if (!this.isLargeFile) {
+                    await this.pluginManager.setupRegions();
+                }
 
                 // Hide loading, show content
                 this.state.elements.loading.style.display = 'none';
+                const peakLoading = document.getElementById('peakLoading');
+                if (peakLoading) { peakLoading.style.display = 'none'; }
                 this.state.elements.waveform.style.display = 'block';
                 this.state.elements.spectrogram.style.display = 'block';
-                
+
                 // Force spectrogram redraw
                 if (this.state.spectrogramPlugin) {
                     setTimeout(() => {
                         this.state.spectrogramPlugin.render();
                     }, 100);
                 }
-                
+
                 // Set up event listeners
                 console.log('Setting up event listeners...');
                 this.eventManager.setupPlayPause();
@@ -144,27 +159,38 @@ export class AudioController {
                 this.eventManager.setupVolume();
                 this.eventManager.setupLoop();
                 this.eventManager.setupSpectrogramScale();
+                this.eventManager.setupZoom();
                 this.eventManager.setupWaveSurferEvents();
                 console.log('Event listeners setup complete');
-                
+
                 // Update info
                 this.fileInfoManager.updateDuration();
                 this.fileInfoManager.updateFileInfo();
-                
-                setTimeout(() => {
-                    if (this.state.spectrogramPlugin) {
-                        try {
-                            AudioUtils.log('Spectrogram frequency range check...');
-                            AudioUtils.log('Sample rate: ' + (this.state.wavesurfer.getDecodedData()?.sampleRate || 'unknown'));
-                            AudioUtils.log('FFT size: ' + (this.state.spectrogramPlugin.params?.fftSize || 'unknown'));
-                        } catch (error) {
-                            console.warn('Error checking spectrogram frequency range:', error);
+
+                if (!this.isLargeFile) {
+                    setTimeout(() => {
+                        if (this.state.spectrogramPlugin) {
+                            try {
+                                AudioUtils.log('Spectrogram frequency range check...');
+                                AudioUtils.log('Sample rate: ' + (this.state.wavesurfer.getDecodedData()?.sampleRate || 'unknown'));
+                                AudioUtils.log('FFT size: ' + (this.state.spectrogramPlugin.params?.fftSize || 'unknown'));
+                            } catch (error) {
+                                console.warn('Error checking spectrogram frequency range:', error);
+                            }
                         }
-                    }
-                }, 1000);
+                    }, 1000);
+                }
             };
 
             this.state.wavesurfer.on('decode', setupAfterDecode);
+            // For large files loaded with pre-computed peaks, 'ready' fires instead of 'decode'
+            if (this.isLargeFile) {
+                this.state.wavesurfer.on('ready', () => {
+                    setupAfterDecode();
+                    // Request chunked spectrogram data from extension
+                    this.requestSpectrogramChunks();
+                });
+            }
             
         } catch (error) {
             console.error('Error loading audio:', error);
@@ -181,18 +207,98 @@ export class AudioController {
         }
     }
 
+    loadLargeFile() {
+        return new Promise((resolve, reject) => {
+            const peakLoading = document.getElementById('peakLoading');
+            if (peakLoading) { peakLoading.style.display = 'block'; }
+
+            // Listen for peak data from the extension
+            const messageHandler = (event) => {
+                const message = event.data;
+                if (message.type === 'peakData') {
+                    window.removeEventListener('message', messageHandler);
+                    if (peakLoading) { peakLoading.style.display = 'none'; }
+
+                    if (message.peaks && message.duration) {
+                        // Load with pre-computed peaks
+                        AudioUtils.log('Loading with pre-computed peaks (' + message.peaks.length + ' values)');
+                        this.waveSurferManager.loadWithPeaks(this.audioSrc, message.peaks, message.duration);
+                        resolve();
+                    } else {
+                        // No peaks available - load normally (compressed format, large but will try to decode)
+                        AudioUtils.log('No pre-computed peaks, loading normally');
+                        this.state.wavesurfer.load(this.audioSrc).then(resolve).catch(reject);
+                    }
+                }
+            };
+
+            window.addEventListener('message', messageHandler);
+
+            // Request peaks from extension (the extension may have already started computing)
+            this.vscode.postMessage({ command: 'requestPeaks' });
+
+            // Timeout: if no response in 60s, try loading normally
+            setTimeout(() => {
+                window.removeEventListener('message', messageHandler);
+                if (peakLoading) { peakLoading.style.display = 'none'; }
+                if (!this.state.isSetupComplete) {
+                    AudioUtils.log('Peak request timed out, loading normally');
+                    this.state.wavesurfer.load(this.audioSrc).then(resolve).catch(reject);
+                }
+            }, 60000);
+        });
+    }
+
     initialize() {
         // Clear any existing regions from DOM first
         this.regionManager.clearRegionsFromDOM();
-        
+
         // Initialize region state
         this.regionManager.hideControls();
         this.regionManager.clearAllRegions();
-        
+
         this.initAudioViewer();
-        
+
+        // Set up PCM chunk message handler for chunked spectrogram
+        this.setupPcmChunkListener();
+
         // Log to VSCode console
         this.vscode.postMessage({ command: 'log', text: 'Audio viewer initialized' });
+    }
+
+    setupPcmChunkListener() {
+        window.addEventListener('message', (event) => {
+            const message = event.data;
+            if (message.type === 'pcmChunk') {
+                if (this.state.chunkedSpectrogramRenderer) {
+                    this.state.chunkedSpectrogramRenderer.sampleRate = message.sampleRate || 44100;
+                    this.state.chunkedSpectrogramRenderer.addChunk(new Float32Array(message.data));
+                    // Update progress
+                    const spectrogramContainer = document.getElementById('spectrogram');
+                    if (spectrogramContainer) {
+                        const progress = Math.round(((message.chunkIndex + 1) / message.totalChunks) * 100);
+                        const statusDiv = spectrogramContainer.querySelector('div');
+                        if (statusDiv) {
+                            statusDiv.textContent = `Computing spectrogram... ${progress}%`;
+                        }
+                    }
+                }
+            } else if (message.type === 'pcmChunkEnd') {
+                if (this.state.chunkedSpectrogramRenderer) {
+                    const spectrogramContainer = document.getElementById('spectrogram');
+                    if (spectrogramContainer) {
+                        this.state.chunkedSpectrogramRenderer.render(spectrogramContainer);
+                        AudioUtils.log('Chunked spectrogram rendered');
+                    }
+                }
+            }
+        });
+    }
+
+    requestSpectrogramChunks() {
+        if (!this.isLargeFile || !this.state.chunkedSpectrogramRenderer) { return; }
+        AudioUtils.log('Requesting spectrogram chunks from extension...');
+        this.vscode.postMessage({ command: 'requestSpectrogramChunks' });
     }
 
     setupDownloadButton() {
@@ -470,6 +576,11 @@ export class AudioController {
 
     async extractAndDownloadRegion(region) {
         try {
+            if (this.isLargeFile) {
+                AudioUtils.showStatus('Region extraction is not available for large files', this.state.elements.status);
+                return;
+            }
+
             if (!region || !this.state.wavesurfer) {
                 AudioUtils.showStatus('No region selected', this.state.elements.status);
                 return;

@@ -70,12 +70,88 @@ export class EventManager {
             this.state.elements.spectrogramScale.addEventListener('change', async (e) => {
                 const newScale = e.target.value;
                 console.log('Spectrogram scale changed to:', newScale);
-                
+
                 if (this.state.pluginManager) {
                     await this.state.pluginManager.changeSpectrogramScale(newScale);
                 }
             });
         }
+    }
+
+    setupZoom() {
+        const ZOOM_LEVELS = [1, 2, 4, 8, 16];
+        const zoomInBtn = this.state.elements.zoomIn;
+        const zoomOutBtn = this.state.elements.zoomOut;
+        const zoomLevelSpan = this.state.elements.zoomLevel;
+        if (!zoomInBtn || !zoomOutBtn || !zoomLevelSpan) { return; }
+
+        const updateZoomDisplay = () => {
+            const level = this.state.zoomLevel || 1;
+            zoomLevelSpan.textContent = level + 'x';
+            zoomOutBtn.disabled = (level <= ZOOM_LEVELS[0]);
+            zoomInBtn.disabled = (level >= ZOOM_LEVELS[ZOOM_LEVELS.length - 1]);
+        };
+
+        const applyZoom = () => {
+            const level = this.state.zoomLevel || 1;
+            const duration = this.state.wavesurfer.getDuration();
+            if (!duration) { return; }
+
+            const waveformEl = document.getElementById('waveform');
+            const containerWidth = waveformEl ? waveformEl.clientWidth : 800;
+            const minPxPerSec = (containerWidth / duration) * level;
+
+            // WaveSurfer zoom — handles waveform + timeline
+            this.state.wavesurfer.zoom(minPxPerSec);
+
+            // Large file chunked spectrogram: adjust canvas width for zoom
+            if (this.state.isLargeFile && this.state.chunkedSpectrogramRenderer) {
+                const spectrogramContainer = document.getElementById('spectrogram');
+                if (spectrogramContainer) {
+                    const canvas = spectrogramContainer.querySelector('canvas');
+                    if (canvas) {
+                        canvas.style.width = (containerWidth * level) + 'px';
+                    }
+                    // Sync scroll with waveform
+                    spectrogramContainer.style.overflowX = level > 1 ? 'auto' : 'hidden';
+                }
+            }
+
+            updateZoomDisplay();
+            AudioUtils.log(`Zoom level: ${level}x (${minPxPerSec.toFixed(1)} px/sec)`);
+        };
+
+        zoomInBtn.addEventListener('click', () => {
+            const currentIdx = ZOOM_LEVELS.indexOf(this.state.zoomLevel || 1);
+            if (currentIdx < ZOOM_LEVELS.length - 1) {
+                this.state.zoomLevel = ZOOM_LEVELS[currentIdx + 1];
+                applyZoom();
+            }
+        });
+
+        zoomOutBtn.addEventListener('click', () => {
+            const currentIdx = ZOOM_LEVELS.indexOf(this.state.zoomLevel || 1);
+            if (currentIdx > 0) {
+                this.state.zoomLevel = ZOOM_LEVELS[currentIdx - 1];
+                applyZoom();
+            }
+        });
+
+        // Sync spectrogram scroll with waveform scroll for large files
+        if (this.state.isLargeFile) {
+            const waveformWrapper = document.querySelector('#waveform > div');
+            const spectrogramContainer = document.getElementById('spectrogram');
+            if (waveformWrapper && spectrogramContainer) {
+                waveformWrapper.addEventListener('scroll', () => {
+                    spectrogramContainer.scrollLeft = waveformWrapper.scrollLeft;
+                });
+                spectrogramContainer.addEventListener('scroll', () => {
+                    waveformWrapper.scrollLeft = spectrogramContainer.scrollLeft;
+                });
+            }
+        }
+
+        updateZoomDisplay();
     }
 
     setupKeyboardEvents() {

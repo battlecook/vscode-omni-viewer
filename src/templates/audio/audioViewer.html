@@ -68,6 +68,12 @@
                         <option value="erb">ERB</option>
                     </select>
                 </div>
+
+                <div class="control-group" id="zoomControls">
+                    <button id="zoomOut" class="btn" title="Zoom out">&minus;</button>
+                    <span id="zoomLevel" style="font-size:12px;min-width:40px;text-align:center">1x</span>
+                    <button id="zoomIn" class="btn" title="Zoom in">+</button>
+                </div>
             </div>
 
             <div class="waveform-container">
@@ -78,6 +84,9 @@
                     </div>
                 </div>
                 <div id="error" class="error" style="display: none;"></div>
+                <div id="peakLoading" style="display: none; text-align: center; padding: 10px; color: var(--vscode-descriptionForeground); font-size: 12px;">
+                    Computing waveform peaks for large file...
+                </div>
                 <div id="timeline"></div>
                 <div id="waveform"></div>
                 <div id="spectrogram" style="display: none;"></div>
@@ -89,6 +98,7 @@
     <div id="contextMenu" class="context-menu"></div>
 
     <script id="metadata-script" type="application/json">{{metadata}}</script>
+    <script id="viewer-config" type="application/json">{"isLargeFile": {{isLargeFile}}}</script>
     <script src="js/audioViewer.js"></script>
 </body>
 </html>

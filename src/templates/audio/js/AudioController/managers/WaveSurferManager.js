@@ -21,7 +21,6 @@ export class WaveSurferManager {
             responsive: true,
             sampleRate: CONSTANTS.WAVESURFER.SAMPLE_RATE,
             normalize: true,
-            backend: 'WebAudio',
             autoplay: false,
             mediaControls: false,
             hideScrollbar: false,
@@ -35,6 +34,13 @@ export class WaveSurferManager {
                 })
             ]
         });
+    }
+
+    loadWithPeaks(url, peaks, duration) {
+        if (!this.state.wavesurfer) { return; }
+        // WaveSurfer v7: load(url, channelData, duration)
+        // peaks is a flat array [min, max, min, max, ...] - wrap as single channel
+        this.state.wavesurfer.load(url, [new Float32Array(peaks)], duration);
     }
 
     getTimelineIntervals(durationSec) {

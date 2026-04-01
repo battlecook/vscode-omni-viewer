@@ -1,6 +1,7 @@
 import SpectrogramPlugin from '../../../../../../node_modules/wavesurfer.js/dist/plugins/spectrogram.js';
 import TimelinePlugin from '../../../../../../node_modules/wavesurfer.js/dist/plugins/timeline.js';
 import RegionsPlugin from '../../../../../../node_modules/wavesurfer.js/dist/plugins/regions.js';
+import { ChunkedSpectrogramRenderer } from './ChunkedSpectrogramRenderer.js';
 import { CONSTANTS } from '../utils/Constants.js';
 import { AudioUtils } from '../utils/AudioUtils.js';
 
@@ -11,6 +12,18 @@ export class PluginManager {
     }
 
     async setupSpectrogram() {
+        // Large files: use chunked spectrogram renderer
+        if (this.state.isLargeFile) {
+            const spectrogramContainer = document.getElementById('spectrogram');
+            if (spectrogramContainer) {
+                spectrogramContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--vscode-descriptionForeground); font-size: 12px;">Computing spectrogram...</div>';
+                spectrogramContainer.style.display = 'block';
+            }
+            // Create chunked renderer and store in state
+            this.state.chunkedSpectrogramRenderer = new ChunkedSpectrogramRenderer();
+            return;
+        }
+
         if (this.state.spectrogramPlugin) {
             try {
                 this.state.wavesurfer.unregisterPlugin(this.state.spectrogramPlugin);
@@ -43,6 +56,16 @@ export class PluginManager {
     }
 
     async changeSpectrogramScale(newScale) {
+        // Large file: re-render chunked spectrogram with new scale
+        if (this.state.isLargeFile && this.state.chunkedSpectrogramRenderer) {
+            const spectrogramContainer = document.getElementById('spectrogram');
+            if (spectrogramContainer && this.state.chunkedSpectrogramRenderer.columns.length > 0) {
+                this.state.chunkedSpectrogramRenderer.render(spectrogramContainer, newScale);
+                AudioUtils.log(`Chunked spectrogram scale changed to: ${newScale}`);
+            }
+            return;
+        }
+
         if (!this.state.spectrogramPlugin) {
             console.warn('Spectrogram plugin not available');
             return;
@@ -52,13 +75,13 @@ export class PluginManager {
             // Unregister the current spectrogram plugin
             this.state.wavesurfer.unregisterPlugin(this.state.spectrogramPlugin);
             this.state.spectrogramPlugin = null;
-            
+
             // Clear the spectrogram container
             const spectrogramContainer = document.getElementById('spectrogram');
             if (spectrogramContainer) {
                 spectrogramContainer.innerHTML = '';
             }
-            
+
             // Create new spectrogram plugin with new scale
             this.state.spectrogramPlugin = this.state.wavesurfer.registerPlugin(SpectrogramPlugin.create({
                 container: '#spectrogram',
@@ -69,14 +92,14 @@ export class PluginManager {
                 noverlap: CONSTANTS.SPECTROGRAM.NOVERLAP,
                 height: CONSTANTS.SPECTROGRAM.HEIGHT,
             }));
-            
+
             // Force render
             setTimeout(() => {
                 if (this.state.spectrogramPlugin) {
                     this.state.spectrogramPlugin.render();
                 }
             }, 100);
-            
+
             AudioUtils.log(`Spectrogram scale changed to: ${newScale}`);
         } catch (error) {
             console.warn('Failed to change spectrogram scale:', error);
