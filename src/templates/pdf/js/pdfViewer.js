@@ -66,6 +66,19 @@
     let draggedThumbnailIndex = null;
     let passwordRequestState = null;
 
+    async function getPdfJsLib() {
+        const ready = window.__OMNI_PDFJS_READY__;
+        if (!ready || typeof ready.then !== 'function') {
+            throw new Error('PDF.js module loader was not initialized.');
+        }
+
+        const pdfjsLib = await ready;
+        if (!pdfjsLib) {
+            throw new Error('Failed to load PDF.js.');
+        }
+        return pdfjsLib;
+    }
+
     function base64ToUint8Array(base64) {
         const binary = atob(base64);
         const len = binary.length;
@@ -573,14 +586,9 @@
     }
 
     async function loadPdfDocumentFromBase64(base64) {
-        const pdfjsLib = window['pdfjsLib'];
-        if (!pdfjsLib) throw new Error('Failed to load PDF.js.');
-        const workerSrc = window.__OMNI_PDFJS_WORKER__;
-        if (workerSrc && pdfjsLib.GlobalWorkerOptions) {
-            pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
-        }
+        const pdfjsLib = await getPdfJsLib();
         const bytes = base64ToUint8Array(base64);
-        const loadingTask = pdfjsLib.getDocument({ data: bytes });
+        const loadingTask = pdfjsLib.getDocument({ data: bytes, isEvalSupported: false });
         loadingTask.onPassword = function (updatePassword, reasonCode) {
             const responses = pdfjsLib.PasswordResponses || {};
             const isIncorrect = reasonCode === responses.INCORRECT_PASSWORD;

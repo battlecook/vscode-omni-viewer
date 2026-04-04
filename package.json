@@ -372,7 +372,7 @@
     "jszip": "^3.10.1",
     "music-metadata": "^11.8.3",
     "pdf-lib": "^1.17.1",
-    "pdfjs-dist": "^3.11.174",
+    "pdfjs-dist": "^4.10.38",
     "wavesurfer.js": "^7.12.3",
     "xlsx": "^0.18.5"
   }

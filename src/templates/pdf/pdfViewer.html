@@ -8,7 +8,15 @@
     <script>
         window.__OMNI_PDFJS_WORKER__ = '{{pdfJsWorkerUri}}';
     </script>
-    <script src="{{pdfJsScriptUri}}"></script>
+    <script>
+        window.__OMNI_PDFJS_READY__ = import('{{pdfJsScriptUri}}').then((module) => {
+            const pdfjsLib = module && module.default ? module.default : module;
+            if (window.__OMNI_PDFJS_WORKER__ && pdfjsLib && pdfjsLib.GlobalWorkerOptions) {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = window.__OMNI_PDFJS_WORKER__;
+            }
+            return pdfjsLib;
+        });
+    </script>
 </head>
 <body>
     <div class="container">
