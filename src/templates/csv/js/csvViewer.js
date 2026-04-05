@@ -4,11 +4,12 @@ const vscode = acquireVsCodeApi();
 class CsvViewer {
     constructor() {
         this.csvData = null;
-        this.filteredData = [];
+        this.filteredRowIndices = [];
         this.delimiter = ',';
         this.currentPage = 1;
         this.rowsPerPage = 100;
         this.searchTerm = '';
+        this.sortState = { columnIndex: null, direction: null };
         this.isTableView = true; // true for table view, false for raw view
         this.contextMenuTarget = null; // Store the target element for context menu
         this.saveRawDataTimeout = null; // Debounce timer for raw data saving
@@ -28,7 +29,7 @@ class CsvViewer {
             if (dataScript) {
                 this.csvData = JSON.parse(dataScript.textContent);
                 this.delimiter = this.csvData.delimiter || ',';
-                this.filteredData = [...this.csvData.rows];
+                this.rebuildFilteredRows();
                 this.updateFileInfo();
                 this.renderTable();
                 this.hideLoading();
@@ -63,17 +64,41 @@ class CsvViewer {
         const headerRow = document.createElement('tr');
         this.csvData.headers.forEach((header, index) => {
             const th = document.createElement('th');
-            th.textContent = header;
             th.className = 'editable-header';
             th.setAttribute('data-col', index);
-            th.title = header || ''; // Tooltip for truncated content
-            
-            // Add click event for header editing
-            th.addEventListener('click', (e) => {
+            th.title = header || '';
+
+            const headerContent = document.createElement('div');
+            headerContent.className = 'header-content';
+
+            const headerLabel = document.createElement('span');
+            headerLabel.className = 'header-label';
+            headerLabel.textContent = header;
+            headerLabel.title = `${header || ''}${header ? '\n' : ''}Click to rename column`;
+            headerLabel.addEventListener('click', () => {
                 if (this.isTableView) {
-                    this.startHeaderEdit(th, index);
+                    this.startHeaderEdit(headerLabel, th, index);
                 }
             });
+
+            const sortButton = document.createElement('button');
+            sortButton.type = 'button';
+            sortButton.className = 'sort-button';
+            sortButton.setAttribute('data-sort-direction', this.getSortDirection(index) || 'none');
+            sortButton.setAttribute('aria-label', `Sort by ${header || `column ${index + 1}`}`);
+            sortButton.title = this.getSortButtonTitle(index, header);
+            sortButton.innerHTML = `
+                <span class="sort-icon sort-icon-asc">▲</span>
+                <span class="sort-icon sort-icon-desc">▼</span>
+            `;
+            sortButton.addEventListener('click', (event) => {
+                event.stopPropagation();
+                this.toggleSort(index);
+            });
+
+            headerContent.appendChild(headerLabel);
+            headerContent.appendChild(sortButton);
+            th.appendChild(headerContent);
             
             headerRow.appendChild(th);
         });
@@ -94,9 +119,10 @@ class CsvViewer {
 
         const startIndex = (this.currentPage - 1) * this.rowsPerPage;
         const endIndex = startIndex + this.rowsPerPage;
-        const pageData = this.filteredData.slice(startIndex, endIndex);
+        const pageRowIndices = this.filteredRowIndices.slice(startIndex, endIndex);
 
-        pageData.forEach((row, rowIndex) => {
+        pageRowIndices.forEach((originalRowIndex) => {
+            const row = this.csvData.rows[originalRowIndex];
             const tr = document.createElement('tr');
             
             row.forEach((cell, cellIndex) => {
@@ -104,18 +130,14 @@ class CsvViewer {
                 td.textContent = cell || '';
                 td.title = cell || ''; // Tooltip for truncated content
                 td.className = 'editable-cell';
-                td.setAttribute('data-row', startIndex + rowIndex);
+                td.setAttribute('data-row', originalRowIndex);
                 td.setAttribute('data-col', cellIndex);
-                
-                // Store the original row index for proper data mapping
-                // Find the original row index by comparing with the original data
-                const originalRowIndex = this.findOriginalRowIndex(row);
                 td.setAttribute('data-original-row', originalRowIndex);
                 
                 // Add click event for cell editing
-                td.addEventListener('click', (e) => {
+                td.addEventListener('click', () => {
                     if (this.isTableView) {
-                        this.startCellEdit(td, startIndex + rowIndex, cellIndex, originalRowIndex);
+                        this.startCellEdit(td, cellIndex, originalRowIndex);
                     }
                 });
                 
@@ -138,14 +160,7 @@ class CsvViewer {
     searchTable(term) {
         this.searchTerm = term.toLowerCase();
         this.currentPage = 1;
-
-        if (!term) {
-            this.filteredData = [...this.csvData.rows];
-        } else {
-            this.filteredData = this.csvData.rows.filter(row => 
-                this.rowMatchesSearch(row)
-            );
-        }
+        this.rebuildFilteredRows();
 
         if (this.isTableView) {
             this.renderDataRows();
@@ -160,6 +175,146 @@ class CsvViewer {
         );
     }
 
+    rebuildFilteredRows() {
+        if (!this.csvData?.rows) {
+            this.filteredRowIndices = [];
+            return;
+        }
+
+        const matchingRowIndices = this.csvData.rows
+            .map((row, index) => ({ row, index }))
+            .filter(({ row }) => !this.searchTerm || this.rowMatchesSearch(row))
+            .map(({ index }) => index);
+
+        this.filteredRowIndices = this.applySorting(matchingRowIndices);
+
+        const totalPages = Math.max(1, Math.ceil(this.filteredRowIndices.length / this.rowsPerPage));
+        if (this.currentPage > totalPages) {
+            this.currentPage = totalPages;
+        }
+    }
+
+    getVisibleRows() {
+        return this.filteredRowIndices.map((rowIndex) => this.csvData.rows[rowIndex]);
+    }
+
+    getSortDirection(columnIndex) {
+        return this.sortState.columnIndex === columnIndex ? this.sortState.direction : null;
+    }
+
+    getSortButtonTitle(columnIndex, header) {
+        const currentDirection = this.getSortDirection(columnIndex);
+        const columnLabel = header || `column ${columnIndex + 1}`;
+
+        if (currentDirection === 'asc') {
+            return `Sorted ascending. Click to sort ${columnLabel} descending.`;
+        }
+
+        if (currentDirection === 'desc') {
+            return `Sorted descending. Click to clear sorting for ${columnLabel}.`;
+        }
+
+        return `Click to sort ${columnLabel} ascending.`;
+    }
+
+    toggleSort(columnIndex) {
+        const currentDirection = this.getSortDirection(columnIndex);
+        let nextDirection = 'asc';
+
+        if (currentDirection === 'asc') {
+            nextDirection = 'desc';
+        } else if (currentDirection === 'desc') {
+            nextDirection = null;
+        }
+
+        this.sortState = {
+            columnIndex: nextDirection ? columnIndex : null,
+            direction: nextDirection
+        };
+
+        this.currentPage = 1;
+        this.rebuildFilteredRows();
+
+        if (this.isTableView) {
+            this.renderTable();
+        } else {
+            this.renderRawData();
+        }
+    }
+
+    applySorting(rowIndices) {
+        if (this.sortState.columnIndex === null || !this.sortState.direction) {
+            return [...rowIndices];
+        }
+
+        const { columnIndex, direction } = this.sortState;
+        const directionMultiplier = direction === 'asc' ? 1 : -1;
+
+        return [...rowIndices].sort((leftIndex, rightIndex) => {
+            const leftValue = this.csvData.rows[leftIndex]?.[columnIndex] || '';
+            const rightValue = this.csvData.rows[rightIndex]?.[columnIndex] || '';
+            const comparison = this.compareValues(leftValue, rightValue);
+
+            if (comparison !== 0) {
+                return comparison * directionMultiplier;
+            }
+
+            return leftIndex - rightIndex;
+        });
+    }
+
+    compareValues(leftValue, rightValue) {
+        const left = this.normalizeSortValue(leftValue);
+        const right = this.normalizeSortValue(rightValue);
+
+        if (left.type === 'empty' || right.type === 'empty') {
+            if (left.type === right.type) {
+                return 0;
+            }
+            return left.type === 'empty' ? 1 : -1;
+        }
+
+        if (left.type === right.type) {
+            if (left.value < right.value) {
+                return -1;
+            }
+            if (left.value > right.value) {
+                return 1;
+            }
+            return 0;
+        }
+
+        if (left.type === 'number') {
+            return -1;
+        }
+
+        if (right.type === 'number') {
+            return 1;
+        }
+
+        return left.value.localeCompare(right.value, undefined, {
+            numeric: true,
+            sensitivity: 'base'
+        });
+    }
+
+    normalizeSortValue(value) {
+        const trimmedValue = (value || '').trim();
+        if (!trimmedValue) {
+            return { type: 'empty', value: '' };
+        }
+
+        const numericValue = Number(trimmedValue);
+        if (!Number.isNaN(numericValue) && trimmedValue !== '') {
+            return { type: 'number', value: numericValue };
+        }
+
+        return {
+            type: 'string',
+            value: trimmedValue.toLocaleLowerCase()
+        };
+    }
+
     updatePagination() {
         const paginationEl = document.getElementById('pagination');
         const pageInfoEl = document.getElementById('pageInfo');
@@ -168,7 +323,7 @@ class CsvViewer {
 
         if (!paginationEl || !pageInfoEl || !prevBtn || !nextBtn) return;
 
-        const totalPages = Math.ceil(this.filteredData.length / this.rowsPerPage);
+        const totalPages = Math.ceil(this.filteredRowIndices.length / this.rowsPerPage);
         
         if (totalPages <= 1) {
             paginationEl.style.display = 'none';
@@ -183,7 +338,7 @@ class CsvViewer {
     }
 
     goToPage(page) {
-        const totalPages = Math.ceil(this.filteredData.length / this.rowsPerPage);
+        const totalPages = Math.ceil(this.filteredRowIndices.length / this.rowsPerPage);
         if (page >= 1 && page <= totalPages) {
             this.currentPage = page;
             this.renderDataRows();
@@ -192,7 +347,7 @@ class CsvViewer {
 
     copyToClipboard() {
         const headers = this.csvData.headers.join('\t');
-        const rows = this.filteredData.map(row => 
+        const rows = this.getVisibleRows().map(row => 
             row.map(cell => cell || '').join('\t')
         ).join('\n');
         
@@ -207,15 +362,18 @@ class CsvViewer {
     }
 
     exportToJson() {
+        const visibleRows = this.getVisibleRows();
         const exportData = {
             headers: this.csvData.headers,
-            rows: this.filteredData,
+            rows: visibleRows,
             metadata: {
                 totalRows: this.csvData.totalRows,
-                filteredRows: this.filteredData.length,
+                filteredRows: visibleRows.length,
                 columns: this.csvData.totalColumns,
                 fileSize: this.csvData.fileSize,
                 searchActive: this.searchTerm !== '',
+                sortColumn: this.sortState.columnIndex,
+                sortDirection: this.sortState.direction,
                 exportDate: new Date().toISOString()
             }
         };
@@ -275,7 +433,7 @@ class CsvViewer {
 
         // Create raw delimited text using the original file separator
         const headers = this.csvData.headers.map(cell => this.escapeDelimitedValue(cell)).join(this.delimiter);
-        const rows = this.filteredData.map(row => 
+        const rows = this.getVisibleRows().map(row => 
             row.map(cell => this.escapeDelimitedValue(cell)).join(this.delimiter)
         ).join('\n');
         
@@ -481,7 +639,7 @@ class CsvViewer {
         const newRow = new Array(this.csvData.headers.length).fill('');
         this.csvData.rows.push(newRow);
         this.csvData.totalRows++;
-        this.filteredData = [...this.csvData.rows];
+        this.rebuildFilteredRows();
         this.updateFileInfo();
         this.refreshView();
         this.saveChanges();
@@ -498,7 +656,7 @@ class CsvViewer {
             row.push('');
         });
         
-        this.filteredData = [...this.csvData.rows];
+        this.rebuildFilteredRows();
         this.updateFileInfo();
         this.refreshView();
         this.saveChanges();
@@ -513,7 +671,7 @@ class CsvViewer {
         
         this.csvData.rows.pop();
         this.csvData.totalRows--;
-        this.filteredData = [...this.csvData.rows];
+        this.rebuildFilteredRows();
         this.updateFileInfo();
         this.refreshView();
         this.saveChanges();
@@ -534,7 +692,7 @@ class CsvViewer {
             row.pop();
         });
         
-        this.filteredData = [...this.csvData.rows];
+        this.rebuildFilteredRows();
         this.updateFileInfo();
         this.refreshView();
         this.saveChanges();
@@ -551,7 +709,7 @@ class CsvViewer {
         const newRow = new Array(this.csvData.headers.length).fill('');
         this.csvData.rows.splice(targetInfo.rowIndex, 0, newRow);
         this.csvData.totalRows++;
-        this.filteredData = [...this.csvData.rows];
+        this.rebuildFilteredRows();
         this.updateFileInfo();
         this.refreshView();
         this.saveChanges();
@@ -568,7 +726,7 @@ class CsvViewer {
         const newRow = new Array(this.csvData.headers.length).fill('');
         this.csvData.rows.splice(targetInfo.rowIndex + 1, 0, newRow);
         this.csvData.totalRows++;
-        this.filteredData = [...this.csvData.rows];
+        this.rebuildFilteredRows();
         this.updateFileInfo();
         this.refreshView();
         this.saveChanges();
@@ -591,7 +749,7 @@ class CsvViewer {
             row.splice(targetInfo.colIndex, 0, '');
         });
         
-        this.filteredData = [...this.csvData.rows];
+        this.rebuildFilteredRows();
         this.updateFileInfo();
         this.refreshView();
         this.saveChanges();
@@ -614,7 +772,7 @@ class CsvViewer {
             row.splice(targetInfo.colIndex + 1, 0, '');
         });
         
-        this.filteredData = [...this.csvData.rows];
+        this.rebuildFilteredRows();
         this.updateFileInfo();
         this.refreshView();
         this.saveChanges();
@@ -638,17 +796,7 @@ class CsvViewer {
             // Header row
             rowIndex = 0;
         } else {
-            // Data row - find the actual row index in the original data
-            const rowCells = Array.from(row.cells);
-            const rowData = rowCells.map(cell => cell.textContent || '');
-            
-            // Find the original row index
-            for (let i = 0; i < this.csvData.rows.length; i++) {
-                if (JSON.stringify(this.csvData.rows[i]) === JSON.stringify(rowData)) {
-                    rowIndex = i;
-                    break;
-                }
-            }
+            rowIndex = Number(cell.getAttribute('data-original-row'));
         }
         
         // Get column index
@@ -939,18 +1087,7 @@ class CsvViewer {
         }
     }
 
-    findOriginalRowIndex(filteredRow) {
-        // Find the original row index by comparing with the original data
-        for (let i = 0; i < this.csvData.rows.length; i++) {
-            if (JSON.stringify(this.csvData.rows[i]) === JSON.stringify(filteredRow)) {
-                return i;
-            }
-        }
-        // If not found, return -1
-        return -1;
-    }
-
-    startCellEdit(td, rowIndex, colIndex, originalRowIndex) {
+    startCellEdit(td, colIndex, originalRowIndex) {
         // Don't edit if already editing
         if (td.querySelector('input')) return;
 
@@ -977,36 +1114,47 @@ class CsvViewer {
         td.appendChild(input);
         input.focus();
         input.select();
+        let isFinalized = false;
 
-        // Handle input events
-        const handleInput = (e) => {
-            if (e.key === 'Enter') {
-                this.finishCellEdit(td, rowIndex, colIndex, input.value, originalRowIndex);
-            } else if (e.key === 'Escape') {
+        const finalizeEdit = (shouldSave) => {
+            if (isFinalized) {
+                return;
+            }
+
+            isFinalized = true;
+            if (shouldSave) {
+                this.finishCellEdit(td, colIndex, input.value, originalRowIndex);
+            } else {
                 this.cancelCellEdit(td, originalValue);
             }
         };
 
+        // Handle input events
+        const handleInput = (e) => {
+            if (e.key === 'Enter') {
+                finalizeEdit(true);
+            } else if (e.key === 'Escape') {
+                finalizeEdit(false);
+            }
+        };
+
         const handleBlur = () => {
-            this.finishCellEdit(td, rowIndex, colIndex, input.value, originalRowIndex);
+            finalizeEdit(true);
         };
 
         input.addEventListener('keydown', handleInput);
         input.addEventListener('blur', handleBlur);
     }
 
-    finishCellEdit(td, rowIndex, colIndex, newValue, originalRowIndex) {
-        // Update the filtered data
-        if (rowIndex < this.filteredData.length) {
-            this.filteredData[rowIndex][colIndex] = newValue;
-        }
-
+    finishCellEdit(td, colIndex, newValue, originalRowIndex) {
         // Update the original data using the provided original row index
         if (originalRowIndex !== -1 && originalRowIndex < this.csvData.rows.length) {
             this.csvData.rows[originalRowIndex][colIndex] = newValue;
         } else {
             console.warn('Invalid original row index:', originalRowIndex);
         }
+
+        this.rebuildFilteredRows();
 
         // Update the cell display
         td.innerHTML = '';
@@ -1023,11 +1171,11 @@ class CsvViewer {
         td.title = originalValue;
     }
 
-    startHeaderEdit(th, colIndex) {
+    startHeaderEdit(headerLabel, th, colIndex) {
         // Don't edit if already editing
         if (th.querySelector('input')) return;
 
-        const originalValue = th.textContent;
+        const originalValue = this.csvData.headers[colIndex] || '';
         const input = document.createElement('input');
         input.type = 'text';
         input.value = originalValue;
@@ -1046,46 +1194,52 @@ class CsvViewer {
         input.style.backgroundColor = 'var(--vscode-input-background)';
         input.style.color = 'var(--vscode-input-foreground)';
         
-        // Clear the header content and add input
-        th.innerHTML = '';
-        th.appendChild(input);
+        headerLabel.replaceWith(input);
         input.focus();
         input.select();
+        let isFinalized = false;
+
+        const finalizeEdit = (shouldSave) => {
+            if (isFinalized) {
+                return;
+            }
+
+            isFinalized = true;
+            if (shouldSave) {
+                this.finishHeaderEdit(colIndex, input.value);
+            } else {
+                this.cancelHeaderEdit();
+            }
+        };
 
         // Handle input events
         const handleInput = (e) => {
             if (e.key === 'Enter') {
-                this.finishHeaderEdit(th, colIndex, input.value, originalValue);
+                finalizeEdit(true);
             } else if (e.key === 'Escape') {
-                this.cancelHeaderEdit(th, originalValue);
+                finalizeEdit(false);
             }
         };
 
         const handleBlur = () => {
-            this.finishHeaderEdit(th, colIndex, input.value, originalValue);
+            finalizeEdit(true);
         };
 
         input.addEventListener('keydown', handleInput);
         input.addEventListener('blur', handleBlur);
     }
 
-    finishHeaderEdit(th, colIndex, newValue, originalValue) {
+    finishHeaderEdit(colIndex, newValue) {
         // Update the header data
         this.csvData.headers[colIndex] = newValue;
-
-        // Update the header display
-        th.innerHTML = '';
-        th.textContent = newValue;
-        th.title = newValue;
+        this.renderTable();
 
         // Save changes immediately
         this.saveChanges();
     }
 
-    cancelHeaderEdit(th, originalValue) {
-        th.innerHTML = '';
-        th.textContent = originalValue;
-        th.title = originalValue;
+    cancelHeaderEdit() {
+        this.renderTable();
     }
 
     saveChanges() { 
@@ -1189,7 +1343,9 @@ class CsvViewer {
             // IMPORTANT: Completely replace the data, don't append
             this.csvData.headers = [...headers]; // Create new array
             this.csvData.rows = [...newRows];    // Create new array
-            this.filteredData = [...newRows];    // Create new array
+            this.searchTerm = '';
+            this.sortState = { columnIndex: null, direction: null };
+            this.rebuildFilteredRows();
 
             // Reset pagination
             this.currentPage = 1;
@@ -1198,7 +1354,7 @@ class CsvViewer {
             if (this.csvData.rows.length !== newRows.length) {
                 console.warn('Data integrity check failed: rows count mismatch');
                 this.csvData.rows = [...newRows];
-                this.filteredData = [...newRows];
+                this.rebuildFilteredRows();
             }
 
             // Additional validation: check if the data makes sense
@@ -1218,7 +1374,7 @@ class CsvViewer {
             console.log('Data updated successfully:', {
                 headers: this.csvData.headers,
                 rowsCount: this.csvData.rows.length,
-                filteredCount: this.filteredData.length
+                filteredCount: this.filteredRowIndices.length
             });
 
             // Save changes immediately

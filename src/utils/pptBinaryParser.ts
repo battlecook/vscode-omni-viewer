@@ -318,8 +318,8 @@ export class PptBinaryParser {
                 ? this.flattenTextGroups(shapeTextGroups)
                 : [];
             // Enrich outline blocks with SpContainer bounds by matching content
-            if (outlineBlocks.length > 0 && groupedShapeTextBlocks.length > 0) {
-                const normalizedOutline = this.normalizeTextBlocks(outlineBlocks);
+            const normalizedOutline = outlineBlocks.length > 0 ? this.normalizeTextBlocks(outlineBlocks) : [];
+            if (normalizedOutline.length > 0 && groupedShapeTextBlocks.length > 0) {
                 const usedGroupIndices = new Set<number>();
                 normalizedOutline.forEach((block) => {
                     if (block.bounds) {
@@ -360,8 +360,8 @@ export class PptBinaryParser {
                     }
                 });
             }
-            const baseTextBlocks: PptTextBlock[] = outlineBlocks.length > 0 && !shouldPreferGroupedShapeText
-                ? this.decorateTextBlocksWithPlaceholders(this.normalizeTextBlocks(outlineBlocks), layout)
+            const baseTextBlocks: PptTextBlock[] = normalizedOutline.length > 0 && !shouldPreferGroupedShapeText
+                ? this.decorateTextBlocksWithPlaceholders(normalizedOutline, layout)
                 : groupedShapeTextBlocks.length > 0
                     ? groupedShapeTextBlocks
                 : styledShapeBlocks.length > 0
@@ -496,14 +496,18 @@ export class PptBinaryParser {
                 !!slot.bounds && (this.isVisualPlaceholder(slot.placeholderType) || slot.imageRefId !== undefined)
             );
             const slotsWithImageRefs = preferredSlots.filter((slot) => slot.imageRefId !== undefined);
+            const hasVisualPlaceholders = preferredSlots.some((slot) => this.isVisualPlaceholder(slot.placeholderType));
+            const isShapeHeavySlide = slotsWithImageRefs.length === 0 && !hasVisualPlaceholders && visualSlots.length > 8;
             const boundedSlots = slotsWithImageRefs.length > 0
                 ? this.dedupeVisualSlots(this.selectPreferredImageRefSlots(slotsWithImageRefs, picturesById))
-                : this.dedupeVisualSlots(
-                    (preferredSlots.length > 0
-                        ? preferredSlots
-                        : visualSlots.filter((slot) => !!slot.bounds))
-                        .filter((slot) => !this.isDecorativeImageSlot(slot, widthPx, heightPx))
-                );
+                : isShapeHeavySlide
+                    ? []
+                    : this.dedupeVisualSlots(
+                        (preferredSlots.length > 0
+                            ? preferredSlots
+                            : visualSlots.filter((slot) => !!slot.bounds))
+                            .filter((slot) => !this.isDecorativeImageSlot(slot, widthPx, heightPx))
+                    );
             let imageSlots = this.selectImageSlotsForSlide(
                 boundedSlots,
                 widthPx,
@@ -556,7 +560,7 @@ export class PptBinaryParser {
                     sequentialPictureIndex + fallbackImageIndex,
                     highestPictureIndexUsed + 1
                 );
-            } else {
+            } else if (!isShapeHeavySlide) {
                 const img = pictures[sequentialPictureIndex++];
                 if (img) {
                     elements.push({
@@ -595,7 +599,16 @@ export class PptBinaryParser {
                 }
                 if (
                     !slot.imageRefId
-                    && styledBounds.some((bounds) => this.boundsOverlapRatio(shapeFrame, this.normalizeBounds(bounds, widthPx, heightPx, presentationMetrics)) > 0.7)
+                    && styledBounds.some((bounds) => {
+                        const styledFrame = this.normalizeBounds(bounds, widthPx, heightPx, presentationMetrics);
+                        const shapeArea = shapeFrame.width * shapeFrame.height;
+                        const styledArea = styledFrame.width * styledFrame.height;
+                        // Don't filter large background shapes just because small text overlaps
+                        if (shapeArea > styledArea * 3) {
+                            return false;
+                        }
+                        return this.boundsOverlapRatio(shapeFrame, styledFrame) > 0.7;
+                    })
                 ) {
                     return;
                 }
@@ -624,7 +637,10 @@ export class PptBinaryParser {
             });
 
             this.applyPanelBackgroundShape(elements, visualSlots, widthPx, heightPx, presentationMetrics);
-            this.resolveTextImageOverlaps(elements, widthPx, heightPx);
+            this.applyTableGridBorders(elements, slideRecord, widthPx, heightPx, presentationMetrics);
+            this.demoteDecorativeImages(elements);
+            this.ensureTextAboveShapes(elements);
+            this.resolveTextImageOverlaps(elements, widthPx, heightPx, fixedElements);
             this.resolveTextElementOverlaps(elements, heightPx, fixedElements);
 
             if (textBlocks.length === 0 && elements.filter((element) => element.type === 'image').length <= 1 && masterRecord) {
@@ -635,6 +651,8 @@ export class PptBinaryParser {
 
             this.pruneActivityListImageArtifacts(elements, widthPx, heightPx);
             this.pruneImageOnlySlideArtifacts(elements, widthPx, heightPx);
+
+            this.applyMasterDecorativeImages(elements, masterRecord, picturesById, presentationMetrics, widthPx, heightPx);
 
             slides.push({
                 slideNumber: i + 1,
@@ -858,7 +876,8 @@ export class PptBinaryParser {
                 borderColor: block.borderColor,
                 borderWidthPx: block.borderWidthPx,
                 fillVisible: block.fillVisible,
-                borderVisible: block.borderVisible
+                borderVisible: block.borderVisible,
+                spContainerIndex: block.spContainerIndex
             });
         });
 
@@ -898,6 +917,14 @@ export class PptBinaryParser {
                     return false;
                 }
 
+                // Only treat as duplicate by bounds if text also has some similarity
+                const existingText = existing.text.replace(/\s+/g, '');
+                const candidateText = candidate.text.replace(/\s+/g, '');
+                const hasTextOverlap = existingText.length > 3 && candidateText.length > 3
+                    && (existingText.includes(candidateText) || candidateText.includes(existingText));
+                if (!hasTextOverlap) {
+                    return false;
+                }
                 const existingBounds = this.normalizeBounds(existing.bounds, slideWidth, slideHeight, presentationMetrics);
                 const candidateBounds = this.normalizeBounds(candidate.bounds, slideWidth, slideHeight, presentationMetrics);
                 return this.boundsOverlapRatio(existingBounds, candidateBounds) > 0.82;
@@ -1147,7 +1174,11 @@ export class PptBinaryParser {
         if (normalized.length < 2) {
             return null;
         }
-        if (normalized.some((item) => item.bounds.x < slideWidth * 0.45)) {
+        // Only redistribute if all blocks are in the right panel (x > 45% of slide)
+        // OR all blocks are in the bottom panel (y > 60% of slide).
+        const allRightPanel = normalized.every((item) => item.bounds.x >= slideWidth * 0.45);
+        const allBottomPanel = normalized.every((item) => item.bounds.y >= slideHeight * 0.6);
+        if (!allRightPanel && !allBottomPanel) {
             return null;
         }
 
@@ -1167,8 +1198,10 @@ export class PptBinaryParser {
         const gap = 16;
         const paragraphCounts = normalized.map((item) => Math.max(1, this.createParagraphsFromText(item.block.text, false).length));
         const totalParagraphs = paragraphCounts.reduce((sum, count) => sum + count, 0);
-        const availableHeight = union.height - gap * (normalized.length - 1);
-        if (availableHeight <= 120) {
+        const maxHeight = Math.min(union.height, slideHeight - union.y);
+        const effectiveGap = maxHeight < union.height ? Math.min(gap, 8) : gap;
+        const availableHeight = maxHeight - effectiveGap * (normalized.length - 1);
+        if (availableHeight <= 60) {
             return null;
         }
 
@@ -1178,16 +1211,17 @@ export class PptBinaryParser {
         ordered.forEach((item, index) => {
             const paragraphCount = Math.max(1, this.createParagraphsFromText(item.block.text, false).length);
             const proportionalHeight = Math.round(availableHeight * (paragraphCount / Math.max(1, totalParagraphs)));
+            const remaining = union.y + maxHeight - cursorY;
             const frameHeight = index === ordered.length - 1
-                ? Math.max(48, union.y + union.height - cursorY)
-                : Math.max(96, proportionalHeight);
+                ? Math.max(36, remaining)
+                : Math.max(36, Math.min(proportionalHeight, remaining - 36));
             frames.set(item.block, {
                 x: union.x,
                 y: cursorY,
                 width: union.width,
                 height: frameHeight
             });
-            cursorY += frameHeight + gap;
+            cursorY += frameHeight + effectiveGap;
         });
 
         return frames;
@@ -1392,6 +1426,59 @@ export class PptBinaryParser {
             zIndex: -6,
             src: `data:${asset.mime};base64,${asset.base64}`
         });
+    }
+
+    private static applyMasterDecorativeImages(
+        elements: PptSlideModel['elements'],
+        masterRecord: PptRecord | null,
+        picturesById: Map<number, PptPictureAsset> | undefined,
+        presentationMetrics: {
+            widthPx: number;
+            heightPx: number;
+            rawWidth: number;
+            rawHeight: number;
+        } | null,
+        slideWidth: number,
+        slideHeight: number
+    ): void {
+        if (!masterRecord || !picturesById) {
+            return;
+        }
+
+        const masterSlots = this.extractVisualSlotsFromRecord(masterRecord)
+            .filter((slot) => !!slot.bounds && slot.imageRefId !== undefined);
+
+        for (const slot of masterSlots) {
+            const frame = this.normalizeBounds(slot.bounds!, slideWidth, slideHeight, presentationMetrics);
+            const isBackground = frame.width >= slideWidth * 0.8 && frame.height >= slideHeight * 0.8;
+            if (isBackground) {
+                continue;
+            }
+            const asset = picturesById.get(slot.imageRefId!);
+            if (!asset) {
+                continue;
+            }
+            const src = `data:${asset.mime};base64,${asset.base64}`;
+            const alreadyExists = elements.some((el) =>
+                el.type === 'image'
+                && (el.src === src
+                    || (Math.abs(el.x - frame.x) < 10
+                        && Math.abs(el.y - frame.y) < 10
+                        && Math.abs(el.width - frame.width) < 20))
+            );
+            if (alreadyExists) {
+                continue;
+            }
+            elements.push({
+                type: 'image',
+                x: frame.x,
+                y: frame.y,
+                width: frame.width,
+                height: frame.height,
+                zIndex: 200 + elements.length,
+                src
+            });
+        }
     }
 
     private static applyMasterFallbackElements(
@@ -1605,6 +1692,9 @@ export class PptBinaryParser {
         slideWidth: number,
         slideHeight: number
     ): PptShapeBounds {
+        if (frame.width >= slideWidth * 0.8 && frame.height >= slideHeight * 0.8) {
+            return frame;
+        }
         const bodyTextElements = elements.filter((element) =>
             element.type === 'text'
             && !element.isTitle
@@ -1687,6 +1777,249 @@ export class PptBinaryParser {
         });
     }
 
+    private static demoteDecorativeImages(elements: PptSlideModel['elements']): void {
+        const contentElements = elements.filter((el) =>
+            (el.type === 'text' || el.type === 'image') && el.zIndex >= 0
+        );
+        if (contentElements.length < 3) {
+            return;
+        }
+
+        elements.forEach((el) => {
+            if (el.type !== 'image' || el.zIndex < 0) {
+                return;
+            }
+            const imgBounds = { x: el.x, y: el.y, width: el.width, height: el.height };
+            // Count how many content elements this image overlaps with
+            const overlapping = contentElements.filter((other) => {
+                if (other === el || other.zIndex < 0) {
+                    return false;
+                }
+                const otherBounds = { x: other.x, y: other.y, width: other.width, height: other.height };
+                // Any intersection counts
+                return imgBounds.x < otherBounds.x + otherBounds.width
+                    && imgBounds.x + imgBounds.width > otherBounds.x
+                    && imgBounds.y < otherBounds.y + otherBounds.height
+                    && imgBounds.y + imgBounds.height > otherBounds.y;
+            });
+            // If image overlaps with 2+ content elements and has higher z, demote it
+            if (overlapping.length >= 2) {
+                const minOverlapZ = Math.min(...overlapping.map((o) => o.zIndex));
+                if (el.zIndex > minOverlapZ) {
+                    // Heavily decorative images (overlapping 4+) go behind shapes
+                    el.zIndex = overlapping.length >= 4 ? -3 : minOverlapZ - 1;
+                }
+            }
+        });
+    }
+
+    private static ensureTextAboveShapes(elements: PptSlideModel['elements']): void {
+        const shapeElements = elements.filter((el) => el.type === 'shape' && el.zIndex >= 0);
+        if (shapeElements.length === 0) {
+            return;
+        }
+        const maxShapeZ = Math.max(...shapeElements.map((el) => el.zIndex));
+
+        elements.forEach((el) => {
+            if (el.type !== 'text' || el.zIndex > maxShapeZ) {
+                return;
+            }
+            // Check if text overlaps with any shape
+            const overlapsShape = shapeElements.some((shape) =>
+                this.boundsOverlapRatio(
+                    { x: el.x, y: el.y, width: el.width, height: el.height },
+                    { x: shape.x, y: shape.y, width: shape.width, height: shape.height }
+                ) > 0.3
+            );
+            if (overlapsShape) {
+                el.zIndex = maxShapeZ + 1 + el.zIndex;
+            }
+        });
+    }
+
+    private static applyTableGridBorders(
+        elements: PptSlideModel['elements'],
+        slideRecord: PptRecord,
+        slideWidth: number,
+        slideHeight: number,
+        presentationMetrics: { widthPx: number; heightPx: number; rawWidth: number; rawHeight: number } | null
+    ): void {
+        // Collect text elements that are not titles
+        const textElements = elements.filter(
+            (el) => el.type === 'text' && !el.isTitle && el.width < slideWidth * 0.5
+        );
+        if (textElements.length < 6) {
+            return;
+        }
+
+        // Detect grid pattern: check for consistent column positions
+        const xPositions = [...new Set(textElements.map((el) => el.x))].sort((a, b) => a - b);
+        const yPositions = [...new Set(textElements.map((el) => el.y))].sort((a, b) => a - b);
+
+        if (xPositions.length < 2 || yPositions.length < 3) {
+            return;
+        }
+
+        // Check consistent width within columns
+        const widthsByX = new Map<number, number[]>();
+        textElements.forEach((el) => {
+            const arr = widthsByX.get(el.x) ?? [];
+            arr.push(el.width);
+            widthsByX.set(el.x, arr);
+        });
+        const consistentWidth = [...widthsByX.values()].every((widths) => {
+            const first = widths[0];
+            return widths.every((w) => Math.abs(w - first) < 20);
+        });
+        if (!consistentWidth) {
+            return;
+        }
+
+        // Check consistent height across rows
+        const heightsByY = new Map<number, number[]>();
+        textElements.forEach((el) => {
+            const arr = heightsByY.get(el.y) ?? [];
+            arr.push(el.height);
+            heightsByY.set(el.y, arr);
+        });
+        const consistentHeight = [...heightsByY.values()].every((heights) => {
+            const first = heights[0];
+            return heights.every((h) => Math.abs(h - first) < 20);
+        });
+        if (!consistentHeight) {
+            return;
+        }
+
+        // Extract line shapes from the slide record to determine border color
+        let gridBorderColor = '#000000';
+        const lineShapes = this.extractLineShapesFromRecord(slideRecord, presentationMetrics);
+        if (lineShapes.length > 0) {
+            // Use the most common line color
+            const colorCounts = new Map<string, number>();
+            lineShapes.forEach((ls) => {
+                colorCounts.set(ls.color, (colorCounts.get(ls.color) ?? 0) + 1);
+            });
+            let maxCount = 0;
+            colorCounts.forEach((count, color) => {
+                if (count > maxCount) {
+                    maxCount = count;
+                    gridBorderColor = color;
+                }
+            });
+        }
+
+        // Find the most common cell width to identify actual grid cells
+        const widthCounts = new Map<number, number>();
+        textElements.forEach((el) => {
+            const w = Math.round(el.width);
+            widthCounts.set(w, (widthCounts.get(w) ?? 0) + 1);
+        });
+        let gridCellWidth = 0;
+        let maxWidthCount = 0;
+        widthCounts.forEach((count, w) => {
+            if (count > maxWidthCount) {
+                maxWidthCount = count;
+                gridCellWidth = w;
+            }
+        });
+
+        // Determine grid boundaries from the dominant-width cells
+        const gridCells = textElements.filter((el) => Math.abs(el.width - gridCellWidth) < 20);
+        const gridMinX = Math.min(...gridCells.map((el) => el.x));
+        const gridMaxX = Math.max(...gridCells.map((el) => el.x + el.width));
+        const gridMinY = Math.min(...gridCells.map((el) => el.y));
+        const gridMaxY = Math.max(...gridCells.map((el) => el.y + el.height));
+
+        // Apply borders to grid cells and any text elements within the grid area
+        textElements.forEach((el) => {
+            const inGrid = Math.abs(el.width - gridCellWidth) < 20
+                || (el.x >= gridMinX - 20 && el.x + el.width <= gridMaxX + 20
+                    && el.y >= gridMinY - 20 && el.y + el.height <= gridMaxY + 20);
+            if (!inGrid) {
+                return;
+            }
+            if (!el.borderColor) {
+                el.borderColor = gridBorderColor;
+            }
+            if (el.borderWidthPx === undefined) {
+                el.borderWidthPx = 1;
+            }
+        });
+    }
+
+    private static extractLineShapesFromRecord(
+        record: PptRecord,
+        presentationMetrics: { widthPx: number; heightPx: number; rawWidth: number; rawHeight: number } | null
+    ): Array<{ color: string; widthPx: number }> {
+        const lines: Array<{ color: string; widthPx: number }> = [];
+
+        const visit = (list: PptRecord[]): void => {
+            for (const child of list) {
+                if (child.recType === 0xf004 && child.children) {
+                    const hasTextbox = child.children.some((c) => c.recType === 0xf00d);
+                    if (!hasTextbox) {
+                        // Check for zero-dimension shapes (lines)
+                        let anchor: { left: number; top: number; right: number; bottom: number } | null = null;
+                        for (const c of child.children) {
+                            if (c.recType === 0xf00f && c.payload.length >= 16) {
+                                anchor = {
+                                    left: c.payload.readInt32LE(0),
+                                    top: c.payload.readInt32LE(4),
+                                    right: c.payload.readInt32LE(8),
+                                    bottom: c.payload.readInt32LE(12)
+                                };
+                            }
+                        }
+                        if (anchor && (anchor.left === anchor.right || anchor.top === anchor.bottom)) {
+                            // This is a line shape
+                            const fopt = child.children.find((c) => c.recType === 0xf00b);
+                            if (fopt) {
+                                let borderColor: string | undefined;
+                                let borderWidthEmu = 12700;
+                                for (let i = 0; i < fopt.recInstance; i++) {
+                                    const off = i * 6;
+                                    if (off + 6 > fopt.payload.length) break;
+                                    const rawOpid = fopt.payload.readUInt16LE(off);
+                                    const opid = rawOpid & 0x3fff;
+                                    const isComplex = (rawOpid & 0x8000) !== 0;
+                                    if (isComplex) continue;
+                                    const value = fopt.payload.readUInt32LE(off + 2);
+                                    if (opid === 0x01c0) {
+                                        const flag = (value >>> 24) & 0xff;
+                                        if (flag === 0) {
+                                            const r = value & 0xff;
+                                            const g = (value >>> 8) & 0xff;
+                                            const b = (value >>> 16) & 0xff;
+                                            borderColor = this.rgbToHex(r, g, b);
+                                        } else {
+                                            // Scheme color — default to black
+                                            borderColor = '#000000';
+                                        }
+                                    }
+                                    if (opid === 0x01cb) {
+                                        borderWidthEmu = value;
+                                    }
+                                }
+                                if (borderColor) {
+                                    lines.push({
+                                        color: borderColor,
+                                        widthPx: Math.max(1, Math.round(borderWidthEmu / 9525))
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+                if (child.children) {
+                    visit(child.children);
+                }
+            }
+        };
+
+        visit(record.children ?? []);
+        return lines;
+    }
+
     private static resolveTextElementOverlaps(
         elements: PptSlideModel['elements'],
         slideHeight: number,
@@ -1719,7 +2052,12 @@ export class PptBinaryParser {
         }
     }
 
-    private static resolveTextImageOverlaps(elements: PptSlideModel['elements'], slideWidth: number, slideHeight: number): void {
+    private static resolveTextImageOverlaps(
+        elements: PptSlideModel['elements'],
+        slideWidth: number,
+        slideHeight: number,
+        fixedElements?: Set<PptSlideModel['elements'][number]>
+    ): void {
         const textElements = elements.filter((el) => el.type === 'text');
         const imageElements = elements.filter((el) => el.type === 'image');
         if (textElements.length === 0 || imageElements.length === 0) {
@@ -1727,6 +2065,9 @@ export class PptBinaryParser {
         }
 
         for (const text of textElements) {
+            if (fixedElements?.has(text)) {
+                continue;
+            }
             for (const image of imageElements) {
                 if (!this.boundsIntersect(text, image)) {
                     continue;
@@ -1929,26 +2270,38 @@ export class PptBinaryParser {
         const groups: PptTextGroup[] = [];
         const spIndex = counter ?? { value: 0 };
 
-        const visit = (list: PptRecord[], insideShapeContainer = false): void => {
+        const visit = (list: PptRecord[], insideShapeContainer: boolean, groupTransforms: Array<{ internal: PptShapeBounds; external: PptShapeBounds }>): void => {
             for (const child of list) {
+                if (child.recType === 0xf003 && child.children && child.children.length > 0) {
+                    const transform = this.extractGroupTransform(child);
+                    const newTransforms = transform
+                        ? [...groupTransforms, transform]
+                        : groupTransforms;
+                    const groupChildren = transform ? child.children.slice(1) : child.children;
+                    visit(groupChildren, insideShapeContainer, newTransforms);
+                    continue;
+                }
+
                 if (child.recType === 0xf004 && child.children && child.children.length > 0) {
                     const currentIndex = spIndex.value++;
                     const hasClientTextbox = child.children.some((entry) => entry.recType === 0xf00d);
                     if (hasClientTextbox) {
                         const groupBlocks = this.extractTypedTextBlocksFromSequence(child.children);
                         if (groupBlocks.length > 0) {
+                            let bounds = this.extractShapeBoundsFromSpContainer(child);
+                            if (bounds && groupTransforms.length > 0) {
+                                bounds = this.applyGroupTransforms(bounds, groupTransforms);
+                            }
                             groups.push({
                                 blocks: groupBlocks,
-                                bounds: this.extractShapeBoundsFromSpContainer(child),
+                                bounds,
                                 spContainerIndex: currentIndex,
                                 ...this.extractShapeStyleFromSpContainer(child)
                             });
                         }
                     }
 
-                    // The shape container already owns its ClientTextbox content,
-                    // so we do not emit a second standalone group from nested 0xF00D records.
-                    visit(child.children, true);
+                    visit(child.children, true, groupTransforms);
                     continue;
                 }
 
@@ -1959,30 +2312,55 @@ export class PptBinaryParser {
                     }
                 }
 
-                if (child.children && child.children.length > 0) {
-                    visit(child.children, insideShapeContainer);
+                if (child.children && child.children.length > 0 && child.recType !== 0xf003) {
+                    visit(child.children, insideShapeContainer, groupTransforms);
                 }
             }
         };
 
-        visit(record.children ?? []);
+        visit(record.children ?? [], false, []);
         return groups;
     }
 
     private static extractStyledTextBlocksFromShapes(record: PptRecord): PptTextBlock[] {
         const blocks: PptTextBlock[] = [];
 
-        const visit = (list: PptRecord[]): void => {
+        const visit = (list: PptRecord[], groupTransforms: Array<{ internal: PptShapeBounds; external: PptShapeBounds }>): void => {
             for (const child of list) {
+                if (child.recType === 0xf003 && child.children && child.children.length > 0) {
+                    const transform = this.extractGroupTransform(child);
+                    const newTransforms = transform
+                        ? [...groupTransforms, transform]
+                        : groupTransforms;
+                    const groupChildren = transform ? child.children.slice(1) : child.children;
+                    visit(groupChildren, newTransforms);
+                    continue;
+                }
+
                 if (child.recType === 0xf004 && child.children && child.children.length > 0) {
                     const hasClientTextbox = child.children.some((entry) => entry.recType === 0xf00d);
                     if (!hasClientTextbox) {
                         const strings = this.extractStyledStringsFromSpContainer(child);
                         strings.forEach((item) => {
+                            let bounds = this.extractShapeBoundsFromSpContainer(child);
+                            if (bounds && groupTransforms.length > 0) {
+                                bounds = this.applyGroupTransforms(bounds, groupTransforms);
+                            }
+                            // For very tall shapes (decorative shapes like pentagons),
+                            // position text at bottom portion
+                            if (bounds && bounds.height > bounds.width * 2) {
+                                const textHeight = Math.min(bounds.height * 0.15, 300);
+                                bounds = {
+                                    x: bounds.x - bounds.width * 0.5,
+                                    y: bounds.y + bounds.height - textHeight,
+                                    width: bounds.width * 2,
+                                    height: textHeight
+                                };
+                            }
                             blocks.push({
                                 text: item.text,
                                 textType: 0,
-                                bounds: this.extractShapeBoundsFromSpContainer(child),
+                                bounds,
                                 color: item.color,
                                 fontSizePx: item.fontSizePx
                             });
@@ -1990,13 +2368,13 @@ export class PptBinaryParser {
                     }
                 }
 
-                if (child.children && child.children.length > 0) {
-                    visit(child.children);
+                if (child.children && child.children.length > 0 && child.recType !== 0xf003) {
+                    visit(child.children, groupTransforms);
                 }
             }
         };
 
-        visit(record.children ?? []);
+        visit(record.children ?? [], []);
         return blocks;
     }
 
@@ -2031,33 +2409,105 @@ export class PptBinaryParser {
             }
             deduped.add(text);
 
-            let fontSizePx: number | undefined;
-            let color = colorHint;
-            if (text.includes('수학교육활동')) {
-                fontSizePx = 92;
-                color = color ?? '#ffea00';
-            } else if (text.includes('유아를 위한')) {
-                fontSizePx = 38;
-                color = color ?? '#ffffff';
-            } else {
-                fontSizePx = 28;
-            }
-
-            return [{ text, color, fontSizePx }];
+            const color = colorHint;
+            return [{ text, color }];
         });
+    }
+
+    private static extractGroupTransform(
+        spgrContainer: PptRecord
+    ): { internal: PptShapeBounds; external: PptShapeBounds } | null {
+        if (!spgrContainer.children || spgrContainer.children.length === 0) {
+            return null;
+        }
+        const firstChild = spgrContainer.children[0];
+        if (firstChild.recType !== 0xf004 || !firstChild.children) {
+            return null;
+        }
+
+        let internal: PptShapeBounds | undefined;
+        let external: PptShapeBounds | undefined;
+
+        for (const rec of firstChild.children) {
+            // FSPGR (0xf009) defines internal coordinate space
+            if (rec.recType === 0xf009 && rec.payload.length >= 16) {
+                const left = rec.payload.readInt32LE(0);
+                const top = rec.payload.readInt32LE(4);
+                const right = rec.payload.readInt32LE(8);
+                const bottom = rec.payload.readInt32LE(12);
+                internal = this.makeBounds(left, top, right, bottom) ?? undefined;
+            }
+            // ChildAnchor (0xf010) or ClientAnchor (0xf00f) defines position in parent
+            if (rec.recType === 0xf010) {
+                if (rec.payload.length >= 16) {
+                    external = this.readRectBounds32(rec.payload) ?? undefined;
+                } else if (rec.payload.length >= 8) {
+                    // 8-byte ChildAnchor uses (top, left, right, bottom) format.
+                    // For group anchors, always use this fixed byte order instead
+                    // of the heuristic in readRectBounds16.
+                    const top = rec.payload.readInt16LE(0);
+                    const left = rec.payload.readInt16LE(2);
+                    const right = rec.payload.readInt16LE(4);
+                    const bottom = rec.payload.readInt16LE(6);
+                    external = this.makeBounds(left, top, right, bottom) ?? undefined;
+                }
+            }
+            if (!external && rec.recType === 0xf00f && rec.payload.length >= 16) {
+                external = this.readRectBounds32(rec.payload) ?? undefined;
+            }
+        }
+
+        if (!internal || !external || internal.width <= 0 || internal.height <= 0) {
+            return null;
+        }
+
+        return { internal, external };
+    }
+
+    private static applyGroupTransforms(
+        bounds: PptShapeBounds,
+        transforms: Array<{ internal: PptShapeBounds; external: PptShapeBounds }>
+    ): PptShapeBounds {
+        let result = bounds;
+        for (let i = transforms.length - 1; i >= 0; i--) {
+            const { internal, external } = transforms[i];
+            const scaleX = external.width / internal.width;
+            const scaleY = external.height / internal.height;
+            result = {
+                x: external.x + (result.x - internal.x) * scaleX,
+                y: external.y + (result.y - internal.y) * scaleY,
+                width: result.width * scaleX,
+                height: result.height * scaleY
+            };
+        }
+        return result;
     }
 
     private static extractVisualSlotsFromRecord(record: PptRecord, counter?: { value: number }): PptVisualSlot[] {
         const slots: PptVisualSlot[] = [];
         const spIndex = counter ?? { value: 0 };
 
-        const visit = (list: PptRecord[]): void => {
+        const visit = (list: PptRecord[], groupTransforms: Array<{ internal: PptShapeBounds; external: PptShapeBounds }>): void => {
             for (const child of list) {
+                if (child.recType === 0xf003 && child.children && child.children.length > 0) {
+                    const transform = this.extractGroupTransform(child);
+                    const newTransforms = transform
+                        ? [...groupTransforms, transform]
+                        : groupTransforms;
+                    // Skip the first SpContainer (group definition shape)
+                    const groupChildren = transform ? child.children.slice(1) : child.children;
+                    visit(groupChildren, newTransforms);
+                    continue;
+                }
+
                 if (child.recType === 0xf004 && child.children && child.children.length > 0) {
                     const currentIndex = spIndex.value++;
                     const hasClientTextbox = child.children.some((entry) => entry.recType === 0xf00d);
+                    let bounds = this.extractShapeBoundsFromSpContainer(child);
+                    if (bounds && groupTransforms.length > 0) {
+                        bounds = this.applyGroupTransforms(bounds, groupTransforms);
+                    }
                     if (!hasClientTextbox) {
-                        const bounds = this.extractShapeBoundsFromSpContainer(child);
                         const style = this.extractShapeStyleFromSpContainer(child);
                         if (bounds) {
                             slots.push({
@@ -2069,7 +2519,6 @@ export class PptBinaryParser {
                             });
                         }
                     } else {
-                        const bounds = this.extractShapeBoundsFromSpContainer(child);
                         const style = this.extractShapeStyleFromSpContainer(child);
                         if (bounds || style.fillColor || style.borderColor || style.borderWidthPx !== undefined) {
                             slots.push({
@@ -2083,13 +2532,13 @@ export class PptBinaryParser {
                     }
                 }
 
-                if (child.children && child.children.length > 0) {
-                    visit(child.children);
+                if (child.children && child.children.length > 0 && child.recType !== 0xf003) {
+                    visit(child.children, groupTransforms);
                 }
             }
         };
 
-        visit(record.children ?? []);
+        visit(record.children ?? [], []);
         return slots;
     }
 
@@ -2236,16 +2685,26 @@ export class PptBinaryParser {
         const standardExtreme = standardRatio < 0.45 || standardRatio > 2.2;
         const swappedExtreme = swappedRatio < 0.45 || swappedRatio > 2.2;
 
-        const standardArea = standard.width * standard.height;
-        const swappedArea = swapped.width * swapped.height;
-
         if (standardExtreme && !swappedExtreme) {
             return swapped;
         }
+        if (!standardExtreme && swappedExtreme) {
+            return standard;
+        }
+
+        // Both extreme or both normal: prefer swapped (top, left, right, bottom)
+        // which is the common PPT 8-byte ChildAnchor format.
+        const swappedArea = swapped.width * swapped.height;
+        const standardArea = standard.width * standard.height;
         if (
             swappedArea > standardArea * 1.05
             && Math.abs(swappedRatio - 1) < Math.abs(standardRatio - 1)
         ) {
+            return swapped;
+        }
+
+        // When both are extreme, prefer swapped as PPT commonly uses (top, left, right, bottom).
+        if (standardExtreme && swappedExtreme) {
             return swapped;
         }
 
@@ -2334,8 +2793,18 @@ export class PptBinaryParser {
             if (!slot.bounds) {
                 return;
             }
+            const slotArea = slot.bounds!.width * slot.bounds!.height;
             const overlapsExisting = deduped.some((existing) => {
                 if (!existing.bounds) {
+                    return false;
+                }
+                const existingArea = existing.bounds.width * existing.bounds.height;
+                if (existingArea > slotArea * 8) {
+                    return false;
+                }
+                // Don't dedup slots with different image references
+                if (slot.imageRefId !== undefined && existing.imageRefId !== undefined
+                    && slot.imageRefId !== existing.imageRefId) {
                     return false;
                 }
                 return this.boundsOverlapRatio(slot.bounds!, existing.bounds) > 0.72;
@@ -2375,14 +2844,22 @@ export class PptBinaryParser {
                 return;
             }
 
+            const slotArea = slot.bounds!.width * slot.bounds!.height;
             const group = slots
                 .map((candidate, candidateIndex) => ({ candidate, candidateIndex }))
-                .filter(({ candidate, candidateIndex }) =>
-                    !consumed.has(candidateIndex)
-                    && candidate.bounds
-                    && candidate.imageRefId !== undefined
-                    && this.boundsOverlapRatio(slot.bounds!, candidate.bounds) > 0.95
-                );
+                .filter(({ candidate, candidateIndex }) => {
+                    if (consumed.has(candidateIndex) || !candidate.bounds || candidate.imageRefId === undefined) {
+                        return false;
+                    }
+                    // Don't group slots with different image refs if they differ significantly in size
+                    if (candidate.imageRefId !== slot.imageRefId) {
+                        const candidateArea = candidate.bounds.width * candidate.bounds.height;
+                        if (Math.max(slotArea, candidateArea) > Math.min(slotArea, candidateArea) * 2) {
+                            return false;
+                        }
+                    }
+                    return this.boundsOverlapRatio(slot.bounds!, candidate.bounds) > 0.95;
+                });
 
             const best = group
                 .slice()
@@ -2394,6 +2871,12 @@ export class PptBinaryParser {
                     // Prefer unique (low frequency) images over master/template (high frequency) duplicates.
                     if (leftFreq !== rightFreq) {
                         return leftFreq - rightFreq;
+                    }
+                    // Prefer higher spContainerIndex (last drawn = visible on top in PPT rendering).
+                    const leftIdx = left.candidate.spContainerIndex ?? -1;
+                    const rightIdx = right.candidate.spContainerIndex ?? -1;
+                    if (leftIdx !== rightIdx) {
+                        return rightIdx - leftIdx;
                     }
                     const leftBytes = leftAsset ? this.decodedAssetByteLength(leftAsset) : 0;
                     const rightBytes = rightAsset ? this.decodedAssetByteLength(rightAsset) : 0;
@@ -2433,10 +2916,18 @@ export class PptBinaryParser {
     private static extractTypedTextBlocksFromSequence(records: PptRecord[]): PptTextBlock[] {
         const blocks: PptTextBlock[] = [];
         let currentTextType: number | undefined;
+        let pendingStyleProp: PptRecord | undefined;
 
-        for (const record of records) {
+        for (let ri = 0; ri < records.length; ri++) {
+            const record = records[ri];
             if (record.recType === 3999 && record.payload.length >= 4) {
                 currentTextType = record.payload.readUInt32LE(0);
+                continue;
+            }
+
+            // StyleTextPropAtom (4001) follows its text atom
+            if (record.recType === 4001) {
+                pendingStyleProp = record;
                 continue;
             }
 
@@ -2454,13 +2945,116 @@ export class PptBinaryParser {
                 continue;
             }
 
+            // Look ahead for StyleTextPropAtom
+            let styleProp = pendingStyleProp;
+            pendingStyleProp = undefined;
+            if (!styleProp) {
+                for (let si = ri + 1; si < records.length && si <= ri + 4; si++) {
+                    if (records[si].recType === 4001) {
+                        styleProp = records[si];
+                        break;
+                    }
+                }
+            }
+
+            const style = styleProp ? this.extractTextRunStyle(styleProp.payload) : undefined;
             blocks.push({
                 text,
-                textType: currentTextType
+                textType: currentTextType,
+                color: style?.color,
+                fontSizePx: style?.fontSizePx
             });
         }
 
         return blocks.filter((block) => block.textType !== 2);
+    }
+
+    /**
+     * Extract dominant text color and font size from a StyleTextPropAtom payload.
+     * Parses the paragraph run then character run per MS-PPT spec.
+     */
+    private static extractTextRunStyle(payload: Buffer): { color?: string; fontSizePx?: number } | undefined {
+        if (payload.length < 12) {
+            return undefined;
+        }
+
+        try {
+            let offset = 0;
+
+            // --- Paragraph run ---
+            // charCount (4) + indentLevel (2) + paraMask (4)
+            offset += 4; // charCount
+            offset += 2; // indentLevel
+            if (offset + 4 > payload.length) {
+                return undefined;
+            }
+            const paraMask = payload.readUInt32LE(offset);
+            offset += 4;
+
+            // Skip paragraph properties based on mask
+            if (paraMask & 0x000f) { offset += 2; } // bulletFlags
+            if (paraMask & 0x0010) { offset += 2; } // bulletChar
+            if (paraMask & 0x0020) { offset += 2; } // bulletFont
+            if (paraMask & 0x0040) { offset += 2; } // bulletSize
+            if (paraMask & 0x0080) { offset += 4; } // bulletColor
+            if (paraMask & 0x0100) { offset += 2; } // leftMargin
+            if (paraMask & 0x0200) { offset += 2; } // indent
+            if (paraMask & 0x0400) { offset += 2; } // defaultTabSize
+            if (paraMask & 0x0800) { offset += 2; } // alignment
+            if (paraMask & 0x1000) { offset += 2; } // lineSpacing
+            if (paraMask & 0x2000) { offset += 2; } // spaceBefore
+            if (paraMask & 0x4000) { offset += 2; } // spaceAfter
+
+            // --- Character run ---
+            // charCount (4) + charMask (4)
+            if (offset + 8 > payload.length) {
+                return undefined;
+            }
+            offset += 4; // charCount
+            const charMask = payload.readUInt32LE(offset);
+            offset += 4;
+
+            // Read character properties in MS-PPT spec order
+            if (charMask & 0x03ff) { offset += 2; } // fontStyle (if any bool bit set)
+            if (charMask & 0x00010000) { offset += 2; } // typeface
+            if (charMask & 0x00100000) { offset += 2; } // oldEATypeface
+            if (charMask & 0x00200000) { offset += 2; } // ansiTypeface
+            if (charMask & 0x00400000) { offset += 2; } // symbolTypeface
+
+            let fontSizePx: number | undefined;
+            if (charMask & 0x00020000) {
+                if (offset + 2 <= payload.length) {
+                    const rawSize = payload.readUInt16LE(offset);
+                    if (rawSize >= 6 && rawSize <= 400) {
+                        fontSizePx = Math.round(rawSize * this.POINTS_TO_PX);
+                    }
+                }
+                offset += 2;
+            }
+
+            let color: string | undefined;
+            if (charMask & 0x00040000) {
+                if (offset + 4 <= payload.length) {
+                    const colorValue = payload.readUInt32LE(offset);
+                    const flag = (colorValue >>> 24) & 0xff;
+                    if (flag === 0xfe) {
+                        const r = colorValue & 0xff;
+                        const g = (colorValue >>> 8) & 0xff;
+                        const b = (colorValue >>> 16) & 0xff;
+                        if (r !== 0 || g !== 0 || b !== 0) {
+                            color = this.rgbToHex(r, g, b);
+                        }
+                    }
+                }
+            }
+
+            if (!color && !fontSizePx) {
+                return undefined;
+            }
+            return { color, fontSizePx };
+        } catch {
+            return undefined;
+        }
     }
 
     private static decorateTextBlocksWithPlaceholders(blocks: PptTextBlock[], layout: PptSlideLayoutInfo | null): PptTextBlock[] {

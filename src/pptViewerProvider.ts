@@ -36,10 +36,10 @@ export class PptViewerProvider implements vscode.CustomReadonlyEditorProvider {
 
             const pptContent = await FileUtils.readPresentationFile(pptPath);
             const pdfJsScriptUri = webviewPanel.webview.asWebviewUri(
-                vscode.Uri.file(path.join(this.context.extensionPath, 'node_modules', 'pdfjs-dist', 'build', 'pdf.min.js'))
+                vscode.Uri.file(path.join(this.context.extensionPath, 'node_modules', 'pdfjs-dist', 'build', 'pdf.min.mjs'))
             );
             const pdfJsWorkerUri = webviewPanel.webview.asWebviewUri(
-                vscode.Uri.file(path.join(this.context.extensionPath, 'node_modules', 'pdfjs-dist', 'build', 'pdf.worker.min.js'))
+                vscode.Uri.file(path.join(this.context.extensionPath, 'node_modules', 'pdfjs-dist', 'build', 'pdf.worker.min.mjs'))
             );
 
             const html = await TemplateUtils.loadTemplate(this.context, 'ppt/pptViewer.html', {
