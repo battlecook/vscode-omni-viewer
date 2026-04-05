@@ -113,6 +113,7 @@ interface StyledParagraph {
     floatingWidthMode?: 'narrow' | 'regular' | 'wide';
     floatingPlacement?: 'edge-wrap' | 'center-block';
     floatingClearancePx?: number;
+    preserveEmpty?: boolean;
     pageBreakBefore?: boolean;
     sectionIndex?: number;
     sectionLayout?: LegacyLayoutMetrics;
@@ -137,6 +138,7 @@ interface StyledLine {
     floatingWidthMode?: 'narrow' | 'regular' | 'wide';
     floatingPlacement?: 'edge-wrap' | 'center-block';
     floatingClearancePx?: number;
+    preserveEmpty?: boolean;
     pageBreakBefore?: boolean;
     sectionIndex?: number;
     sectionLayout?: LegacyLayoutMetrics;
@@ -1746,7 +1748,11 @@ export class DocBinaryParser {
         const flushParagraph = () => {
             flushRun();
             const normalized = this.normalizeParagraphText(currentText, true);
-            if (normalized.length > 0 || currentParagraphStyle.inTable || currentParagraphStyle.isTableTerminator) {
+            const preserveEmpty = normalized.length === 0
+                && !currentParagraphStyle.inTable
+                && !currentParagraphStyle.isTableTerminator
+                && this.hasCharacterStyle(currentParagraphStyle);
+            if (normalized.length > 0 || currentParagraphStyle.inTable || currentParagraphStyle.isTableTerminator || preserveEmpty) {
                 const style: CharacterStyle = {};
                 if (visibleCount > 0) {
                     if (boldCount / visibleCount >= 0.55) style.bold = true;
@@ -1792,6 +1798,7 @@ export class DocBinaryParser {
                     tableColumnCount: currentParagraphStyle.tableColumnCount,
                     tableColumnWidthsTwips: currentParagraphStyle.tableColumnWidthsTwips,
                     tableCellMerges: currentParagraphStyle.tableCellMerges,
+                    preserveEmpty,
                     pageBreakBefore: pendingPageBreakBefore || Boolean(currentParagraphStyle.pageBreakBefore),
                     sectionIndex: sectionBoundary?.sectionIndex,
                     sectionLayout: sectionBoundary?.layout
@@ -2236,12 +2243,13 @@ export class DocBinaryParser {
                         floatingWidthMode: entry.floatingWidthMode,
                         floatingPlacement: entry.floatingPlacement,
                         floatingClearancePx: entry.floatingClearancePx,
+                        preserveEmpty: entry.preserveEmpty,
                         pageBreakBefore: entry.pageBreakBefore,
                         sectionIndex: entry.sectionIndex,
                         sectionLayout: entry.sectionLayout
                     };
                 })
-                .filter((entry) => entry.text.length > 0 || entry.inTable || entry.isTableTerminator || entry.embeddedChartAnchor || entry.embeddedImageAnchor || entry.embeddedAssetAnchor)
+                .filter((entry) => entry.text.length > 0 || entry.preserveEmpty || entry.inTable || entry.isTableTerminator || entry.embeddedChartAnchor || entry.embeddedImageAnchor || entry.embeddedAssetAnchor)
             : rawText
                 .split(/\n+/)
                 .map((text) => {
@@ -2257,6 +2265,7 @@ export class DocBinaryParser {
 
         return rawLines.filter((line, index) => (
             line.inTable
+            || line.preserveEmpty
             || line.isTableTerminator
             || line.embeddedChartAnchor
             || line.embeddedImageAnchor
@@ -2829,6 +2838,26 @@ export class DocBinaryParser {
                 index += 1;
                 continue;
             }
+            if (this.isLikelySectionLeadParagraph(line, lines[index - 1], lines[index + 1])) {
+                blocks.push({
+                    kind: 'heading',
+                    text: this.normalizeParagraphText(text),
+                    style: {
+                        ...line.style,
+                        bold: true,
+                        fontSizeHalfPoints: Math.max(line.style?.fontSizeHalfPoints ?? 0, 32)
+                    },
+                    runs: this.promoteInlineRuns(line.runs, {
+                        bold: true,
+                        fontSizeHalfPoints: Math.max(line.style?.fontSizeHalfPoints ?? 0, 32)
+                    }),
+                    pageBreakBefore: line.pageBreakBefore,
+                    sectionIndex: line.sectionIndex,
+                    sectionLayout: line.sectionLayout
+                });
+                index += 1;
+                continue;
+            }
 
             const structuredTable = this.collectStructuredTable(lines, index);
             if (structuredTable) {
@@ -2975,11 +3004,49 @@ export class DocBinaryParser {
             return false;
         }
 
-        const nextLength = this.normalizeParagraphText(next?.text || '').length;
         const hasLeadCue = Boolean(line.style?.keepWithNext)
             || Math.abs(line.style?.firstLineIndentTwips ?? 0) >= 360;
+        if (!hasLeadCue) {
+            return false;
+        }
 
-        return hasLeadCue && nextLength > 120;
+        const nextText = this.normalizeParagraphText(next?.text || '');
+        const nextLength = nextText.length;
+        const nextIsSpacer = nextLength === 0;
+        const nextLooksTabular = Boolean(next?.inTable);
+
+        return nextLength > 120 || nextIsSpacer || nextLooksTabular;
+    }
+
+    private static isLikelySectionLeadParagraph(
+        line: StyledLine | undefined,
+        previous?: StyledLine,
+        next?: StyledLine
+    ): boolean {
+        if (!line) {
+            return false;
+        }
+
+        const normalizedText = this.normalizeParagraphText(line.text);
+        if (!normalizedText || normalizedText.length > 96 || !this.hasEnoughLetters(normalizedText)) {
+            return false;
+        }
+
+        if (
+            line.inTable
+            || line.isTableTerminator
+            || line.embeddedChartAnchor
+            || line.embeddedImageAnchor
+            || line.embeddedAssetAnchor
+        ) {
+            return false;
+        }
+
+        const previousLength = this.normalizeParagraphText(previous?.text || '').length;
+        const nextLength = this.normalizeParagraphText(next?.text || '').length;
+        const sparseStyle = !line.style
+            || Object.keys(line.style).every((key) => ['bold', 'fontSizeHalfPoints'].includes(key));
+        return nextLength > 120 && (previousLength > 120 || sparseStyle);
     }
 
     private static promoteInlineRuns(
@@ -3434,9 +3501,10 @@ export class DocBinaryParser {
                 ? ` ov-doc-legacy-image-floating ov-doc-legacy-image-floating-${block.floatingSide || 'right'} ov-doc-legacy-image-floating-${block.floatingWidthMode || 'regular'}`
                 : '';
             const figureClass = `ov-doc-legacy-image ov-doc-legacy-image-inline${floatingClass}`;
+            const captionHtml = block.alt ? `<figcaption>${this.escapeHtml(block.alt)}</figcaption>` : '';
             return {
                 kind: 'image',
-                html: `<figure class="${figureClass}"><img src="${block.src}" alt="${this.escapeHtml(block.alt)}"><figcaption>${this.escapeHtml(block.alt)}</figcaption></figure>`,
+                html: `<figure class="${figureClass}"><img src="${block.src}" alt="${this.escapeHtml(block.alt)}">${captionHtml}</figure>`,
                 pageBreakBefore: block.pageBreakBefore,
                 semanticKind: block.kind,
                 semanticRole: block.floating ? 'floating-media' : undefined,
@@ -3452,7 +3520,7 @@ export class DocBinaryParser {
 
         if (block.kind === 'images') {
             const items = block.images
-                .map((image) => `<figure class="ov-doc-legacy-image${block.floating ? ` ov-doc-legacy-image-floating ov-doc-legacy-image-floating-${block.floatingSide || 'right'} ov-doc-legacy-image-floating-${block.floatingWidthMode || 'regular'}` : ''}"><img src="${image.src}" alt="${this.escapeHtml(image.alt)}"><figcaption>${this.escapeHtml(image.alt)}</figcaption></figure>`)
+                .map((image) => `<figure class="ov-doc-legacy-image${block.floating ? ` ov-doc-legacy-image-floating ov-doc-legacy-image-floating-${block.floatingSide || 'right'} ov-doc-legacy-image-floating-${block.floatingWidthMode || 'regular'}` : ''}"><img src="${image.src}" alt="${this.escapeHtml(image.alt)}">${image.alt ? `<figcaption>${this.escapeHtml(image.alt)}</figcaption>` : ''}</figure>`)
                 .join('');
             const mediaCount = block.images.length;
             return {
@@ -4405,6 +4473,19 @@ export class DocBinaryParser {
         return letters >= Math.max(3, Math.floor(text.length * 0.25));
     }
 
+    private static normalizeImageLabel(label: string | undefined, fallbackIndex?: number): string {
+        const normalized = this.normalizeParagraphText(String(label || ''));
+        if (!normalized) {
+            return '';
+        }
+
+        if (/^(worddocument|data|properties_stream|package_stream|\x01compobj|\x01ole)$/i.test(normalized)) {
+            return '';
+        }
+
+        return normalized;
+    }
+
     private static extractImages(cfb: CfbReader): Array<{ src: string; alt: string }> {
         const images: Array<{ src: string; alt: string }> = [];
 
@@ -4421,7 +4502,7 @@ export class DocBinaryParser {
 
             images.push({
                 src: `data:${extracted.mimeType};base64,${extracted.buffer.toString('base64')}`,
-                alt: stream.name
+                alt: this.normalizeImageLabel(stream.name, images.length + 1)
             });
 
             if (images.length >= 8) {

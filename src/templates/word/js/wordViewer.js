@@ -668,13 +668,17 @@
                 const nextSemanticKind = nextBlock.dataset.ovSemanticKind || '';
                 const nextSemanticRole = nextBlock.dataset.ovSemanticRole || '';
                 const textLength = parseBlockMetric(block, 'ovTextLength');
+                const nextTextLength = parseBlockMetric(nextBlock, 'ovTextLength');
                 const itemCount = parseBlockMetric(block, 'ovItemCount');
                 const rowCount = parseBlockMetric(block, 'ovRowCount');
                 const hasInlineField = block.dataset.ovInlineField === 'true';
                 const hasInlineBreak = block.dataset.ovInlineBreak === 'true';
 
                 if (semanticKind === 'content' && (semanticTag === 'h1' || semanticTag === 'h2')) {
-                    return ['content', 'list', 'table', 'sheet', 'image', 'images'].includes(nextSemanticKind);
+                    if (nextSemanticKind === 'content') {
+                        return nextTextLength > 0 && nextTextLength <= 220;
+                    }
+                    return ['list', 'table', 'sheet', 'image', 'images'].includes(nextSemanticKind);
                 }
 
                 if (semanticRole === 'caption') {

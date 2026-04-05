@@ -818,6 +818,58 @@ describe('DocBinaryParser encoding selection', () => {
         expect(html).toContain('Intro paragraph');
     });
 
+    it('promotes lead paragraphs with keep-with-next cues into bold larger content', () => {
+        const parser = DocBinaryParser as unknown as {
+            buildDocumentBlocks(
+                rawText: string,
+                images: Array<{ src: string; alt: string }>,
+                styledParagraphs?: Array<{
+                    text: string;
+                    style?: { keepWithNext?: boolean; firstLineIndentTwips?: number; bold?: boolean; fontSizeHalfPoints?: number };
+                    runs?: Array<{ text: string; style?: { bold?: boolean; fontSizeHalfPoints?: number } }>;
+                }>
+            ): Array<{ kind: string; text?: string; style?: { bold?: boolean; fontSizeHalfPoints?: number }; runs?: Array<{ text: string; style?: { bold?: boolean; fontSizeHalfPoints?: number } }> }>;
+        };
+
+        const blocks = parser.buildDocumentBlocks('', [], [
+            { text: 'Title' },
+            {
+                text: 'Lead paragraph',
+                style: { keepWithNext: true, firstLineIndentTwips: 360 },
+                runs: [{ text: 'Lead paragraph' }]
+            },
+            { text: 'This is a long body paragraph that should keep the previous line as a promoted lead paragraph rather than flattening it into plain body text.' }
+        ]);
+
+        expect(blocks[1]).toEqual(expect.objectContaining({
+            kind: 'paragraph',
+            text: 'Lead paragraph',
+            style: expect.objectContaining({ bold: true, fontSizeHalfPoints: 36 })
+        }));
+        expect(blocks[1].runs?.[0].style).toEqual(expect.objectContaining({ bold: true, fontSizeHalfPoints: 36 }));
+    });
+
+    it('promotes sparse section lead paragraphs between long body paragraphs to headings', () => {
+        const parser = DocBinaryParser as unknown as {
+            buildBlocks(
+                lines: Array<{ text: string; style?: { fontSizeHalfPoints?: number } }>
+            ): Array<{ kind: string; text?: string; style?: { bold?: boolean; fontSizeHalfPoints?: number } }>;
+        };
+
+        const blocks = parser.buildBlocks([
+            { text: 'This is a long body paragraph that provides enough surrounding context for the next short line to be treated as a section lead paragraph in the legacy importer.' },
+            { text: 'Section lead', style: {} },
+            { text: 'This is another long body paragraph that follows the short lead and should cause that line to be promoted into a heading-style block.' }
+        ]);
+
+        const promoted = blocks.find((block) => block.text === 'Section lead');
+        expect(promoted).toEqual(expect.objectContaining({
+            kind: 'heading',
+            text: 'Section lead',
+            style: expect.objectContaining({ bold: true, fontSizeHalfPoints: 32 })
+        }));
+    });
+
     it('anchors extracted images inline when picture markers are present in legacy text', () => {
         const parser = DocBinaryParser as unknown as {
             buildDocumentBlocks(
