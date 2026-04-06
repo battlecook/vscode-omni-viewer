@@ -7,6 +7,7 @@ import { configureWebview, createReadonlyDocument, renderErrorHtml, rerouteIfNee
 
 export class AudioViewerProvider implements vscode.CustomReadonlyEditorProvider {
     public static readonly viewType = 'omni-viewer.audioViewer';
+    private static readonly CHUNKED_LARGE_FILE_EXTENSIONS = new Set(['.wav']);
 
     constructor(private readonly context: vscode.ExtensionContext) {}
 
@@ -44,6 +45,7 @@ export class AudioViewerProvider implements vscode.CustomReadonlyEditorProvider 
             }
 
             const largeFile = await FileUtils.isLargeFile(audioPath);
+            const supportsChunkedLargeFile = AudioViewerProvider.CHUNKED_LARGE_FILE_EXTENSIONS.has(path.extname(audioPath).toLowerCase());
             const metadata = await FileUtils.getAudioMetadata(audioPath);
 
             // Use webview URI instead of data URL (eliminates base64 overhead)
@@ -53,7 +55,8 @@ export class AudioViewerProvider implements vscode.CustomReadonlyEditorProvider 
                 fileName: audioFileName,
                 audioSrc: webviewUri,
                 metadata: JSON.stringify(metadata),
-                isLargeFile: String(largeFile)
+                isLargeFile: String(largeFile),
+                supportsChunkedLargeFile: String(supportsChunkedLargeFile)
             });
 
             webviewPanel.webview.html = html;
@@ -69,7 +72,7 @@ export class AudioViewerProvider implements vscode.CustomReadonlyEditorProvider 
             });
 
             // For large files, proactively compute and send peaks
-            if (largeFile) {
+            if (largeFile && supportsChunkedLargeFile) {
                 this.handlePeakRequest(audioPath, webviewPanel);
             }
 
@@ -85,6 +88,14 @@ export class AudioViewerProvider implements vscode.CustomReadonlyEditorProvider 
     }
 
     private async handleSpectrogramChunkRequest(audioPath: string, webviewPanel: vscode.WebviewPanel): Promise<void> {
+        if (!AudioViewerProvider.CHUNKED_LARGE_FILE_EXTENSIONS.has(path.extname(audioPath).toLowerCase())) {
+            webviewPanel.webview.postMessage({
+                type: 'pcmChunkError',
+                message: 'Chunked spectrogram generation currently supports WAV files only.'
+            });
+            return;
+        }
+
         try {
             await FileUtils.streamWavPcmChunks(
                 audioPath,
@@ -109,6 +120,17 @@ export class AudioViewerProvider implements vscode.CustomReadonlyEditorProvider 
     }
 
     private async handlePeakRequest(audioPath: string, webviewPanel: vscode.WebviewPanel): Promise<void> {
+        if (!AudioViewerProvider.CHUNKED_LARGE_FILE_EXTENSIONS.has(path.extname(audioPath).toLowerCase())) {
+            webviewPanel.webview.postMessage({
+                type: 'peakData',
+                peaks: null,
+                duration: null,
+                supported: false,
+                message: 'Large-file accelerated preview currently supports WAV files only.'
+            });
+            return;
+        }
+
         try {
             // Check cache first
             let peakData = await FileUtils.loadCachedPeaks(this.context, audioPath);
@@ -125,14 +147,16 @@ export class AudioViewerProvider implements vscode.CustomReadonlyEditorProvider 
                 webviewPanel.webview.postMessage({
                     type: 'peakData',
                     peaks: peakData.peaks,
-                    duration: peakData.duration
+                    duration: peakData.duration,
+                    supported: true
                 });
             } else {
-                // No peaks available (compressed format) - tell webview to decode normally
                 webviewPanel.webview.postMessage({
                     type: 'peakData',
                     peaks: null,
-                    duration: null
+                    duration: null,
+                    supported: false,
+                    message: 'Large-file accelerated preview could not generate waveform peaks for this file.'
                 });
             }
         } catch (err) {
@@ -140,7 +164,9 @@ export class AudioViewerProvider implements vscode.CustomReadonlyEditorProvider 
             webviewPanel.webview.postMessage({
                 type: 'peakData',
                 peaks: null,
-                duration: null
+                duration: null,
+                supported: false,
+                message: err instanceof Error ? err.message : 'Failed to prepare accelerated large-file preview.'
             });
         }
     }

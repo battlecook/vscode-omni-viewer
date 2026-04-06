@@ -12,7 +12,9 @@ export class AudioController {
         this.vscode = acquireVsCodeApi();
         this.audioSrc = '{{audioSrc}}';
         this.audioMetadata = DOMUtils.getMetadata();
-        this.isLargeFile = DOMUtils.getViewerConfig().isLargeFile || false;
+        this.viewerConfig = DOMUtils.getViewerConfig();
+        this.isLargeFile = this.viewerConfig.isLargeFile || false;
+        this.supportsChunkedLargeFile = this.viewerConfig.supportsChunkedLargeFile || false;
 
         // Initialize state
         this.state = {
@@ -93,7 +95,7 @@ export class AudioController {
                 } catch (error) {
                     console.warn('Preload failed:', error);
                     AudioUtils.showStatus('Preload failed: ' + error.message, this.state.elements.status);
-                    this.setupUserInteractionHandler();
+                    setupUserInteractionHandler();
                 }
             };
 
@@ -210,24 +212,60 @@ export class AudioController {
     loadLargeFile() {
         return new Promise((resolve, reject) => {
             const peakLoading = document.getElementById('peakLoading');
+            const unsupportedMessage = 'Large-file accelerated preview currently supports WAV files only.';
+            let isSettled = false;
+            let timeoutId = null;
+            let messageHandler = null;
+
+            const cleanup = () => {
+                if (messageHandler) {
+                    window.removeEventListener('message', messageHandler);
+                }
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                }
+                if (peakLoading) {
+                    peakLoading.style.display = 'none';
+                }
+            };
+
+            const resolveOnce = () => {
+                if (isSettled) {
+                    return;
+                }
+                isSettled = true;
+                cleanup();
+                resolve();
+            };
+
+            const rejectOnce = (error) => {
+                if (isSettled) {
+                    return;
+                }
+                isSettled = true;
+                cleanup();
+                reject(error);
+            };
+
+            if (!this.supportsChunkedLargeFile) {
+                rejectOnce(new Error(unsupportedMessage));
+                return;
+            }
+
             if (peakLoading) { peakLoading.style.display = 'block'; }
 
             // Listen for peak data from the extension
-            const messageHandler = (event) => {
+            messageHandler = (event) => {
                 const message = event.data;
                 if (message.type === 'peakData') {
-                    window.removeEventListener('message', messageHandler);
-                    if (peakLoading) { peakLoading.style.display = 'none'; }
-
                     if (message.peaks && message.duration) {
                         // Load with pre-computed peaks
                         AudioUtils.log('Loading with pre-computed peaks (' + message.peaks.length + ' values)');
-                        this.waveSurferManager.loadWithPeaks(this.audioSrc, message.peaks, message.duration);
-                        resolve();
+                        this.waveSurferManager.loadWithPeaks(this.audioSrc, message.peaks, message.duration)
+                            .then(resolveOnce)
+                            .catch(rejectOnce);
                     } else {
-                        // No peaks available - load normally (compressed format, large but will try to decode)
-                        AudioUtils.log('No pre-computed peaks, loading normally');
-                        this.state.wavesurfer.load(this.audioSrc).then(resolve).catch(reject);
+                        rejectOnce(new Error(message.message || unsupportedMessage));
                     }
                 }
             };
@@ -238,13 +276,8 @@ export class AudioController {
             this.vscode.postMessage({ command: 'requestPeaks' });
 
             // Timeout: if no response in 60s, try loading normally
-            setTimeout(() => {
-                window.removeEventListener('message', messageHandler);
-                if (peakLoading) { peakLoading.style.display = 'none'; }
-                if (!this.state.isSetupComplete) {
-                    AudioUtils.log('Peak request timed out, loading normally');
-                    this.state.wavesurfer.load(this.audioSrc).then(resolve).catch(reject);
-                }
+            timeoutId = setTimeout(() => {
+                rejectOnce(new Error('Timed out while preparing accelerated large-file preview.'));
             }, 60000);
         });
     }
@@ -283,6 +316,8 @@ export class AudioController {
                         }
                     }
                 }
+            } else if (message.type === 'pcmChunkError') {
+                AudioUtils.showStatus(message.message || 'Failed to generate chunked spectrogram', this.state.elements.status);
             } else if (message.type === 'pcmChunkEnd') {
                 if (this.state.chunkedSpectrogramRenderer) {
                     const spectrogramContainer = document.getElementById('spectrogram');

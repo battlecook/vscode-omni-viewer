@@ -4,7 +4,7 @@ import * as mm from 'music-metadata';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-const LARGE_FILE_THRESHOLD = 100 * 1024 * 1024; // 100MB
+const LARGE_FILE_THRESHOLD = 30 * 1024 * 1024; // 30MB
 
 export function getAudioMimeType(filePath: string): string {
     const ext = path.extname(filePath).toLowerCase();
@@ -207,7 +207,6 @@ export async function computeWavPeaks(filePath: string, samplesPerPixel: number 
         highWaterMark: CHUNK_SIZE
     });
 
-    let frameIndex = 0;
     let blockIndex = 0;
     let blockMin = 1;
     let blockMax = -1;
@@ -232,7 +231,6 @@ export async function computeWavPeaks(filePath: string, samplesPerPixel: number 
                 if (sample > blockMax) { blockMax = sample; }
 
                 pos += bytesPerFrame;
-                frameIndex++;
                 blockFrameCount++;
 
                 if (blockFrameCount >= samplesPerPixel) {

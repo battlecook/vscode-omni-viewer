@@ -40,7 +40,7 @@ export class WaveSurferManager {
         if (!this.state.wavesurfer) { return; }
         // WaveSurfer v7: load(url, channelData, duration)
         // peaks is a flat array [min, max, min, max, ...] - wrap as single channel
-        this.state.wavesurfer.load(url, [new Float32Array(peaks)], duration);
+        return this.state.wavesurfer.load(url, [new Float32Array(peaks)], duration);
     }
 
     getTimelineIntervals(durationSec) {

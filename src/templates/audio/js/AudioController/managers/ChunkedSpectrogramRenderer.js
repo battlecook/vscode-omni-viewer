@@ -7,6 +7,7 @@
 const FFT_SIZE = 4096;
 const HOP_SIZE = 2048; // 50% overlap
 const MAX_CANVAS_WIDTH = 4000;
+const MAX_STORED_COLUMNS = 4096;
 const CANVAS_HEIGHT = 250;
 
 // --- Radix-2 FFT ---
@@ -167,6 +168,7 @@ export class ChunkedSpectrogramRenderer {
         this.sampleRate = 44100;
         this.freqBins = FFT_SIZE / 2;
         this.currentScale = 'linear';
+        this.columnStride = 1;
     }
 
     addChunk(pcmData) {
@@ -198,6 +200,7 @@ export class ChunkedSpectrogramRenderer {
                 mag[i] = 10 * Math.log10(power + 1e-10);
             }
             this.columns.push(mag);
+            this.compactColumnsIfNeeded();
 
             offset += HOP_SIZE;
         }
@@ -314,5 +317,30 @@ export class ChunkedSpectrogramRenderer {
         this.columns = [];
         this.leftover = null;
         this.currentScale = 'linear';
+        this.columnStride = 1;
+    }
+
+    compactColumnsIfNeeded() {
+        while (this.columns.length > MAX_STORED_COLUMNS) {
+            const compacted = [];
+
+            for (let i = 0; i < this.columns.length; i += 2) {
+                const first = this.columns[i];
+                const second = this.columns[i + 1];
+                if (!second) {
+                    compacted.push(first);
+                    continue;
+                }
+
+                const merged = new Float32Array(this.freqBins);
+                for (let bin = 0; bin < this.freqBins; bin++) {
+                    merged[bin] = (first[bin] + second[bin]) / 2;
+                }
+                compacted.push(merged);
+            }
+
+            this.columns = compacted;
+            this.columnStride *= 2;
+        }
     }
 }
