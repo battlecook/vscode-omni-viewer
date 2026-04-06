@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.17.1] - 2026-04-07
+
+### Fixed
+- **Legacy Word (`.doc`) rendering**
+  - Improved lead paragraph promotion so short section lead lines can be elevated into stronger heading-like blocks when surrounded by longer body text
+  - Improved keep-with-next lead paragraph handling so emphasized opening lines retain bold/larger styling instead of flattening into regular body text
+  - Improved legacy table fidelity by detecting explicit table-border sprms and rendering stronger border styling when the original document requested it
+  - Reduced noisy legacy image captions by suppressing internal OLE/storage stream labels that should not surface as visible image captions
+
 ## [0.17.0] - 2026-04-05
 
 ### Added
