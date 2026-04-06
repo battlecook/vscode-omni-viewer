@@ -68,6 +68,7 @@ interface CharacterStyle {
     tableColumnCount?: number;
     tableColumnWidthsTwips?: number[];
     tableCellMerges?: TableCellMerge[];
+    tableHasExplicitBorders?: boolean;
 }
 
 interface CharacterStyleRun {
@@ -104,6 +105,7 @@ interface StyledParagraph {
     tableColumnCount?: number;
     tableColumnWidthsTwips?: number[];
     tableCellMerges?: TableCellMerge[];
+    tableHasExplicitBorders?: boolean;
     embeddedChartAnchor?: boolean;
     embeddedImageAnchor?: boolean;
     embeddedAssetAnchor?: boolean;
@@ -129,6 +131,7 @@ interface StyledLine {
     tableColumnCount?: number;
     tableColumnWidthsTwips?: number[];
     tableCellMerges?: TableCellMerge[];
+    tableHasExplicitBorders?: boolean;
     embeddedChartAnchor?: boolean;
     embeddedImageAnchor?: boolean;
     embeddedAssetAnchor?: boolean;
@@ -153,6 +156,7 @@ type LegacyBlock =
         rows: Array<Array<{ text: string; colspan?: number; rowspan?: number }>>;
         columnWidthsTwips?: number[];
         cellMerges?: TableCellMerge[][];
+        hasExplicitBorders?: boolean;
         pageBreakBefore?: boolean;
         sectionIndex?: number;
         sectionLayout?: LegacyLayoutMetrics;
@@ -246,6 +250,7 @@ type LegacyRenderedTableModel = {
     headerRows: LegacyRenderedTableRow[];
     bodyRows: LegacyRenderedTableRow[];
     headerRowCount: number;
+    hasExplicitBorders?: boolean;
 };
 
 type LegacyRenderedBlockModel = {
@@ -310,6 +315,7 @@ type LegacySemanticTableModel = {
     columnWidthsTwips?: number[];
     headerRowCount: number;
     rows: LegacySemanticTableRow[];
+    hasExplicitBorders?: boolean;
 };
 
 type LegacySemanticTableBlockModel = {
@@ -1265,6 +1271,9 @@ export class DocBinaryParser {
             }
 
             const operandOffset = offset + 2;
+            if (this.isExplicitTableBorderSprm(sprm)) {
+                style.tableHasExplicitBorders = true;
+            }
             switch (sprm) {
             case 0x2403:
                 style.textAlign = this.parseParagraphAlignment(grpprl[operandOffset]);
@@ -1325,6 +1334,10 @@ export class DocBinaryParser {
         }
 
         return style;
+    }
+
+    private static isExplicitTableBorderSprm(sprm: number): boolean {
+        return sprm === 0xD634 || sprm === 0xD612 || sprm === 0xD670;
     }
 
     private static parseTDefTableOperand(
@@ -1655,6 +1668,7 @@ export class DocBinaryParser {
                 target.tableColumnCount = target.tableColumnCount ?? paragraph.tableColumnCount;
                 target.tableColumnWidthsTwips = target.tableColumnWidthsTwips ?? paragraph.tableColumnWidthsTwips;
                 target.tableCellMerges = target.tableCellMerges ?? paragraph.tableCellMerges;
+                target.tableHasExplicitBorders = target.tableHasExplicitBorders ?? paragraph.tableHasExplicitBorders;
                 if (paragraph.style?.backgroundColor && !target.style?.backgroundColor) {
                     target.style = this.mergeStyles(target.style, { backgroundColor: paragraph.style.backgroundColor });
                 }
@@ -1798,6 +1812,7 @@ export class DocBinaryParser {
                     tableColumnCount: currentParagraphStyle.tableColumnCount,
                     tableColumnWidthsTwips: currentParagraphStyle.tableColumnWidthsTwips,
                     tableCellMerges: currentParagraphStyle.tableCellMerges,
+                    tableHasExplicitBorders: currentParagraphStyle.tableHasExplicitBorders,
                     preserveEmpty,
                     pageBreakBefore: pendingPageBreakBefore || Boolean(currentParagraphStyle.pageBreakBefore),
                     sectionIndex: sectionBoundary?.sectionIndex,
@@ -2234,6 +2249,7 @@ export class DocBinaryParser {
                         tableColumnCount: entry.tableColumnCount,
                         tableColumnWidthsTwips: entry.tableColumnWidthsTwips,
                         tableCellMerges: entry.tableCellMerges,
+                        tableHasExplicitBorders: entry.tableHasExplicitBorders,
                         embeddedChartAnchor: entry.embeddedChartAnchor || Boolean(fallbackEmbeddedObjectClass),
                         embeddedImageAnchor: entry.embeddedImageAnchor,
                         embeddedAssetAnchor: entry.embeddedAssetAnchor,
@@ -2866,6 +2882,7 @@ export class DocBinaryParser {
                     rows: this.buildTableCells(structuredTable.rows, structuredTable.cellMerges),
                     columnWidthsTwips: structuredTable.columnWidthsTwips,
                     cellMerges: structuredTable.cellMerges,
+                    hasExplicitBorders: structuredTable.hasExplicitBorders,
                     pageBreakBefore: line.pageBreakBefore,
                     sectionIndex: line.sectionIndex,
                     sectionLayout: line.sectionLayout
@@ -3100,7 +3117,7 @@ export class DocBinaryParser {
     private static collectStructuredTable(
         lines: StyledLine[],
         startIndex: number
-    ): { rows: string[][]; columnWidthsTwips?: number[]; cellMerges?: TableCellMerge[][]; nextIndex: number } | null {
+    ): { rows: string[][]; columnWidthsTwips?: number[]; cellMerges?: TableCellMerge[][]; hasExplicitBorders?: boolean; nextIndex: number } | null {
         if (!lines[startIndex]?.inTable) {
             return null;
         }
@@ -3112,6 +3129,7 @@ export class DocBinaryParser {
         let index = startIndex;
         let sawTerminator = false;
         let sawExplicitTableMetadata = false;
+        let hasExplicitBorders = false;
 
         while (index < lines.length && lines[index].inTable) {
             const rowLines: StyledLine[] = [];
@@ -3130,6 +3148,7 @@ export class DocBinaryParser {
                         sawExplicitTableMetadata = true;
                     }
                 }
+                hasExplicitBorders = hasExplicitBorders || Boolean(line.tableHasExplicitBorders);
                 index += 1;
 
                 if (line.isTableTerminator) {
@@ -3165,6 +3184,7 @@ export class DocBinaryParser {
             rows: rows.map((row) => [...row, ...Array(Math.max(0, maxColumns - row.length)).fill('')]),
             columnWidthsTwips,
             cellMerges,
+            hasExplicitBorders,
             nextIndex: index
         };
     }
@@ -3557,7 +3577,8 @@ export class DocBinaryParser {
             ? `<thead>${tableModel.headerRows.map((row) => renderRow(row)).join('')}</thead>`
             : '';
         const tbodyHtml = `<tbody>${tableModel.bodyRows.map((row) => renderRow(row)).join('')}</tbody>`;
-        return `<div class="ov-doc-legacy-table" data-ov-table-header-rows="${tableModel.headerRowCount}"><table>${tableModel.colGroupHtml}${theadHtml}${tbodyHtml}</table></div>`;
+        const explicitBordersAttr = tableModel.hasExplicitBorders ? ' data-ov-explicit-borders="true"' : '';
+        return `<div class="ov-doc-legacy-table" data-ov-table-header-rows="${tableModel.headerRowCount}"${explicitBordersAttr}><table>${tableModel.colGroupHtml}${theadHtml}${tbodyHtml}</table></div>`;
     }
 
     private static buildRenderedTableModel(tableModel: LegacySemanticTableModel): LegacyRenderedTableModel {
@@ -3565,6 +3586,7 @@ export class DocBinaryParser {
             columnCount: tableModel.columnCount,
             colGroupHtml: this.renderTableColGroup(tableModel.columnWidthsTwips, tableModel.columnCount),
             headerRowCount: tableModel.headerRowCount,
+            hasExplicitBorders: tableModel.hasExplicitBorders,
             headerRows: tableModel.rows
                 .filter((row) => row.rowKind === 'header')
                 .map((row) => ({
@@ -3974,6 +3996,7 @@ export class DocBinaryParser {
             columnCount,
             columnWidthsTwips: block.columnWidthsTwips,
             headerRowCount,
+            hasExplicitBorders: block.hasExplicitBorders,
             rows: [
                 ...mapRows(block.rows.slice(0, headerRowCount), 'header'),
                 ...mapRows(block.rows.slice(headerRowCount), 'body')

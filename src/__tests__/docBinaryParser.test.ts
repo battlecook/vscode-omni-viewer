@@ -115,6 +115,28 @@ describe('DocBinaryParser encoding selection', () => {
         ]);
     });
 
+    it('detects explicit table border sprms in paragraph properties', () => {
+        const parser = DocBinaryParser as unknown as {
+            parseParagraphGrpprl(buffer: Buffer): {
+                inTable?: boolean;
+                isTableTerminator?: boolean;
+                tableHasExplicitBorders?: boolean;
+            };
+        };
+
+        const grpprl = Buffer.from([
+            0x16, 0x24, 0x01,
+            0x17, 0x24, 0x01,
+            0x34, 0xD6, 0x06, 0x00, 0x01, 0x01, 0x03, 0x37, 0x00
+        ]);
+
+        const parsed = parser.parseParagraphGrpprl(grpprl);
+
+        expect(parsed.inTable).toBe(true);
+        expect(parsed.isTableTerminator).toBe(true);
+        expect(parsed.tableHasExplicitBorders).toBe(true);
+    });
+
     it('propagates row-level table metadata to table paragraphs before the terminator', () => {
         const parser = DocBinaryParser as unknown as {
             enrichStructuredTableParagraphs(paragraphs: Array<{
@@ -243,6 +265,7 @@ describe('DocBinaryParser encoding selection', () => {
                     kind: 'table';
                     rows: Array<Array<{ text: string; colspan?: number; rowspan?: number }>>;
                     columnWidthsTwips?: number[];
+                    hasExplicitBorders?: boolean;
                 }
             >): string;
         };
@@ -251,6 +274,7 @@ describe('DocBinaryParser encoding selection', () => {
             {
                 kind: 'table',
                 columnWidthsTwips: [2400, 2400, 2400],
+                hasExplicitBorders: true,
                 rows: [
                     [{ text: 'Region', rowspan: 2 }, { text: 'Revenue', colspan: 2 }],
                     [{ text: 'Q1' }, { text: 'Q2' }],
@@ -260,6 +284,7 @@ describe('DocBinaryParser encoding selection', () => {
         ]);
 
         expect(rendered).toContain('data-ov-table-header-rows="2"');
+        expect(rendered).toContain('data-ov-explicit-borders="true"');
         expect(rendered).toContain('<thead><tr><th rowspan="2">Region</th><th colspan="2">Revenue</th></tr><tr><th>Q1</th><th>Q2</th></tr></thead>');
         expect(rendered).toContain('<tbody><tr><td>APAC</td><td>10</td><td>12</td></tr></tbody>');
     });

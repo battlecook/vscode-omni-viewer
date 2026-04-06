@@ -365,6 +365,11 @@ body {
     vertical-align: top;
 }
 
+.word-content.legacy-mode .ov-doc-legacy-table[data-ov-explicit-borders="true"] th,
+.word-content.legacy-mode .ov-doc-legacy-table[data-ov-explicit-borders="true"] td {
+    border-color: #111111;
+}
+
 .word-content.legacy-mode .ov-doc-legacy-page-content th {
     background: #f3f4f6;
     font-weight: 600;
