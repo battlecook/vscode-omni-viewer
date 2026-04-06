@@ -107,11 +107,13 @@ export class EventManager {
             // Large file chunked spectrogram: adjust canvas width for zoom
             if (this.state.isLargeFile && this.state.chunkedSpectrogramRenderer) {
                 const spectrogramContainer = document.getElementById('spectrogram');
-                if (spectrogramContainer) {
-                    const canvas = spectrogramContainer.querySelector('canvas');
-                    if (canvas) {
-                        canvas.style.width = (containerWidth * level) + 'px';
-                    }
+                if (spectrogramContainer && this.state.chunkedSpectrogramRenderer.columns.length > 0) {
+                    const currentScale = this.state.elements.spectrogramScale?.value || 'linear';
+                    this.state.chunkedSpectrogramRenderer.render(
+                        spectrogramContainer,
+                        currentScale,
+                        containerWidth * level
+                    );
                     // Sync scroll with waveform
                     spectrogramContainer.style.overflowX = level > 1 ? 'auto' : 'hidden';
                 }

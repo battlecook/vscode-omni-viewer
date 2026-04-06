@@ -21,6 +21,7 @@ export const DOMUtils = {
             bitDepthInfo: document.getElementById('bitDepthInfo'),
             fileSizeInfo: document.getElementById('fileSizeInfo'),
             formatInfo: document.getElementById('formatInfo'),
+            debugInfo: document.getElementById('debugInfo'),
             downloadBtn: document.getElementById('downloadBtn'),
             zoomIn: document.getElementById('zoomIn'),
             zoomOut: document.getElementById('zoomOut'),

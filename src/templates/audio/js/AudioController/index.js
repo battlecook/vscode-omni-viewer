@@ -15,6 +15,7 @@ export class AudioController {
         this.viewerConfig = DOMUtils.getViewerConfig();
         this.isLargeFile = this.viewerConfig.isLargeFile || false;
         this.supportsChunkedLargeFile = this.viewerConfig.supportsChunkedLargeFile || false;
+        this.runtimeMode = this.isLargeFile ? 'large-file-pending' : 'standard';
 
         // Initialize state
         this.state = {
@@ -53,11 +54,34 @@ export class AudioController {
         this.setupDownloadButton();
     }
 
+    updateDebugInfo(mode, extra = '') {
+        this.runtimeMode = mode || this.runtimeMode;
+
+        const debugParts = [
+            `isLargeFile=${this.isLargeFile}`,
+            `supportsChunkedLargeFile=${this.supportsChunkedLargeFile}`,
+            `mode=${this.runtimeMode}`
+        ];
+
+        if (extra) {
+            debugParts.push(extra);
+        }
+
+        const debugMessage = debugParts.join(' | ');
+        console.log('[AudioViewer Debug]', debugMessage);
+        AudioUtils.log('[AudioViewer Debug] ' + debugMessage);
+
+        if (this.state?.elements?.debugInfo) {
+            this.state.elements.debugInfo.textContent = debugMessage;
+        }
+    }
+
     async initAudioViewer() {
         try {
             AudioUtils.log('Initializing audio viewer...');
             AudioUtils.log('Audio source: ' + this.audioSrc.substring(0, 100));
             AudioUtils.log('Large file mode: ' + this.isLargeFile);
+            this.updateDebugInfo(this.isLargeFile ? 'large-file-pending' : 'standard', `format=${this.audioMetadata.format || 'unknown'}`);
 
             // Clear any existing regions from DOM first
             this.regionManager.clearRegionsFromDOM();
@@ -73,9 +97,11 @@ export class AudioController {
 
                     if (this.isLargeFile) {
                         // Large file mode: wait for peaks from extension, or load without full decode
+                        this.updateDebugInfo('large-file-requesting-peaks');
                         await this.loadLargeFile();
                     } else {
                         // Small file mode: standard load (WaveSurfer decodes fully)
+                        this.updateDebugInfo('standard-loading');
                         await this.state.wavesurfer.load(this.audioSrc);
                     }
 
@@ -131,6 +157,7 @@ export class AudioController {
 
                 console.log('Setting up audio viewer after decode...');
                 this.state.isSetupComplete = true;
+                this.updateDebugInfo(this.runtimeMode, `regionsEnabled=${!this.isLargeFile}`);
 
                 await this.pluginManager.setupSpectrogram();
                 await this.pluginManager.setupTimeline();
@@ -248,6 +275,7 @@ export class AudioController {
             };
 
             if (!this.supportsChunkedLargeFile) {
+                this.updateDebugInfo('large-file-unsupported');
                 rejectOnce(new Error(unsupportedMessage));
                 return;
             }
@@ -261,10 +289,12 @@ export class AudioController {
                     if (message.peaks && message.duration) {
                         // Load with pre-computed peaks
                         AudioUtils.log('Loading with pre-computed peaks (' + message.peaks.length + ' values)');
+                        this.updateDebugInfo('large-file-peaks', `peakCount=${message.peaks.length}`);
                         this.waveSurferManager.loadWithPeaks(this.audioSrc, message.peaks, message.duration)
                             .then(resolveOnce)
                             .catch(rejectOnce);
                     } else {
+                        this.updateDebugInfo('large-file-peaks-missing', message.message || '');
                         rejectOnce(new Error(message.message || unsupportedMessage));
                     }
                 }
@@ -322,7 +352,8 @@ export class AudioController {
                 if (this.state.chunkedSpectrogramRenderer) {
                     const spectrogramContainer = document.getElementById('spectrogram');
                     if (spectrogramContainer) {
-                        this.state.chunkedSpectrogramRenderer.render(spectrogramContainer);
+                        const targetWidth = Math.max(1, spectrogramContainer.clientWidth * (this.state.zoomLevel || 1));
+                        this.state.chunkedSpectrogramRenderer.render(spectrogramContainer, undefined, targetWidth);
                         AudioUtils.log('Chunked spectrogram rendered');
                     }
                 }
@@ -332,6 +363,7 @@ export class AudioController {
 
     requestSpectrogramChunks() {
         if (!this.isLargeFile || !this.state.chunkedSpectrogramRenderer) { return; }
+        this.updateDebugInfo('large-file-spectrogram');
         AudioUtils.log('Requesting spectrogram chunks from extension...');
         this.vscode.postMessage({ command: 'requestSpectrogramChunks' });
     }

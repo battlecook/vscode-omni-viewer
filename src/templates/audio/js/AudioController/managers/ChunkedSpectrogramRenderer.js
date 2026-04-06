@@ -9,6 +9,8 @@ const HOP_SIZE = 2048; // 50% overlap
 const MAX_CANVAS_WIDTH = 4000;
 const MAX_STORED_COLUMNS = 4096;
 const CANVAS_HEIGHT = 250;
+const GAIN_DB = 20;
+const RANGE_DB = 80;
 
 // --- Radix-2 FFT ---
 
@@ -62,30 +64,33 @@ for (let i = 0; i < FFT_SIZE; i++) {
     hannWindow[i] = 0.5 * (1 - Math.cos(2 * Math.PI * i / (FFT_SIZE - 1)));
 }
 
-// Colormap: black → purple → red → yellow → white
-function magnitudeToColor(dB, minDB, maxDB) {
-    const t = Math.max(0, Math.min(1, (dB - minDB) / (maxDB - minDB)));
+// Colormap tuned to avoid clipping hot bins to white.
+function magnitudeToColor(dB) {
+    const floorDB = -(GAIN_DB + RANGE_DB);
+    const ceilingDB = -GAIN_DB;
+    const normalized = Math.max(0, Math.min(1, (dB - floorDB) / (ceilingDB - floorDB)));
+    const t = Math.pow(normalized, 0.85);
     let r, g, b;
-    if (t < 0.25) {
-        const s = t / 0.25;
-        r = Math.round(64 * s);
+    if (t < 0.2) {
+        const s = t / 0.2;
+        r = Math.round(12 + (40 * s));
         g = 0;
-        b = Math.round(128 * s);
-    } else if (t < 0.5) {
-        const s = (t - 0.25) / 0.25;
-        r = Math.round(64 + 191 * s);
-        g = 0;
-        b = Math.round(128 * (1 - s));
-    } else if (t < 0.75) {
-        const s = (t - 0.5) / 0.25;
-        r = 255;
-        g = Math.round(255 * s);
-        b = 0;
+        b = Math.round(28 + (110 * s));
+    } else if (t < 0.45) {
+        const s = (t - 0.2) / 0.25;
+        r = Math.round(52 + (130 * s));
+        g = Math.round(4 + (16 * s));
+        b = Math.round(138 - (50 * s));
+    } else if (t < 0.7) {
+        const s = (t - 0.45) / 0.25;
+        r = Math.round(182 + (60 * s));
+        g = Math.round(20 + (55 * s));
+        b = Math.round(88 - (70 * s));
     } else {
-        const s = (t - 0.75) / 0.25;
-        r = 255;
-        g = 255;
-        b = Math.round(255 * s);
+        const s = (t - 0.7) / 0.3;
+        r = Math.round(242 + (13 * s));
+        g = Math.round(75 + (125 * s));
+        b = Math.round(18 * (1 - s));
     }
     return (255 << 24) | (b << 16) | (g << 8) | r; // ABGR for little-endian ImageData
 }
@@ -140,6 +145,37 @@ function rowToFreqBin(row, canvasHeight, freqBins, nyquist, scale) {
     return Math.max(0, Math.min(freqBins - 1, bin));
 }
 
+function rowBoundaryToFreqBin(rowBoundary, canvasHeight, freqBins, nyquist, scale) {
+    const clampedBoundary = Math.max(0, Math.min(canvasHeight, rowBoundary));
+    const normPos = (canvasHeight - clampedBoundary) / canvasHeight;
+
+    if (scale === 'linear' || !scale) {
+        return Math.max(0, Math.min(freqBins - 1, Math.round(normPos * (freqBins - 1))));
+    }
+
+    let hzToScale;
+    if (scale === 'mel') { hzToScale = hzToMel; }
+    else if (scale === 'bark') { hzToScale = hzToBark; }
+    else if (scale === 'erb') { hzToScale = hzToErb; }
+    else {
+        return Math.max(0, Math.min(freqBins - 1, Math.round(normPos * (freqBins - 1))));
+    }
+
+    const scaleMin = hzToScale(0);
+    const scaleMax = hzToScale(nyquist);
+    const scaleVal = scaleMin + normPos * (scaleMax - scaleMin);
+
+    let lo = 0;
+    let hi = nyquist;
+    for (let iter = 0; iter < 30; iter++) {
+        const mid = (lo + hi) / 2;
+        if (hzToScale(mid) < scaleVal) { lo = mid; }
+        else { hi = mid; }
+    }
+    const hz = (lo + hi) / 2;
+    return Math.max(0, Math.min(freqBins - 1, Math.round((hz / nyquist) * (freqBins - 1))));
+}
+
 /**
  * Get the Y position on canvas for a given frequency, respecting the scale.
  */
@@ -162,16 +198,21 @@ function freqToCanvasY(freq, canvasHeight, nyquist, scale) {
 }
 
 export class ChunkedSpectrogramRenderer {
-    constructor() {
+    constructor(options = {}) {
         this.columns = [];      // Array of Float32Array (each = half FFT_SIZE magnitudes in dB)
         this.leftover = null;   // Leftover samples from previous chunk
         this.sampleRate = 44100;
+        this.expectedDuration = options.duration || 0;
         this.freqBins = FFT_SIZE / 2;
         this.currentScale = 'linear';
-        this.columnStride = 1;
+        this.targetColumnStride = 1;
+        this.pendingColumn = null;
+        this.pendingColumnCount = 0;
     }
 
     addChunk(pcmData) {
+        this.updateAggregationSettings();
+
         // Concatenate with leftover from previous chunk
         let samples;
         if (this.leftover && this.leftover.length > 0) {
@@ -197,10 +238,10 @@ export class ChunkedSpectrogramRenderer {
             const mag = new Float32Array(this.freqBins);
             for (let i = 0; i < this.freqBins; i++) {
                 const power = re[i] * re[i] + im[i] * im[i];
-                mag[i] = 10 * Math.log10(power + 1e-10);
+                const magnitude = (2 * Math.sqrt(power)) / FFT_SIZE;
+                mag[i] = 20 * Math.log10(Math.max(magnitude, 1e-12));
             }
-            this.columns.push(mag);
-            this.compactColumnsIfNeeded();
+            this.appendColumn(mag);
 
             offset += HOP_SIZE;
         }
@@ -211,61 +252,60 @@ export class ChunkedSpectrogramRenderer {
         }
     }
 
-    render(container, scale) {
-        if (!container || this.columns.length === 0) { return; }
+    render(container, scale, targetWidth) {
+        if (!container) { return; }
+        this.flushPendingColumn();
+        if (this.columns.length === 0) { return; }
 
         this.currentScale = scale || this.currentScale || 'linear';
         const nyquist = this.sampleRate / 2;
 
         const totalCols = this.columns.length;
-        const canvasWidth = Math.min(totalCols, MAX_CANVAS_WIDTH);
+        const containerWidth = Math.max(1, Math.floor(targetWidth || container.clientWidth || container.offsetWidth || totalCols));
+        const canvasWidth = Math.max(1, Math.min(totalCols, containerWidth, MAX_CANVAS_WIDTH));
+        const displayWidth = Math.max(1, Math.min(totalCols, containerWidth));
         const canvasHeight = CANVAS_HEIGHT;
 
         const canvas = document.createElement('canvas');
         canvas.width = canvasWidth;
         canvas.height = canvasHeight;
-        canvas.style.width = '100%';
+        canvas.style.width = displayWidth + 'px';
         canvas.style.height = canvasHeight + 'px';
         canvas.style.display = 'block';
 
         const ctx = canvas.getContext('2d');
         const imageData = ctx.createImageData(canvasWidth, canvasHeight);
         const data32 = new Uint32Array(imageData.data.buffer);
-
-        // Percentile-based dB normalization (sample columns to find range)
-        const sampleStep = Math.max(1, Math.floor(totalCols / 200));
-        const sampled = [];
-        for (let c = 0; c < totalCols; c += sampleStep) {
-            const col = this.columns[c];
-            for (let f = 0; f < this.freqBins; f++) {
-                sampled.push(col[f]);
-            }
-        }
-        sampled.sort((a, b) => a - b);
-        const minDB = sampled[Math.floor(sampled.length * 0.05)];
-        const maxDB = sampled[Math.floor(sampled.length * 0.99)];
-        console.log('[Spectrogram] dB range:', minDB.toFixed(1), '~', maxDB.toFixed(1), 'columns:', totalCols, 'scale:', this.currentScale);
+        console.log('[Spectrogram] fixed dB range:', -(GAIN_DB + RANGE_DB), '~', -GAIN_DB, 'columns:', totalCols, 'canvasWidth:', canvasWidth, 'displayWidth:', displayWidth, 'scale:', this.currentScale);
 
         // Downsample columns if needed
         const colsPerPixel = totalCols / canvasWidth;
 
         for (let px = 0; px < canvasWidth; px++) {
             const colStart = Math.floor(px * colsPerPixel);
-            const colEnd = Math.min(Math.floor((px + 1) * colsPerPixel), totalCols);
+            const colEnd = Math.min(totalCols, Math.max(colStart + 1, Math.ceil((px + 1) * colsPerPixel)));
             const numCols = colEnd - colStart;
 
             for (let row = 0; row < canvasHeight; row++) {
                 // Map row to frequency bin based on scale
                 const freqBin = rowToFreqBin(row, canvasHeight, this.freqBins, nyquist, this.currentScale);
+                const upperBin = rowBoundaryToFreqBin(row, canvasHeight, this.freqBins, nyquist, this.currentScale);
+                const lowerBin = rowBoundaryToFreqBin(row + 1, canvasHeight, this.freqBins, nyquist, this.currentScale);
+                const binStart = Math.max(0, Math.min(freqBin, upperBin, lowerBin));
+                const binEnd = Math.min(this.freqBins - 1, Math.max(freqBin, upperBin, lowerBin));
 
-                // Average across columns that map to this pixel
+                // Average across the frequency band covered by this row, not just one FFT bin.
                 let sum = 0;
+                let sampleCount = 0;
                 for (let c = colStart; c < colEnd; c++) {
-                    sum += this.columns[c][freqBin];
+                    for (let bin = binStart; bin <= binEnd; bin++) {
+                        sum += this.columns[c][bin];
+                        sampleCount += 1;
+                    }
                 }
-                const avgDB = numCols > 0 ? sum / numCols : minDB;
+                const avgDB = sampleCount > 0 ? sum / sampleCount : -(GAIN_DB + RANGE_DB);
 
-                data32[row * canvasWidth + px] = magnitudeToColor(avgDB, minDB, maxDB);
+                data32[row * canvasWidth + px] = magnitudeToColor(avgDB);
             }
         }
 
@@ -317,30 +357,51 @@ export class ChunkedSpectrogramRenderer {
         this.columns = [];
         this.leftover = null;
         this.currentScale = 'linear';
-        this.columnStride = 1;
+        this.targetColumnStride = 1;
+        this.pendingColumn = null;
+        this.pendingColumnCount = 0;
     }
 
-    compactColumnsIfNeeded() {
-        while (this.columns.length > MAX_STORED_COLUMNS) {
-            const compacted = [];
+    updateAggregationSettings() {
+        if (!this.expectedDuration || !this.sampleRate) { return; }
 
-            for (let i = 0; i < this.columns.length; i += 2) {
-                const first = this.columns[i];
-                const second = this.columns[i + 1];
-                if (!second) {
-                    compacted.push(first);
-                    continue;
-                }
+        const estimatedRawColumns = Math.max(
+            1,
+            Math.ceil((this.expectedDuration * this.sampleRate) / HOP_SIZE)
+        );
+        this.targetColumnStride = Math.max(1, Math.ceil(estimatedRawColumns / MAX_STORED_COLUMNS));
+    }
 
-                const merged = new Float32Array(this.freqBins);
-                for (let bin = 0; bin < this.freqBins; bin++) {
-                    merged[bin] = (first[bin] + second[bin]) / 2;
-                }
-                compacted.push(merged);
-            }
-
-            this.columns = compacted;
-            this.columnStride *= 2;
+    appendColumn(column) {
+        if (this.targetColumnStride <= 1) {
+            this.columns.push(column);
+            return;
         }
+
+        if (!this.pendingColumn) {
+            this.pendingColumn = new Float32Array(this.freqBins);
+            this.pendingColumnCount = 0;
+        }
+
+        for (let bin = 0; bin < this.freqBins; bin++) {
+            this.pendingColumn[bin] += column[bin];
+        }
+        this.pendingColumnCount += 1;
+
+        if (this.pendingColumnCount >= this.targetColumnStride) {
+            this.flushPendingColumn();
+        }
+    }
+
+    flushPendingColumn() {
+        if (!this.pendingColumn || this.pendingColumnCount === 0) { return; }
+
+        const merged = new Float32Array(this.freqBins);
+        for (let bin = 0; bin < this.freqBins; bin++) {
+            merged[bin] = this.pendingColumn[bin] / this.pendingColumnCount;
+        }
+        this.columns.push(merged);
+        this.pendingColumn = null;
+        this.pendingColumnCount = 0;
     }
 }

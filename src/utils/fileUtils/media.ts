@@ -4,7 +4,7 @@ import * as mm from 'music-metadata';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-const LARGE_FILE_THRESHOLD = 30 * 1024 * 1024; // 30MB
+const LARGE_FILE_THRESHOLD = 50 * 1024 * 1024; // 50MB
 
 export function getAudioMimeType(filePath: string): string {
     const ext = path.extname(filePath).toLowerCase();
@@ -106,6 +106,7 @@ export async function getAudioMetadata(filePath: string): Promise<{
 // --- Peak computation for large WAV files ---
 
 interface WavHeader {
+    audioFormat: number;
     sampleRate: number;
     channels: number;
     bitsPerSample: number;
@@ -130,6 +131,7 @@ function parseWavHeader(buffer: Buffer): WavHeader | null {
 
     // Find 'fmt ' and 'data' chunks
     let offset = 12;
+    let audioFormat = 0;
     let sampleRate = 0;
     let channels = 0;
     let bitsPerSample = 0;
@@ -141,9 +143,15 @@ function parseWavHeader(buffer: Buffer): WavHeader | null {
         const chunkSize = buffer.readUInt32LE(offset + 4);
 
         if (chunkId === 'fmt ') {
+            audioFormat = buffer.readUInt16LE(offset + 8);
             channels = buffer.readUInt16LE(offset + 10);
             sampleRate = buffer.readUInt32LE(offset + 12);
             bitsPerSample = buffer.readUInt16LE(offset + 22);
+
+            // WAVE_FORMAT_EXTENSIBLE: read the real sub-format from the GUID payload.
+            if (audioFormat === 0xFFFE && chunkSize >= 40) {
+                audioFormat = buffer.readUInt16LE(offset + 32);
+            }
         } else if (chunkId === 'data') {
             dataSize = chunkSize;
             dataOffset = offset + 8;
@@ -155,12 +163,25 @@ function parseWavHeader(buffer: Buffer): WavHeader | null {
         if (chunkSize % 2 !== 0) { offset++; }
     }
 
-    if (!sampleRate || !channels || !bitsPerSample || !dataOffset) { return null; }
+    if (!audioFormat || !sampleRate || !channels || !bitsPerSample || !dataOffset) { return null; }
 
-    return { sampleRate, channels, bitsPerSample, dataSize, dataOffset };
+    return { audioFormat, sampleRate, channels, bitsPerSample, dataSize, dataOffset };
 }
 
-function readSample(buffer: Buffer, offset: number, bitsPerSample: number): number {
+function readSample(buffer: Buffer, offset: number, bitsPerSample: number, audioFormat: number): number {
+    const isFloat = audioFormat === 3;
+
+    if (isFloat) {
+        switch (bitsPerSample) {
+            case 32:
+                return buffer.readFloatLE(offset);
+            case 64:
+                return buffer.readDoubleLE(offset);
+            default:
+                return 0;
+        }
+    }
+
     switch (bitsPerSample) {
         case 8:
             return (buffer.readUInt8(offset) - 128) / 128;
@@ -190,7 +211,7 @@ export async function computeWavPeaks(filePath: string, samplesPerPixel: number 
     const header = parseWavHeader(headerBuf);
     if (!header) { return null; }
 
-    const { sampleRate, channels, bitsPerSample, dataSize, dataOffset } = header;
+    const { audioFormat, sampleRate, channels, bitsPerSample, dataSize, dataOffset } = header;
     const bytesPerSample = bitsPerSample / 8;
     const bytesPerFrame = bytesPerSample * channels;
     const totalFrames = Math.floor(dataSize / bytesPerFrame);
@@ -226,7 +247,7 @@ export async function computeWavPeaks(filePath: string, samplesPerPixel: number 
             let pos = 0;
             while (pos + bytesPerFrame <= buf.length) {
                 // Read first channel sample
-                const sample = readSample(buf, pos, bitsPerSample);
+                const sample = readSample(buf, pos, bitsPerSample, audioFormat);
                 if (sample < blockMin) { blockMin = sample; }
                 if (sample > blockMax) { blockMax = sample; }
 
@@ -291,7 +312,7 @@ export async function streamWavPcmChunks(
         return;
     }
 
-    const { sampleRate, channels, bitsPerSample, dataSize, dataOffset } = header;
+    const { audioFormat, sampleRate, channels, bitsPerSample, dataSize, dataOffset } = header;
     const bytesPerSample = bitsPerSample / 8;
     const bytesPerFrame = bytesPerSample * channels;
     const CHUNK_SIZE = 1024 * 1024; // 1MB
@@ -329,7 +350,7 @@ export async function streamWavPcmChunks(
             for (let i = 0; i < frameCount; i++) {
                 let sum = 0;
                 for (let ch = 0; ch < channels; ch++) {
-                    sum += readSample(buf, i * bytesPerFrame + ch * bytesPerSample, bitsPerSample);
+                    sum += readSample(buf, i * bytesPerFrame + ch * bytesPerSample, bitsPerSample, audioFormat);
                 }
                 samples[i] = sum / channels;
             }
@@ -351,7 +372,7 @@ export async function streamWavPcmChunks(
                 for (let i = 0; i < frameCount; i++) {
                     let sum = 0;
                     for (let ch = 0; ch < channels; ch++) {
-                        sum += readSample(leftover, i * bytesPerFrame + ch * bytesPerSample, bitsPerSample);
+                        sum += readSample(leftover, i * bytesPerFrame + ch * bytesPerSample, bitsPerSample, audioFormat);
                     }
                     samples[i] = sum / channels;
                 }

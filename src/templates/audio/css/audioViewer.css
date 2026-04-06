@@ -203,6 +203,15 @@ body {
     border: 1px solid var(--vscode-panel-border);
 }
 
+.debug-info {
+    font-family: 'Monaco', 'Menlo', monospace;
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    padding: 2px 6px;
+    min-height: 18px;
+    opacity: 0.9;
+}
+
 .file-info-item {
     display: flex;
     flex-direction: column;

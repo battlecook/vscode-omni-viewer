@@ -20,7 +20,9 @@ export class PluginManager {
                 spectrogramContainer.style.display = 'block';
             }
             // Create chunked renderer and store in state
-            this.state.chunkedSpectrogramRenderer = new ChunkedSpectrogramRenderer();
+            this.state.chunkedSpectrogramRenderer = new ChunkedSpectrogramRenderer({
+                duration: this.state.wavesurfer?.getDuration?.() || 0
+            });
             return;
         }
 
@@ -60,7 +62,8 @@ export class PluginManager {
         if (this.state.isLargeFile && this.state.chunkedSpectrogramRenderer) {
             const spectrogramContainer = document.getElementById('spectrogram');
             if (spectrogramContainer && this.state.chunkedSpectrogramRenderer.columns.length > 0) {
-                this.state.chunkedSpectrogramRenderer.render(spectrogramContainer, newScale);
+                const targetWidth = Math.max(1, spectrogramContainer.clientWidth * (this.state.zoomLevel || 1));
+                this.state.chunkedSpectrogramRenderer.render(spectrogramContainer, newScale, targetWidth);
                 AudioUtils.log(`Chunked spectrogram scale changed to: ${newScale}`);
             }
             return;
