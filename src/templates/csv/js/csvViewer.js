@@ -14,6 +14,8 @@ class CsvViewer {
         this.contextMenuTarget = null; // Store the target element for context menu
         this.saveRawDataTimeout = null; // Debounce timer for raw data saving
         this.isPasting = false; // Flag to prevent double processing during paste
+        this.columnWidths = [];
+        this.resizeState = null;
         
         this.init();
     }
@@ -29,6 +31,8 @@ class CsvViewer {
             if (dataScript) {
                 this.csvData = JSON.parse(dataScript.textContent);
                 this.delimiter = this.csvData.delimiter || ',';
+                this.restoreViewState();
+                this.syncColumnWidths();
                 this.rebuildFilteredRows();
                 this.updateFileInfo();
                 this.renderTable();
@@ -56,8 +60,12 @@ class CsvViewer {
         const headerEl = document.getElementById('tableHeader');
         const bodyEl = document.getElementById('tableBody');
         const tableWrapper = document.getElementById('tableWrapper');
+        const tableEl = document.getElementById('csvTable');
 
-        if (!headerEl || !bodyEl || !tableWrapper) return;
+        if (!headerEl || !bodyEl || !tableWrapper || !tableEl) return;
+
+        this.syncColumnWidths();
+        this.renderColumnGroup(tableEl);
 
         // Render headers
         headerEl.innerHTML = '';
@@ -99,6 +107,15 @@ class CsvViewer {
             headerContent.appendChild(headerLabel);
             headerContent.appendChild(sortButton);
             th.appendChild(headerContent);
+
+            const resizeHandle = document.createElement('div');
+            resizeHandle.className = 'column-resize-handle';
+            resizeHandle.setAttribute('data-col', index);
+            resizeHandle.title = 'Drag to resize column';
+            resizeHandle.addEventListener('mousedown', (event) => {
+                this.startColumnResize(event, index, th);
+            });
+            th.appendChild(resizeHandle);
             
             headerRow.appendChild(th);
         });
@@ -650,6 +667,7 @@ class CsvViewer {
         const columnName = `Column${this.csvData.headers.length + 1}`;
         this.csvData.headers.push(columnName);
         this.csvData.totalColumns++;
+        this.columnWidths.push(null);
         
         // Add empty cells to all rows
         this.csvData.rows.forEach(row => {
@@ -686,6 +704,7 @@ class CsvViewer {
         
         this.csvData.headers.pop();
         this.csvData.totalColumns--;
+        this.columnWidths.pop();
         
         // Remove last cell from all rows
         this.csvData.rows.forEach(row => {
@@ -743,6 +762,7 @@ class CsvViewer {
         const columnName = `Column${this.csvData.headers.length + 1}`;
         this.csvData.headers.splice(targetInfo.colIndex, 0, columnName);
         this.csvData.totalColumns++;
+        this.columnWidths.splice(targetInfo.colIndex, 0, null);
         
         // Add empty cells to the specified position in all rows
         this.csvData.rows.forEach(row => {
@@ -766,6 +786,7 @@ class CsvViewer {
         const columnName = `Column${this.csvData.headers.length + 1}`;
         this.csvData.headers.splice(targetInfo.colIndex + 1, 0, columnName);
         this.csvData.totalColumns++;
+        this.columnWidths.splice(targetInfo.colIndex + 1, 0, null);
         
         // Add empty cells to the specified position in all rows
         this.csvData.rows.forEach(row => {
@@ -812,6 +833,101 @@ class CsvViewer {
             this.renderTable();
         } else {
             this.renderRawData();
+        }
+    }
+
+    restoreViewState() {
+        const viewState = vscode.getState();
+        if (Array.isArray(viewState?.columnWidths)) {
+            this.columnWidths = [...viewState.columnWidths];
+        }
+    }
+
+    persistViewState() {
+        vscode.setState({
+            columnWidths: this.columnWidths
+        });
+    }
+
+    syncColumnWidths() {
+        const columnCount = this.csvData?.headers?.length || 0;
+        if (columnCount === 0) {
+            this.columnWidths = [];
+            return;
+        }
+
+        const nextWidths = new Array(columnCount).fill(null);
+        for (let index = 0; index < columnCount; index += 1) {
+            const width = this.columnWidths[index];
+            nextWidths[index] = Number.isFinite(width) ? width : null;
+        }
+
+        this.columnWidths = nextWidths;
+        this.persistViewState();
+    }
+
+    renderColumnGroup(tableEl) {
+        const existingColGroup = tableEl.querySelector('colgroup');
+        if (existingColGroup) {
+            existingColGroup.remove();
+        }
+
+        const colGroup = document.createElement('colgroup');
+        this.columnWidths.forEach((width) => {
+            const col = document.createElement('col');
+            if (Number.isFinite(width)) {
+                col.style.width = `${width}px`;
+            }
+            colGroup.appendChild(col);
+        });
+
+        tableEl.insertBefore(colGroup, tableEl.firstChild);
+    }
+
+    startColumnResize(event, columnIndex, th) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        this.resizeState = {
+            columnIndex,
+            startX: event.clientX,
+            startWidth: Math.round(th.getBoundingClientRect().width)
+        };
+
+        document.body.classList.add('is-resizing-columns');
+    }
+
+    handleColumnResize(event) {
+        if (!this.resizeState) {
+            return;
+        }
+
+        event.preventDefault();
+        const deltaX = event.clientX - this.resizeState.startX;
+        const nextWidth = this.clampColumnWidth(this.resizeState.startWidth + deltaX);
+        this.columnWidths[this.resizeState.columnIndex] = nextWidth;
+        this.persistViewState();
+        this.updateRenderedColumnWidth(this.resizeState.columnIndex, nextWidth);
+    }
+
+    stopColumnResize() {
+        if (!this.resizeState) {
+            return;
+        }
+
+        this.resizeState = null;
+        document.body.classList.remove('is-resizing-columns');
+    }
+
+    clampColumnWidth(width) {
+        return Math.max(80, Math.min(1200, Math.round(width)));
+    }
+
+    updateRenderedColumnWidth(columnIndex, width) {
+        const tableEl = document.getElementById('csvTable');
+        const col = tableEl?.querySelector(`colgroup col:nth-child(${columnIndex + 1})`);
+        if (col) {
+            col.style.width = `${width}px`;
         }
     }
 
@@ -1066,6 +1182,14 @@ class CsvViewer {
 
                 }
             }
+        });
+
+        document.addEventListener('mousemove', (event) => {
+            this.handleColumnResize(event);
+        });
+
+        document.addEventListener('mouseup', () => {
+            this.stopColumnResize();
         });
     }
 
@@ -1343,6 +1467,7 @@ class CsvViewer {
             // IMPORTANT: Completely replace the data, don't append
             this.csvData.headers = [...headers]; // Create new array
             this.csvData.rows = [...newRows];    // Create new array
+            this.syncColumnWidths();
             this.searchTerm = '';
             this.sortState = { columnIndex: null, direction: null };
             this.rebuildFilteredRows();
