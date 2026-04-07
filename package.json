@@ -55,6 +55,9 @@
             "filenamePattern": "*.zip"
           },
           {
+            "filenamePattern": "*.rar"
+          },
+          {
             "filenamePattern": "*.7z"
           },
           {
@@ -314,7 +317,7 @@
       "explorer/context": [
         {
           "command": "omni-viewer.openArchiveViewer",
-          "when": "resourceExtname == '.zip' || resourceExtname == '.7z' || resourceExtname == '.dmg' || resourceExtname == '.jar' || resourceExtname == '.apk' || resourceExtname == '.tar' || resourceExtname == '.tgz' || resourceExtname == '.tbz2' || resourceExtname == '.bz2' || resourceExtname == '.txz' || resourceExtname == '.xz' || resourceExtname == '.gz'",
+          "when": "resourceExtname == '.zip' || resourceExtname == '.rar' || resourceExtname == '.7z' || resourceExtname == '.dmg' || resourceExtname == '.jar' || resourceExtname == '.apk' || resourceExtname == '.tar' || resourceExtname == '.tgz' || resourceExtname == '.tbz2' || resourceExtname == '.bz2' || resourceExtname == '.txz' || resourceExtname == '.xz' || resourceExtname == '.gz'",
           "group": "navigation"
         },
         {

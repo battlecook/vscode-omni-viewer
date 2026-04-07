@@ -37,6 +37,10 @@ export async function readArchiveFile(filePath: string): Promise<ArchivePreviewD
         return readZipArchive(filePath, stats.size);
     }
 
+    if (lowerPath.endsWith('.rar')) {
+        return readSevenZipArchive(filePath, stats.size, 'RAR');
+    }
+
     if (lowerPath.endsWith('.7z')) {
         return readSevenZipArchive(filePath, stats.size, '7Z');
     }
@@ -65,7 +69,7 @@ export async function readArchiveFile(filePath: string): Promise<ArchivePreviewD
         return readGzipArchive(filePath, stats.size);
     }
 
-    throw new Error('Unsupported archive format. Currently supported: ZIP, 7Z, DMG, TAR, TAR.GZ, TAR.BZ2, TAR.XZ, TGZ, TBZ2, TXZ, and GZ.');
+    throw new Error('Unsupported archive format. Currently supported: ZIP, APK, JAR, RAR, 7Z, DMG, TAR, TAR.GZ, TAR.BZ2, TAR.XZ, TGZ, TBZ2, TXZ, and GZ.');
 }
 
 async function readZipArchive(filePath: string, fileSizeBytes: number): Promise<ArchivePreviewData> {

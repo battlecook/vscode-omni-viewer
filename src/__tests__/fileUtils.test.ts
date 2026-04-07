@@ -183,6 +183,28 @@ describe('FileUtils delimited formats', () => {
         expect(result.reason).toContain('7-Zip');
     });
 
+    it('detects RAR v4 files by signature', async () => {
+        const filePath = path.join(tempDir, 'archive.bin');
+        fs.writeFileSync(filePath, Buffer.from([0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x00]));
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.archiveViewer');
+        expect(result.matchedBySignature).toBe(true);
+        expect(result.reason).toContain('RAR v4');
+    });
+
+    it('detects RAR v5 files by signature', async () => {
+        const filePath = path.join(tempDir, 'archive.bin');
+        fs.writeFileSync(filePath, Buffer.from([0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x01, 0x00]));
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.archiveViewer');
+        expect(result.matchedBySignature).toBe(true);
+        expect(result.reason).toContain('RAR v5');
+    });
+
     it('detects BZIP2 files by signature', async () => {
         const filePath = path.join(tempDir, 'archive.bin');
         fs.writeFileSync(filePath, Buffer.from('BZh9', 'ascii'));

@@ -200,6 +200,14 @@ export class FileUtils {
             return this.signatureMatch('omni-viewer.archiveViewer', 'Matched the 7-Zip archive signature.');
         }
 
+        if (this.matchesBytes(buffer, [0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x00])) {
+            return this.signatureMatch('omni-viewer.archiveViewer', 'Matched the RAR v4 archive signature.');
+        }
+
+        if (this.matchesBytes(buffer, [0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x01, 0x00])) {
+            return this.signatureMatch('omni-viewer.archiveViewer', 'Matched the RAR v5 archive signature.');
+        }
+
         if (this.isTarArchive(buffer)) {
             return this.signatureMatch('omni-viewer.archiveViewer', 'Matched the TAR archive signature.');
         }
@@ -393,6 +401,7 @@ export class FileUtils {
     private static isArchiveExtension(filePath: string): boolean {
         const lowerPath = filePath.toLowerCase();
         return lowerPath.endsWith('.zip')
+            || lowerPath.endsWith('.rar')
             || lowerPath.endsWith('.7z')
             || lowerPath.endsWith('.dmg')
             || lowerPath.endsWith('.jar')
