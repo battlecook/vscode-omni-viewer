@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.18.0] - 2026-04-07
+
+### Added
+- **Archive Viewer**
+  - Added a new Archive Viewer supporting ZIP, TAR, GZIP, and other common archive formats
+  - Added an `ArchiveViewerProvider` with dedicated HTML/CSS/JS templates for browsing archive contents
+  - Registered archive files in the viewer registry and context menu so they can be opened directly from the explorer
+  - Updated `package.json` description and keywords to advertise archive format support
+- **Audio format detection**
+  - Added detection for AIFF, AC3, and AMR audio formats in the file utility layer
+  - Added regression tests covering the new archive and audio format detection paths
+- **CSV Viewer**
+  - Added user-resizable columns with drag handles in the CSV viewer
+  - Added persistence of column widths so layout adjustments are restored across sessions
+  - Improved table rendering to honor dynamic column widths for better readability on wide datasets
+
 ## [0.17.1] - 2026-04-07
 
 ### Fixed
