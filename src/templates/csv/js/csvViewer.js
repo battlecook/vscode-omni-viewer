@@ -123,6 +123,7 @@ class CsvViewer {
 
         // Render data rows
         this.renderDataRows();
+        this.initializeColumnWidthsFromRenderedTable();
 
         // Set initial view
         this.updateView();
@@ -873,15 +874,41 @@ class CsvViewer {
         }
 
         const colGroup = document.createElement('colgroup');
+        let totalWidth = 0;
+        let hasExplicitWidths = this.columnWidths.length > 0;
         this.columnWidths.forEach((width) => {
             const col = document.createElement('col');
             if (Number.isFinite(width)) {
                 col.style.width = `${width}px`;
+                totalWidth += width;
+            } else {
+                hasExplicitWidths = false;
             }
             colGroup.appendChild(col);
         });
 
         tableEl.insertBefore(colGroup, tableEl.firstChild);
+        tableEl.style.width = hasExplicitWidths ? `${totalWidth}px` : '';
+    }
+
+    initializeColumnWidthsFromRenderedTable() {
+        const headerCells = Array.from(document.querySelectorAll('#tableHeader th'));
+        if (headerCells.length === 0) {
+            return;
+        }
+
+        this.columnWidths = this.columnWidths.map((width, index) => {
+            const estimatedWidth = this.estimateCsvColumnWidth(index, headerCells[index]);
+            return Number.isFinite(width)
+                ? this.clampColumnWidth(Math.max(width, estimatedWidth))
+                : estimatedWidth;
+        });
+
+        this.persistViewState();
+        const tableEl = document.getElementById('csvTable');
+        if (tableEl) {
+            this.renderColumnGroup(tableEl);
+        }
     }
 
     startColumnResize(event, columnIndex, th) {
@@ -923,11 +950,55 @@ class CsvViewer {
         return Math.max(80, Math.min(1200, Math.round(width)));
     }
 
+    estimateCsvColumnWidth(columnIndex, headerCell) {
+        const headerText = this.csvData?.headers?.[columnIndex] || '';
+        const sampleValues = (this.csvData?.rows || [])
+            .slice(0, 50)
+            .map((row) => row?.[columnIndex] || '');
+        return this.estimateColumnWidth(headerText, sampleValues, headerCell, {
+            extraWidth: 54
+        });
+    }
+
+    estimateColumnWidth(headerText, sampleValues, referenceCell, options = {}) {
+        const {
+            extraWidth = 28,
+            maxSamples = 50
+        } = options;
+
+        const canvas = this.measureCanvas || (this.measureCanvas = document.createElement('canvas'));
+        const context = canvas.getContext('2d');
+        if (!context) {
+            return this.clampColumnWidth(referenceCell?.getBoundingClientRect().width || 120);
+        }
+
+        const computedStyle = referenceCell ? window.getComputedStyle(referenceCell) : window.getComputedStyle(document.body);
+        context.font = `${computedStyle.fontWeight} ${computedStyle.fontSize} ${computedStyle.fontFamily}`;
+
+        let widestText = this.measureTextWidth(context, headerText);
+        sampleValues.slice(0, maxSamples).forEach((value) => {
+            widestText = Math.max(widestText, this.measureTextWidth(context, value));
+        });
+
+        const estimatedWidth = widestText + extraWidth;
+        return this.clampColumnWidth(Math.max(estimatedWidth, referenceCell?.getBoundingClientRect().width || 0, 120));
+    }
+
+    measureTextWidth(context, value) {
+        return context.measureText(String(value || '')).width;
+    }
+
     updateRenderedColumnWidth(columnIndex, width) {
         const tableEl = document.getElementById('csvTable');
         const col = tableEl?.querySelector(`colgroup col:nth-child(${columnIndex + 1})`);
         if (col) {
             col.style.width = `${width}px`;
+        }
+        if (tableEl) {
+            const totalWidth = this.columnWidths.reduce((sum, currentWidth) => (
+                sum + (Number.isFinite(currentWidth) ? currentWidth : 0)
+            ), 0);
+            tableEl.style.width = totalWidth > 0 ? `${totalWidth}px` : '';
         }
     }
 

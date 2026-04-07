@@ -188,6 +188,18 @@ export class FileUtils {
             return this.signatureMatch('omni-viewer.archiveViewer', 'Matched the GZIP archive signature.');
         }
 
+        if (this.hasAsciiPrefix(buffer, 'BZh')) {
+            return this.signatureMatch('omni-viewer.archiveViewer', 'Matched the BZIP2 archive signature.');
+        }
+
+        if (this.matchesBytes(buffer, [0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00])) {
+            return this.signatureMatch('omni-viewer.archiveViewer', 'Matched the XZ archive signature.');
+        }
+
+        if (this.matchesBytes(buffer, [0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C])) {
+            return this.signatureMatch('omni-viewer.archiveViewer', 'Matched the 7-Zip archive signature.');
+        }
+
         if (this.isTarArchive(buffer)) {
             return this.signatureMatch('omni-viewer.archiveViewer', 'Matched the TAR archive signature.');
         }
@@ -381,11 +393,17 @@ export class FileUtils {
     private static isArchiveExtension(filePath: string): boolean {
         const lowerPath = filePath.toLowerCase();
         return lowerPath.endsWith('.zip')
+            || lowerPath.endsWith('.7z')
+            || lowerPath.endsWith('.dmg')
             || lowerPath.endsWith('.jar')
             || lowerPath.endsWith('.apk')
             || lowerPath.endsWith('.tar')
             || lowerPath.endsWith('.tgz')
+            || lowerPath.endsWith('.tbz2')
+            || lowerPath.endsWith('.txz')
             || lowerPath.endsWith('.tar.gz')
+            || lowerPath.endsWith('.tar.bz2')
+            || lowerPath.endsWith('.tar.xz')
             || lowerPath.endsWith('.gz');
     }
 

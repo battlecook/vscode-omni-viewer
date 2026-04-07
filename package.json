@@ -55,6 +55,12 @@
             "filenamePattern": "*.zip"
           },
           {
+            "filenamePattern": "*.7z"
+          },
+          {
+            "filenamePattern": "*.dmg"
+          },
+          {
             "filenamePattern": "*.jar"
           },
           {
@@ -68,6 +74,18 @@
           },
           {
             "filenamePattern": "*.tar.gz"
+          },
+          {
+            "filenamePattern": "*.tbz2"
+          },
+          {
+            "filenamePattern": "*.tar.bz2"
+          },
+          {
+            "filenamePattern": "*.txz"
+          },
+          {
+            "filenamePattern": "*.tar.xz"
           },
           {
             "filenamePattern": "*.gz"
@@ -296,7 +314,7 @@
       "explorer/context": [
         {
           "command": "omni-viewer.openArchiveViewer",
-          "when": "resourceExtname == '.zip' || resourceExtname == '.jar' || resourceExtname == '.apk' || resourceExtname == '.tar' || resourceExtname == '.tgz' || resourceExtname == '.gz'",
+          "when": "resourceExtname == '.zip' || resourceExtname == '.7z' || resourceExtname == '.dmg' || resourceExtname == '.jar' || resourceExtname == '.apk' || resourceExtname == '.tar' || resourceExtname == '.tgz' || resourceExtname == '.tbz2' || resourceExtname == '.bz2' || resourceExtname == '.txz' || resourceExtname == '.xz' || resourceExtname == '.gz'",
           "group": "navigation"
         },
         {

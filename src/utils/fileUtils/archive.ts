@@ -37,19 +37,35 @@ export async function readArchiveFile(filePath: string): Promise<ArchivePreviewD
         return readZipArchive(filePath, stats.size);
     }
 
+    if (lowerPath.endsWith('.7z')) {
+        return readSevenZipArchive(filePath, stats.size, '7Z');
+    }
+
+    if (lowerPath.endsWith('.dmg')) {
+        return readSevenZipArchive(filePath, stats.size, 'DMG');
+    }
+
     if (lowerPath.endsWith('.tar')) {
-        return readTarArchive(filePath, stats.size, false);
+        return readTarArchive(filePath, stats.size, 'plain');
     }
 
     if (lowerPath.endsWith('.tgz') || lowerPath.endsWith('.tar.gz')) {
-        return readTarArchive(filePath, stats.size, true);
+        return readTarArchive(filePath, stats.size, 'gzip');
+    }
+
+    if (lowerPath.endsWith('.tbz2') || lowerPath.endsWith('.tar.bz2')) {
+        return readTarArchive(filePath, stats.size, 'bzip2');
+    }
+
+    if (lowerPath.endsWith('.txz') || lowerPath.endsWith('.tar.xz')) {
+        return readTarArchive(filePath, stats.size, 'xz');
     }
 
     if (lowerPath.endsWith('.gz')) {
         return readGzipArchive(filePath, stats.size);
     }
 
-    throw new Error('Unsupported archive format. Currently supported: ZIP, TAR, TGZ, TAR.GZ, and GZ.');
+    throw new Error('Unsupported archive format. Currently supported: ZIP, 7Z, DMG, TAR, TAR.GZ, TAR.BZ2, TAR.XZ, TGZ, TBZ2, TXZ, and GZ.');
 }
 
 async function readZipArchive(filePath: string, fileSizeBytes: number): Promise<ArchivePreviewData> {
@@ -76,9 +92,31 @@ async function readZipArchive(filePath: string, fileSizeBytes: number): Promise<
     return finalizeArchiveData('ZIP', filePath, fileSizeBytes, allEntries);
 }
 
-async function readTarArchive(filePath: string, fileSizeBytes: number, gzipCompressed: boolean): Promise<ArchivePreviewData> {
+async function readSevenZipArchive(filePath: string, fileSizeBytes: number, format: string): Promise<ArchivePreviewData> {
     try {
-        const args = gzipCompressed ? ['-tzf', filePath] : ['-tf', filePath];
+        const { stdout } = await execFileAsync('7z', ['l', '-slt', filePath], { maxBuffer: 16 * 1024 * 1024 });
+        const { entries, warnings } = parseSevenZipListing(stdout, filePath);
+
+        return finalizeArchiveData(
+            format,
+            filePath,
+            fileSizeBytes,
+            entries,
+            warnings.length > 0 ? warnings.join(' ') : undefined
+        );
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to inspect ${format} archive with the system 7z command. ${message}`);
+    }
+}
+
+async function readTarArchive(
+    filePath: string,
+    fileSizeBytes: number,
+    compression: 'plain' | 'gzip' | 'bzip2' | 'xz'
+): Promise<ArchivePreviewData> {
+    try {
+        const args = getTarListArgs(filePath, compression);
         const { stdout } = await execFileAsync('tar', args, { maxBuffer: 16 * 1024 * 1024 });
         const allEntries = stdout
             .split(/\r?\n/)
@@ -93,7 +131,7 @@ async function readTarArchive(filePath: string, fileSizeBytes: number, gzipCompr
                 modifiedAt: null
             }));
 
-        return finalizeArchiveData(gzipCompressed ? 'TAR.GZ' : 'TAR', filePath, fileSizeBytes, allEntries);
+        return finalizeArchiveData(getTarFormatLabel(compression), filePath, fileSizeBytes, allEntries);
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         throw new Error(`Failed to inspect TAR archive with the system tar command. ${message}`);
@@ -156,6 +194,119 @@ function finalizeArchiveData(
         entries: visibleEntries,
         ...(note ? { note } : {})
     };
+}
+
+function getTarListArgs(filePath: string, compression: 'plain' | 'gzip' | 'bzip2' | 'xz'): string[] {
+    switch (compression) {
+    case 'gzip':
+        return ['-tzf', filePath];
+    case 'bzip2':
+        return ['-tjf', filePath];
+    case 'xz':
+        return ['-tJf', filePath];
+    case 'plain':
+    default:
+        return ['-tf', filePath];
+    }
+}
+
+function getTarFormatLabel(compression: 'plain' | 'gzip' | 'bzip2' | 'xz'): string {
+    switch (compression) {
+    case 'gzip':
+        return 'TAR.GZ';
+    case 'bzip2':
+        return 'TAR.BZ2';
+    case 'xz':
+        return 'TAR.XZ';
+    case 'plain':
+    default:
+        return 'TAR';
+    }
+}
+
+function parseSevenZipListing(
+    output: string,
+    archivePath: string
+): { entries: ArchivePreviewEntry[]; warnings: string[] } {
+    const lines = output.split(/\r?\n/);
+    const warnings = lines
+        .map((line) => line.trim())
+        .filter((line) => line.includes('WARNING'));
+
+    const separatorIndex = lines.findIndex((line) => line.trim() === '----------');
+    if (separatorIndex === -1) {
+        return { entries: [], warnings };
+    }
+
+    const records: Array<Record<string, string>> = [];
+    let currentRecord: Record<string, string> = {};
+
+    for (const line of lines.slice(separatorIndex + 1)) {
+        const trimmed = line.trim();
+        if (!trimmed) {
+            if (Object.keys(currentRecord).length > 0) {
+                records.push(currentRecord);
+                currentRecord = {};
+            }
+            continue;
+        }
+
+        const delimiterIndex = line.indexOf(' = ');
+        if (delimiterIndex === -1) {
+            continue;
+        }
+
+        const key = line.slice(0, delimiterIndex).trim();
+        const value = line.slice(delimiterIndex + 3).trim();
+        currentRecord[key] = value;
+    }
+
+    if (Object.keys(currentRecord).length > 0) {
+        records.push(currentRecord);
+    }
+
+    const entries = records
+        .filter((record) => record.Path && record.Path !== archivePath)
+        .map((record) => {
+            const entryPath = record.Path;
+            const isDirectory = record.Folder === '+'
+                || entryPath.endsWith('/')
+                || (record.Attributes || '').startsWith('D');
+
+            return {
+                path: entryPath,
+                kind: isDirectory ? 'directory' as const : 'file' as const,
+                compressedSize: parseArchiveNumber(record['Packed Size']),
+                uncompressedSize: parseArchiveNumber(record.Size),
+                modifiedAt: normalizeArchiveDate(record.Modified || record.Created || null)
+            };
+        })
+        .sort((left, right) => left.path.localeCompare(right.path));
+
+    return { entries, warnings };
+}
+
+function parseArchiveNumber(value: string | undefined): number | null {
+    if (!value) {
+        return null;
+    }
+
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeArchiveDate(value: string | null): string | null {
+    if (!value) {
+        return null;
+    }
+
+    const normalized = value.replace(' ', 'T');
+    const date = new Date(normalized);
+    if (Number.isNaN(date.getTime())) {
+        return null;
+    }
+
+    return date.toISOString();
 }
 
 function deriveGzipEntryName(filePath: string, buffer: Buffer): string {

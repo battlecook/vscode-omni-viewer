@@ -10,6 +10,8 @@ class ExcelViewer {
         this.rowsPerPage = 100;
         this.searchTerm = '';
         this.isTableView = true;
+        this.sheetColumnWidths = {};
+        this.resizeState = null;
 
         this.init();
     }
@@ -29,6 +31,7 @@ class ExcelViewer {
             const dataScript = document.getElementById('excel-data');
             if (dataScript) {
                 this.excelData = JSON.parse(dataScript.textContent);
+                this.restoreViewState();
                 if (!this.excelData.sheets || this.excelData.sheets.length === 0) {
                     this.showError('No sheets found in Excel file');
                     this.hideLoading();
@@ -103,21 +106,33 @@ class ExcelViewer {
         const headerEl = document.getElementById('tableHeader');
         const bodyEl = document.getElementById('tableBody');
         const tableWrapper = document.getElementById('tableWrapper');
+        const tableEl = document.getElementById('excelTable');
         const sheet = this.currentSheet;
-        if (!headerEl || !bodyEl || !tableWrapper) return;
+        if (!headerEl || !bodyEl || !tableWrapper || !tableEl) return;
         if (!sheet) return;
 
+        this.syncCurrentSheetColumnWidths();
+        this.renderColumnGroup(tableEl);
         headerEl.innerHTML = '';
         const headerRow = document.createElement('tr');
-        (sheet.headers || []).forEach((header) => {
+        (sheet.headers || []).forEach((header, index) => {
             const th = document.createElement('th');
             th.textContent = header || '';
             th.title = header || '';
+            const resizeHandle = document.createElement('div');
+            resizeHandle.className = 'column-resize-handle';
+            resizeHandle.setAttribute('data-col', index);
+            resizeHandle.title = 'Drag to resize column';
+            resizeHandle.addEventListener('mousedown', (event) => {
+                this.startColumnResize(event, index, th);
+            });
+            th.appendChild(resizeHandle);
             headerRow.appendChild(th);
         });
         headerEl.appendChild(headerRow);
 
         this.renderDataRows();
+        this.initializeColumnWidthsFromRenderedTable();
         this.updateView();
     }
 
@@ -300,6 +315,192 @@ class ExcelViewer {
         rawDataEl.textContent = JSON.stringify(rawData, null, 2);
     }
 
+    restoreViewState() {
+        const viewState = vscode.getState();
+        if (viewState?.sheetColumnWidths && typeof viewState.sheetColumnWidths === 'object') {
+            this.sheetColumnWidths = { ...viewState.sheetColumnWidths };
+        }
+    }
+
+    persistViewState() {
+        vscode.setState({
+            sheetColumnWidths: this.sheetColumnWidths
+        });
+    }
+
+    getCurrentSheetWidthKey() {
+        return String(this.currentSheetIndex);
+    }
+
+    getCurrentSheetColumnWidths() {
+        const key = this.getCurrentSheetWidthKey();
+        const widths = this.sheetColumnWidths[key];
+        if (!Array.isArray(widths)) {
+            this.sheetColumnWidths[key] = [];
+        }
+        return this.sheetColumnWidths[key];
+    }
+
+    syncCurrentSheetColumnWidths() {
+        const sheet = this.currentSheet;
+        const columnCount = sheet?.headers?.length || 0;
+        const currentWidths = this.getCurrentSheetColumnWidths();
+        const nextWidths = new Array(columnCount).fill(null);
+
+        for (let index = 0; index < columnCount; index += 1) {
+            const width = currentWidths[index];
+            nextWidths[index] = Number.isFinite(width) ? width : null;
+        }
+
+        this.sheetColumnWidths[this.getCurrentSheetWidthKey()] = nextWidths;
+        this.persistViewState();
+    }
+
+    renderColumnGroup(tableEl) {
+        const existingColGroup = tableEl.querySelector('colgroup');
+        if (existingColGroup) {
+            existingColGroup.remove();
+        }
+
+        const colGroup = document.createElement('colgroup');
+        let totalWidth = 0;
+        let hasExplicitWidths = true;
+        this.getCurrentSheetColumnWidths().forEach((width) => {
+            const col = document.createElement('col');
+            if (Number.isFinite(width)) {
+                col.style.width = `${width}px`;
+                totalWidth += width;
+            } else {
+                hasExplicitWidths = false;
+            }
+            colGroup.appendChild(col);
+        });
+
+        tableEl.insertBefore(colGroup, tableEl.firstChild);
+        tableEl.style.width = hasExplicitWidths ? `${totalWidth}px` : '';
+    }
+
+    initializeColumnWidthsFromRenderedTable() {
+        const widths = this.getCurrentSheetColumnWidths();
+        const headerCells = Array.from(document.querySelectorAll('#tableHeader th'));
+        if (headerCells.length === 0) {
+            return;
+        }
+
+        this.sheetColumnWidths[this.getCurrentSheetWidthKey()] = widths.map((width, index) => {
+            const estimatedWidth = this.estimateExcelColumnWidth(index, headerCells[index]);
+            return Number.isFinite(width)
+                ? this.clampColumnWidth(Math.max(width, estimatedWidth))
+                : estimatedWidth;
+        });
+
+        this.persistViewState();
+        const tableEl = document.getElementById('excelTable');
+        if (tableEl) {
+            this.renderColumnGroup(tableEl);
+        }
+    }
+
+    startColumnResize(event, columnIndex, th) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        this.resizeState = {
+            columnIndex,
+            startX: event.clientX,
+            startWidth: Math.round(th.getBoundingClientRect().width)
+        };
+
+        document.body.classList.add('is-resizing-columns');
+    }
+
+    handleColumnResize(event) {
+        if (!this.resizeState) {
+            return;
+        }
+
+        event.preventDefault();
+        const widths = this.getCurrentSheetColumnWidths();
+        const deltaX = event.clientX - this.resizeState.startX;
+        const nextWidth = this.clampColumnWidth(this.resizeState.startWidth + deltaX);
+        widths[this.resizeState.columnIndex] = nextWidth;
+        this.persistViewState();
+        this.updateRenderedColumnWidth(this.resizeState.columnIndex, nextWidth);
+    }
+
+    stopColumnResize() {
+        if (!this.resizeState) {
+            return;
+        }
+
+        this.resizeState = null;
+        document.body.classList.remove('is-resizing-columns');
+    }
+
+    clampColumnWidth(width) {
+        return Math.max(80, Math.min(1200, Math.round(width)));
+    }
+
+    estimateExcelColumnWidth(columnIndex, headerCell) {
+        const sheet = this.currentSheet;
+        const headerText = sheet?.headers?.[columnIndex] || '';
+        const sampleValues = (sheet?.rows || [])
+            .slice(0, 50)
+            .map((row) => {
+                const cell = row?.[columnIndex];
+                if (cell === null || cell === undefined) {
+                    return '';
+                }
+                return typeof cell === 'object' ? JSON.stringify(cell) : String(cell);
+            });
+
+        return this.estimateColumnWidth(headerText, sampleValues, headerCell, {
+            extraWidth: 28
+        });
+    }
+
+    estimateColumnWidth(headerText, sampleValues, referenceCell, options = {}) {
+        const {
+            extraWidth = 28,
+            maxSamples = 50
+        } = options;
+
+        const canvas = this.measureCanvas || (this.measureCanvas = document.createElement('canvas'));
+        const context = canvas.getContext('2d');
+        if (!context) {
+            return this.clampColumnWidth(referenceCell?.getBoundingClientRect().width || 120);
+        }
+
+        const computedStyle = referenceCell ? window.getComputedStyle(referenceCell) : window.getComputedStyle(document.body);
+        context.font = `${computedStyle.fontWeight} ${computedStyle.fontSize} ${computedStyle.fontFamily}`;
+
+        let widestText = this.measureTextWidth(context, headerText);
+        sampleValues.slice(0, maxSamples).forEach((value) => {
+            widestText = Math.max(widestText, this.measureTextWidth(context, value));
+        });
+
+        const estimatedWidth = widestText + extraWidth;
+        return this.clampColumnWidth(Math.max(estimatedWidth, referenceCell?.getBoundingClientRect().width || 0, 120));
+    }
+
+    measureTextWidth(context, value) {
+        return context.measureText(String(value || '')).width;
+    }
+
+    updateRenderedColumnWidth(columnIndex, width) {
+        const tableEl = document.getElementById('excelTable');
+        const col = tableEl?.querySelector(`colgroup col:nth-child(${columnIndex + 1})`);
+        if (col) {
+            col.style.width = `${width}px`;
+        }
+        if (tableEl) {
+            const totalWidth = this.getCurrentSheetColumnWidths().reduce((sum, currentWidth) => (
+                sum + (Number.isFinite(currentWidth) ? currentWidth : 0)
+            ), 0);
+            tableEl.style.width = totalWidth > 0 ? `${totalWidth}px` : '';
+        }
+    }
+
     setupEventListeners() {
         const searchInput = document.getElementById('searchInput');
         if (searchInput) {
@@ -335,6 +536,12 @@ class ExcelViewer {
                     this.exportToJson();
                 }
             }
+        });
+        document.addEventListener('mousemove', (event) => {
+            this.handleColumnResize(event);
+        });
+        document.addEventListener('mouseup', () => {
+            this.stopColumnResize();
         });
     }
 

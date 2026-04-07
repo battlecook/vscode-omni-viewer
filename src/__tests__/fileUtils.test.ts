@@ -172,6 +172,50 @@ describe('FileUtils delimited formats', () => {
         expect(result.matchedBySignature).toBe(true);
     });
 
+    it('detects 7z files by signature', async () => {
+        const filePath = path.join(tempDir, 'archive.bin');
+        fs.writeFileSync(filePath, Buffer.from([0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C]));
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.archiveViewer');
+        expect(result.matchedBySignature).toBe(true);
+        expect(result.reason).toContain('7-Zip');
+    });
+
+    it('detects BZIP2 files by signature', async () => {
+        const filePath = path.join(tempDir, 'archive.bin');
+        fs.writeFileSync(filePath, Buffer.from('BZh9', 'ascii'));
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.archiveViewer');
+        expect(result.matchedBySignature).toBe(true);
+        expect(result.reason).toContain('BZIP2');
+    });
+
+    it('detects XZ files by signature', async () => {
+        const filePath = path.join(tempDir, 'archive.bin');
+        fs.writeFileSync(filePath, Buffer.from([0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00]));
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.archiveViewer');
+        expect(result.matchedBySignature).toBe(true);
+        expect(result.reason).toContain('XZ');
+    });
+
+    it('falls back to the archive viewer for DMG files by extension', async () => {
+        const filePath = path.join(tempDir, 'disk.dmg');
+        fs.writeFileSync(filePath, Buffer.from('not-a-real-dmg'));
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.archiveViewer');
+        expect(result.matchedBySignature).toBe(false);
+        expect(result.reason).toContain('archive extension fallback');
+    });
+
     it('detects Parquet files by header and footer signatures', async () => {
         const filePath = path.join(tempDir, 'sample.bin');
         fs.writeFileSync(filePath, Buffer.concat([
