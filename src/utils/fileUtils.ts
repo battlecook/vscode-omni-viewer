@@ -7,6 +7,7 @@ import { PptxXmlParser } from './pptxXmlParser';
 import { PptBinaryParser } from './pptBinaryParser';
 import {
     fileToDataUrl as readFileToDataUrl,
+    getAudioWebviewSource as readAudioWebviewSource,
     getAudioMetadata as readAudioMetadata,
     getAudioMimeType as resolveAudioMimeType,
     getFileSize as readFileSize,
@@ -20,12 +21,14 @@ import {
     readJsonlFile as readJsonlLines,
     readParquetFile as readParquetRows
 } from './fileUtils/tabular';
+import { readArchiveFile, ArchivePreviewData } from './fileUtils/archive';
 import { readWordFile as readWordDocument } from './fileUtils/word';
 
 export type OmniViewerViewType =
     | 'omni-viewer.audioViewer'
     | 'omni-viewer.videoViewer'
     | 'omni-viewer.imageViewer'
+    | 'omni-viewer.archiveViewer'
     | 'omni-viewer.csvViewer'
     | 'omni-viewer.jsonlViewer'
     | 'omni-viewer.parquetViewer'
@@ -109,6 +112,18 @@ export class FileUtils {
             return this.signatureMatch('omni-viewer.audioViewer', 'Matched the WAV RIFF signature.');
         }
 
+        if (this.isAiff(buffer)) {
+            return this.signatureMatch('omni-viewer.audioViewer', 'Matched the AIFF FORM container signature.');
+        }
+
+        if (this.isAc3(buffer)) {
+            return this.signatureMatch('omni-viewer.audioViewer', 'Matched the AC-3 sync word.');
+        }
+
+        if (this.isAmr(buffer)) {
+            return this.signatureMatch('omni-viewer.audioViewer', 'Matched the AMR file header.');
+        }
+
         if (this.isAacAdts(buffer)) {
             return this.signatureMatch('omni-viewer.audioViewer', 'Matched AAC ADTS sync bytes.');
         }
@@ -129,6 +144,10 @@ export class FileUtils {
             if (ext === '.webm' || ext === '.mkv') {
                 return this.signatureMatch('omni-viewer.videoViewer', 'Matched the EBML signature used by WebM/Matroska.');
             }
+        }
+
+        if (this.isMpegTransportStream(buffer)) {
+            return this.signatureMatch('omni-viewer.videoViewer', 'Matched MPEG transport stream sync packets.');
         }
 
         if (await this.isParquet(filePath, buffer)) {
@@ -161,11 +180,29 @@ export class FileUtils {
             if (zipType) {
                 return this.signatureMatch(zipType.viewType, zipType.reason);
             }
+
+            return this.signatureMatch('omni-viewer.archiveViewer', 'Matched the ZIP archive signature.');
+        }
+
+        if (this.matchesBytes(buffer, [0x1F, 0x8B])) {
+            return this.signatureMatch('omni-viewer.archiveViewer', 'Matched the GZIP archive signature.');
+        }
+
+        if (this.isTarArchive(buffer)) {
+            return this.signatureMatch('omni-viewer.archiveViewer', 'Matched the TAR archive signature.');
         }
 
         const textType = this.detectTextBasedViewType(buffer, ext);
         if (textType) {
             return textType;
+        }
+
+        if (this.isArchiveExtension(filePath)) {
+            return {
+                viewType: 'omni-viewer.archiveViewer',
+                reason: 'Used the archive extension fallback.',
+                matchedBySignature: false
+            };
         }
 
         return {
@@ -179,6 +216,10 @@ export class FileUtils {
 
     public static getAudioMimeType(filePath: string): string {
         return resolveAudioMimeType(filePath);
+    }
+
+    public static async getAudioWebviewSource(filePath: string): Promise<{ dataUrl: string; mimeType: string; transcoded: boolean }> {
+        return readAudioWebviewSource(filePath);
     }
 
     public static getVideoMimeType(filePath: string): string {
@@ -221,6 +262,10 @@ export class FileUtils {
 
     public static getDelimitedFileDelimiter(filePath: string, lines: string[] = []): string {
         return detectDelimitedFileDelimiter(filePath, lines);
+    }
+
+    public static async readArchiveFile(filePath: string): Promise<ArchivePreviewData> {
+        return readArchiveFile(filePath);
     }
 
     private static detectDelimiter(lines: string[]): string | null {
@@ -329,6 +374,21 @@ export class FileUtils {
         return buffer.subarray(0, value.length).toString('ascii') === value;
     }
 
+    private static isTarArchive(buffer: Buffer): boolean {
+        return buffer.length >= 262 && buffer.subarray(257, 262).toString('ascii') === 'ustar';
+    }
+
+    private static isArchiveExtension(filePath: string): boolean {
+        const lowerPath = filePath.toLowerCase();
+        return lowerPath.endsWith('.zip')
+            || lowerPath.endsWith('.jar')
+            || lowerPath.endsWith('.apk')
+            || lowerPath.endsWith('.tar')
+            || lowerPath.endsWith('.tgz')
+            || lowerPath.endsWith('.tar.gz')
+            || lowerPath.endsWith('.gz');
+    }
+
     private static isSvg(buffer: Buffer): boolean {
         const snippet = buffer.subarray(0, 2048).toString('utf8').trimStart();
         return snippet.startsWith('<svg') || snippet.startsWith('<?xml') && snippet.includes('<svg');
@@ -344,6 +404,33 @@ export class FileUtils {
         return buffer.length >= 2
             && buffer[0] === 0xFF
             && (buffer[1] & 0xF6) === 0xF0;
+    }
+
+    private static isAiff(buffer: Buffer): boolean {
+        return buffer.length >= 12
+            && this.hasAsciiPrefix(buffer, 'FORM')
+            && ['AIFF', 'AIFC'].includes(buffer.subarray(8, 12).toString('ascii'));
+    }
+
+    private static isAc3(buffer: Buffer): boolean {
+        return buffer.length >= 2
+            && buffer[0] === 0x0B
+            && buffer[1] === 0x77;
+    }
+
+    private static isAmr(buffer: Buffer): boolean {
+        return this.hasAsciiPrefix(buffer, '#!AMR\n') || this.hasAsciiPrefix(buffer, '#!AMR-WB\n');
+    }
+
+    private static isMpegTransportStream(buffer: Buffer): boolean {
+        const packetSize = 188;
+        if (buffer.length < packetSize * 3) {
+            return false;
+        }
+
+        return buffer[0] === 0x47
+            && buffer[packetSize] === 0x47
+            && buffer[packetSize * 2] === 0x47;
     }
 
     private static isMp4Family(buffer: Buffer): boolean {
@@ -414,8 +501,13 @@ export class FileUtils {
 
     private static async detectZipBasedOfficeViewType(filePath: string): Promise<{ viewType: OmniViewerViewType; reason: string } | null> {
         try {
+            const zipLoader = (JSZip as unknown as { loadAsync?: (input: Buffer) => Promise<JSZip> }).loadAsync;
+            if (!zipLoader) {
+                return null;
+            }
+
             const buffer = await fs.promises.readFile(filePath);
-            const zip = await JSZip.loadAsync(buffer);
+            const zip = await zipLoader(buffer);
             const names = Object.keys(zip.files);
 
             if (names.some(name => name.startsWith('word/'))) {

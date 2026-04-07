@@ -26,6 +26,7 @@ export class AudioController {
             selectedRegionId: null,
             regionStartOverlay: null,
             regionEndOverlay: null,
+            loadTimeoutId: null,
             elements: DOMUtils.getElements()
         };
 
@@ -48,6 +49,32 @@ export class AudioController {
         this.setupDownloadButton();
     }
 
+    clearLoadTimeout() {
+        if (this.state.loadTimeoutId) {
+            clearTimeout(this.state.loadTimeoutId);
+            this.state.loadTimeoutId = null;
+        }
+    }
+
+    startLoadTimeout() {
+        this.clearLoadTimeout();
+        this.state.loadTimeoutId = setTimeout(() => {
+            if (this.state.isSetupComplete) {
+                return;
+            }
+
+            this.showLoadError('Audio decode timed out. This format may not be supported by the VS Code webview browser engine.');
+        }, 15000);
+    }
+
+    showLoadError(message) {
+        this.clearLoadTimeout();
+        this.state.elements.loading.style.display = 'none';
+        this.state.elements.error.style.display = 'block';
+        this.state.elements.error.textContent = message;
+        this.vscode.postMessage({ command: 'error', text: message });
+    }
+
     async initAudioViewer() {
         try {
             AudioUtils.log('Initializing audio viewer...');
@@ -61,6 +88,7 @@ export class AudioController {
             const loadAudio = async () => {
                 try {
                     this.state.isSetupComplete = false;
+                    this.startLoadTimeout();
                     
                     // Clear existing regions before loading new audio
                     this.regionManager.clearAllRegions();
@@ -73,6 +101,7 @@ export class AudioController {
                 } catch (error) {
                     console.error('Error loading audio:', error);
                     AudioUtils.showStatus('Error loading audio: ' + error.message, this.state.elements.status);
+                    this.showLoadError('Error loading audio file: ' + error.message);
                     throw error;
                 }
             };
@@ -120,6 +149,7 @@ export class AudioController {
                 
                 console.log('Setting up audio viewer after decode...');
                 this.state.isSetupComplete = true;
+                this.clearLoadTimeout();
                 
                 await this.pluginManager.setupSpectrogram();
                 await this.pluginManager.setupTimeline();
@@ -164,14 +194,12 @@ export class AudioController {
                 }, 1000);
             };
 
+            this.state.wavesurfer.on('ready', setupAfterDecode);
             this.state.wavesurfer.on('decode', setupAfterDecode);
             
         } catch (error) {
             console.error('Error loading audio:', error);
-            this.state.elements.loading.style.display = 'none';
-            this.state.elements.error.style.display = 'block';
-            this.state.elements.error.textContent = 'Error loading audio file: ' + error.message;
-            this.vscode.postMessage({ command: 'error', text: error.message });
+            this.showLoadError('Error loading audio file: ' + error.message);
             
             if (error.name === 'NotSupportedError') {
                 this.state.elements.error.textContent += '\n\nThis audio format may not be supported by your browser.';

@@ -2,7 +2,7 @@
   "name": "omni-viewer",
   "displayName": "omni-viewer",
   "publisher": "battlecook",
-  "description": "A VSCode extension for viewing audio, image, video, csv, excel, word, powerpoint, parquet, jsonl, hwp, PSD and PDF files",
+  "description": "A VSCode extension for viewing audio, image, video, archive, csv, excel, word, powerpoint, parquet, jsonl, hwp, PSD and PDF files",
   "version": "0.17.1",
   "repository": {
     "type": "git",
@@ -20,6 +20,10 @@
     "audio",
     "video",
     "image",
+    "archive",
+    "zip",
+    "tar",
+    "gz",
     "PDF",
     "CSV",
     "Excel",
@@ -44,6 +48,34 @@
   "contributes": {
     "customEditors": [
       {
+        "viewType": "omni-viewer.archiveViewer",
+        "displayName": "Archive Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.zip"
+          },
+          {
+            "filenamePattern": "*.jar"
+          },
+          {
+            "filenamePattern": "*.apk"
+          },
+          {
+            "filenamePattern": "*.tar"
+          },
+          {
+            "filenamePattern": "*.tgz"
+          },
+          {
+            "filenamePattern": "*.tar.gz"
+          },
+          {
+            "filenamePattern": "*.gz"
+          }
+        ],
+        "priority": "default"
+      },
+      {
         "viewType": "omni-viewer.audioViewer",
         "displayName": "Audio Viewer",
         "selector": [
@@ -54,10 +86,28 @@
             "filenamePattern": "*.wav"
           },
           {
+            "filenamePattern": "*.aiff"
+          },
+          {
+            "filenamePattern": "*.aif"
+          },
+          {
+            "filenamePattern": "*.aifc"
+          },
+          {
+            "filenamePattern": "*.amr"
+          },
+          {
+            "filenamePattern": "*.awb"
+          },
+          {
             "filenamePattern": "*.ogg"
           },
           {
             "filenamePattern": "*.flac"
+          },
+          {
+            "filenamePattern": "*.ac3"
           },
           {
             "filenamePattern": "*.aac"
@@ -74,6 +124,12 @@
         "selector": [
           {
             "filenamePattern": "*.mp4"
+          },
+          {
+            "filenamePattern": "*.mts"
+          },
+          {
+            "filenamePattern": "*.m2ts"
           },
           {
             "filenamePattern": "*.avi"
@@ -239,6 +295,21 @@
     "menus": {
       "explorer/context": [
         {
+          "command": "omni-viewer.openArchiveViewer",
+          "when": "resourceExtname == '.zip' || resourceExtname == '.jar' || resourceExtname == '.apk' || resourceExtname == '.tar' || resourceExtname == '.tgz' || resourceExtname == '.gz'",
+          "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openAudioViewer",
+          "when": "resourceExtname == '.mp3' || resourceExtname == '.wav' || resourceExtname == '.aiff' || resourceExtname == '.aif' || resourceExtname == '.aifc' || resourceExtname == '.amr' || resourceExtname == '.awb' || resourceExtname == '.ogg' || resourceExtname == '.flac' || resourceExtname == '.ac3' || resourceExtname == '.aac' || resourceExtname == '.m4a'",
+          "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openVideoViewer",
+          "when": "resourceExtname == '.mp4' || resourceExtname == '.mts' || resourceExtname == '.m2ts' || resourceExtname == '.avi' || resourceExtname == '.mov' || resourceExtname == '.wmv' || resourceExtname == '.flv' || resourceExtname == '.webm' || resourceExtname == '.mkv'",
+          "group": "navigation"
+        },
+        {
           "command": "omni-viewer.openImageViewer",
           "when": "resourceExtname == '.jpg' || resourceExtname == '.jpeg' || resourceExtname == '.png' || resourceExtname == '.gif' || resourceExtname == '.bmp' || resourceExtname == '.webp' || resourceExtname == '.svg'",
           "group": "navigation"
@@ -286,6 +357,21 @@
       ]
     },
     "commands": [
+      {
+        "command": "omni-viewer.openArchiveViewer",
+        "title": "Open with Archive Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openAudioViewer",
+        "title": "Open with Audio Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openVideoViewer",
+        "title": "Open with Video Viewer",
+        "category": "Omni Viewer"
+      },
       {
         "command": "omni-viewer.openImageViewer",
         "title": "Open with Image Editor",

@@ -42,6 +42,7 @@ export class VideoViewerProvider implements vscode.CustomReadonlyEditorProvider 
             const html = await TemplateUtils.loadTemplate(this.context, 'videoViewer.html', {
                 fileName: videoFileName,
                 videoSrc: videoData,
+                mimeType: mimeType,
                 fileSize: fileSize
             });
 
