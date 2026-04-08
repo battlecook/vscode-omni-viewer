@@ -78,6 +78,43 @@ export class EventManager {
         }
     }
 
+    setupZoom(duration) {
+        const { zoomControls, zoomIn, zoomOut, zoomLevel } = this.state.elements;
+        if (!zoomControls || !zoomIn || !zoomOut) return;
+
+        zoomControls.style.display = 'flex';
+
+        const containerWidth = document.getElementById('waveform')?.offsetWidth || 1000;
+        const minZoom = containerWidth / duration; // show entire file
+        const maxZoom = containerWidth / 2; // show 2 seconds
+
+        const updateLabel = () => {
+            const currentPxPerSec = this.state.wavesurfer.options.minPxPerSec || minZoom;
+            const visibleSec = containerWidth / currentPxPerSec;
+            if (visibleSec >= 60) {
+                zoomLevel.textContent = Math.round(visibleSec / 60) + 'm';
+            } else {
+                zoomLevel.textContent = Math.round(visibleSec) + 's';
+            }
+        };
+
+        zoomIn.addEventListener('click', () => {
+            const current = this.state.wavesurfer.options.minPxPerSec || minZoom;
+            const next = Math.min(current * 2, maxZoom);
+            this.state.wavesurfer.zoom(next);
+            updateLabel();
+        });
+
+        zoomOut.addEventListener('click', () => {
+            const current = this.state.wavesurfer.options.minPxPerSec || minZoom;
+            const next = Math.max(current / 2, minZoom);
+            this.state.wavesurfer.zoom(next);
+            updateLabel();
+        });
+
+        updateLabel();
+    }
+
     setupKeyboardEvents() {
         document.addEventListener('keydown', async (e) => {
             if (e.code === 'Space' && !e.target.matches('input, textarea')) {

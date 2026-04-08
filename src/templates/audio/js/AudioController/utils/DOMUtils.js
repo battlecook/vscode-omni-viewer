@@ -21,7 +21,11 @@ export const DOMUtils = {
             bitDepthInfo: document.getElementById('bitDepthInfo'),
             fileSizeInfo: document.getElementById('fileSizeInfo'),
             formatInfo: document.getElementById('formatInfo'),
-            downloadBtn: document.getElementById('downloadBtn')
+            downloadBtn: document.getElementById('downloadBtn'),
+            zoomControls: document.getElementById('zoomControls'),
+            zoomIn: document.getElementById('zoomIn'),
+            zoomOut: document.getElementById('zoomOut'),
+            zoomLevel: document.getElementById('zoomLevel')
         };
     },
 

@@ -123,6 +123,7 @@ export class AudioController {
             this.eventManager.setupVolume();
             this.eventManager.setupLoop();
             this.eventManager.setupSpectrogramScale();
+            this.eventManager.setupZoom(duration);
             this.eventManager.setupWaveSurferEvents();
 
             // Update info
