@@ -129,6 +129,15 @@ body {
     overflow: hidden;
 }
 
+#minimap {
+    width: 100%;
+    background: var(--vscode-editor-background);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 6px;
+    opacity: 0.85;
+}
+
 #waveform {
     width: 100%;
     background: var(--vscode-editor-background);

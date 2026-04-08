@@ -335,6 +335,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
+    "build:wasm": "cd src/wasm && bash build.sh",
     "compile": "webpack --mode production",
     "watch": "webpack --mode development --watch",
     "pretest": "npm run compile && npm run lint",

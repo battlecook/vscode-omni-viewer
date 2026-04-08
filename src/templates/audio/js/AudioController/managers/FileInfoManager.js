@@ -22,7 +22,8 @@ export class FileInfoManager {
 
     updateFileInfo() {
         try {
-            const decodedData = this.state.wavesurfer.getDecodedData();
+            let decodedData = null;
+            try { decodedData = this.state.wavesurfer.getDecodedData(); } catch (_) {}
             
             // Use server metadata if available, fallback to decoded data
             const sampleRate = this.audioMetadata.sampleRate || (decodedData?.sampleRate || CONSTANTS.WAVESURFER.SAMPLE_RATE);

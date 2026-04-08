@@ -78,6 +78,7 @@
                     </div>
                 </div>
                 <div id="error" class="error" style="display: none;"></div>
+                <div id="minimap" style="display: none;"></div>
                 <div id="timeline"></div>
                 <div id="waveform"></div>
                 <div id="spectrogram" style="display: none;"></div>
@@ -89,6 +90,13 @@
     <div id="contextMenu" class="context-menu"></div>
 
     <script id="metadata-script" type="application/json">{{metadata}}</script>
+    <script id="precomputed-data" type="application/json">{
+        "mode": "{{mode}}",
+        "peaks": "{{peaks}}",
+        "duration": "{{duration}}",
+        "spectrogram": "{{spectrogram}}",
+        "sampleRate": "{{sampleRate}}"
+    }</script>
     <script src="js/audioViewer.js"></script>
 </body>
 </html>

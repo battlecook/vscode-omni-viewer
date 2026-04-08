@@ -8,6 +8,7 @@ module.exports = [
     entry: {
       extension: './src/extension.ts',
       audioViewerProvider: './src/audioViewerProvider.ts',
+      audioEngine: './src/audioEngine.ts',
       videoViewerProvider: './src/videoViewerProvider.ts',
       imageViewerProvider: './src/imageViewerProvider.ts',
       csvViewerProvider: './src/csvViewerProvider.ts',

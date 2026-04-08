@@ -1,5 +1,6 @@
 import WaveSurfer from 'wavesurfer.js';
 import HoverPlugin from '../../../../../../node_modules/wavesurfer.js/dist/plugins/hover.js';
+import MinimapPlugin from '../../../../../../node_modules/wavesurfer.js/dist/plugins/minimap.js';
 import { CONSTANTS } from '../utils/Constants.js';
 import { AudioUtils } from '../utils/AudioUtils.js';
 
@@ -32,6 +33,58 @@ export class WaveSurferManager {
                     labelBackground: '#000000',
                     labelColor: '#fff',
                     formatTimeCallback: AudioUtils.formatTime
+                })
+            ]
+        });
+    }
+
+    /**
+     * Create WaveSurfer in precomputed mode (large files).
+     * Uses MediaElement backend with pre-generated peaks.
+     * Zoomed-in view with minimap for navigation.
+     */
+    createPrecomputed({ url, peaks, duration }) {
+        // Calculate zoom: target ~30 seconds visible at a time
+        const containerWidth = document.getElementById('waveform')?.offsetWidth || 1000;
+        const visibleSeconds = Math.min(30, duration);
+        const minPxPerSec = containerWidth / visibleSeconds;
+
+        return WaveSurfer.create({
+            container: '#waveform',
+            waveColor: CONSTANTS.WAVESURFER.WAVE_COLOR,
+            progressColor: CONSTANTS.WAVESURFER.PROGRESS_COLOR,
+            cursorColor: CONSTANTS.WAVESURFER.CURSOR_COLOR,
+            barWidth: 1,
+            barRadius: 1,
+            cursorWidth: CONSTANTS.WAVESURFER.CURSOR_WIDTH,
+            barGap: 1,
+            responsive: true,
+            normalize: true,
+            backend: 'MediaElement',
+            url: url,
+            peaks: peaks,
+            duration: duration,
+            minPxPerSec: minPxPerSec,
+            autoScroll: true,
+            autoCenter: true,
+            autoplay: false,
+            mediaControls: false,
+            hideScrollbar: false,
+            interact: true,
+            plugins: [
+                HoverPlugin.create({
+                    lineWidth: 2,
+                    labelBackground: '#000000',
+                    labelColor: '#fff',
+                    formatTimeCallback: AudioUtils.formatTime
+                }),
+                MinimapPlugin.create({
+                    height: 40,
+                    waveColor: '#3a366e',
+                    progressColor: '#2a2546',
+                    overlayColor: 'rgba(100, 100, 200, 0.15)',
+                    container: '#minimap',
+                    insertPosition: 'beforeend',
                 })
             ]
         });
