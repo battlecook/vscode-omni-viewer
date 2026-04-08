@@ -8,6 +8,32 @@ import { configureWebview, createReadonlyDocument, renderErrorHtml, rerouteIfNee
 import { AudioEngine } from './audioEngine';
 
 const LARGE_FILE_THRESHOLD = 50 * 1024 * 1024; // 50MB
+const LONG_DURATION_THRESHOLD = 300; // 5 minutes
+
+// Conservative (low) bitrate estimates in bytes/sec for duration estimation
+// Using low estimates so we overestimate duration → prefer WASM path
+const BITRATE_ESTIMATES: Record<string, number> = {
+    '.mp3': 16000,   // ~128kbps
+    '.ogg': 16000,   // ~128kbps
+    '.aac': 16000,   // ~128kbps
+    '.m4a': 16000,   // ~128kbps
+    '.flac': 100000, // ~800kbps
+    '.wav': 176400,  // 44.1kHz 16-bit stereo
+};
+
+// OGG metadata duration is unreliable (music-metadata often reads only the first page)
+const UNRELIABLE_METADATA_EXTS = new Set(['.ogg']);
+
+function estimateDuration(fileSize: number, ext: string, metadataDuration?: number): number {
+    if (metadataDuration && metadataDuration > 0 && !UNRELIABLE_METADATA_EXTS.has(ext)) {
+        return metadataDuration;
+    }
+    const bytesPerSec = BITRATE_ESTIMATES[ext];
+    if (bytesPerSec) {
+        return fileSize / bytesPerSec;
+    }
+    return 0;
+}
 
 export class AudioViewerProvider implements vscode.CustomReadonlyEditorProvider {
     public static readonly viewType = 'omni-viewer.audioViewer';
@@ -43,7 +69,10 @@ export class AudioViewerProvider implements vscode.CustomReadonlyEditorProvider 
             const metadata = await FileUtils.getAudioMetadata(audioPath);
             const stats = await fs.promises.stat(audioPath);
             const fileSize = stats.size;
-            const isLargeFile = fileSize > LARGE_FILE_THRESHOLD;
+            const ext = path.extname(audioPath).toLowerCase();
+            const estDuration = estimateDuration(fileSize, ext, metadata.duration);
+            // Use WASM path for large files OR long-duration audio (compressed formats like MP3)
+            const isLargeFile = fileSize > LARGE_FILE_THRESHOLD || estDuration > LONG_DURATION_THRESHOLD;
 
             let templateVars: Record<string, string>;
 
@@ -60,25 +89,49 @@ export class AudioViewerProvider implements vscode.CustomReadonlyEditorProvider 
                     ]
                 };
 
-                // Use WASM engine for peaks/spectrogram
-                if (!this.audioEngine) {
-                    this.audioEngine = new AudioEngine();
-                    await this.audioEngine.init();
-                }
-
-                const analysis = await this.audioEngine.analyze(audioPath);
                 const audioWebviewUri = webviewPanel.webview.asWebviewUri(audioUri);
 
-                templateVars = {
-                    fileName: audioFileName,
-                    audioSrc: audioWebviewUri.toString(),
-                    metadata: JSON.stringify(metadata),
-                    peaks: JSON.stringify(analysis.peaks),
-                    duration: String(analysis.duration),
-                    spectrogram: JSON.stringify(analysis.spectrogram),
-                    sampleRate: String(analysis.sampleRate),
-                    mode: 'precomputed'
-                };
+                // Try WASM engine for peaks/spectrogram
+                try {
+                    if (!this.audioEngine) {
+                        this.audioEngine = new AudioEngine();
+                        await this.audioEngine.init();
+                    }
+
+                    const analysis = await this.audioEngine.analyze(audioPath);
+
+                    // Sanity check: verify WASM decoded duration is reasonable
+                    // Use file-size estimate as ground truth (metadata may be unreliable for OGG)
+                    const expectedDuration = estDuration;
+                    if (expectedDuration > 60 && analysis.duration < expectedDuration * 0.5) {
+                        console.warn(`[AudioViewer] WASM decoded ${analysis.duration.toFixed(1)}s but expected ~${expectedDuration.toFixed(1)}s. Falling back to streaming.`);
+                        throw new Error(`Decode duration mismatch: got ${analysis.duration.toFixed(1)}s, expected ~${expectedDuration.toFixed(1)}s`);
+                    }
+
+                    templateVars = {
+                        fileName: audioFileName,
+                        audioSrc: audioWebviewUri.toString(),
+                        metadata: JSON.stringify(metadata),
+                        peaks: JSON.stringify(analysis.peaks),
+                        duration: String(analysis.duration),
+                        spectrogram: JSON.stringify(analysis.spectrogram),
+                        sampleRate: String(analysis.sampleRate),
+                        mode: 'precomputed'
+                    };
+                } catch (wasmError) {
+                    // Fallback: stream via MediaElement without precomputed data
+                    console.warn(`[AudioViewer] WASM analysis failed, falling back to streaming mode: ${wasmError}`);
+                    templateVars = {
+                        fileName: audioFileName,
+                        audioSrc: audioWebviewUri.toString(),
+                        metadata: JSON.stringify(metadata),
+                        peaks: '',
+                        duration: '',
+                        spectrogram: '',
+                        sampleRate: '',
+                        mode: 'streaming'
+                    };
+                }
             } else {
                 // Small file: existing base64 data URL approach
                 const mimeType = FileUtils.getAudioMimeType(audioPath);

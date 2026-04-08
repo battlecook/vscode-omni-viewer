@@ -90,6 +90,40 @@ export class WaveSurferManager {
         });
     }
 
+    /**
+     * Create WaveSurfer in streaming mode (large file, WASM fallback).
+     * Uses MediaElement backend without pre-generated peaks.
+     * WaveSurfer will decode audio progressively.
+     */
+    createStreaming({ url }) {
+        return WaveSurfer.create({
+            container: '#waveform',
+            waveColor: CONSTANTS.WAVESURFER.WAVE_COLOR,
+            progressColor: CONSTANTS.WAVESURFER.PROGRESS_COLOR,
+            cursorColor: CONSTANTS.WAVESURFER.CURSOR_COLOR,
+            barWidth: CONSTANTS.WAVESURFER.BAR_WIDTH,
+            barRadius: CONSTANTS.WAVESURFER.BAR_RADIUS,
+            cursorWidth: CONSTANTS.WAVESURFER.CURSOR_WIDTH,
+            barGap: CONSTANTS.WAVESURFER.BAR_GAP,
+            responsive: true,
+            normalize: true,
+            backend: 'MediaElement',
+            url: url,
+            autoplay: false,
+            mediaControls: false,
+            hideScrollbar: false,
+            interact: true,
+            plugins: [
+                HoverPlugin.create({
+                    lineWidth: 2,
+                    labelBackground: '#000000',
+                    labelColor: '#fff',
+                    formatTimeCallback: AudioUtils.formatTime
+                })
+            ]
+        });
+    }
+
     getTimelineIntervals(durationSec) {
         if (!durationSec || durationSec <= 0) {
             return { timeInterval: 1, primaryLabelInterval: 5, secondaryLabelInterval: 1 };

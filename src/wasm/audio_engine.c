@@ -97,17 +97,19 @@ AudioData* decode_audio(const uint8_t* data, uint32_t length) {
             audio->channels = (uint32_t)vorbis_channels;
             audio->sample_rate = (uint32_t)vorbis_sample_rate;
             audio->total_frames = (uint64_t)vorbis_frames;
-            audio->samples = (float*)malloc(sizeof(float) * total_samples);
-            if (!audio->samples) {
+            /* Memory optimization: realloc int16 buffer to float32 size
+             * then convert backwards in-place to avoid holding both buffers */
+            float* float_buf = (float*)realloc(vorbis_samples_i16, sizeof(float) * total_samples);
+            if (!float_buf) {
                 free(vorbis_samples_i16);
                 free(audio);
                 return NULL;
             }
-            /* Convert int16 to float32 */
-            for (uint64_t i = 0; i < total_samples; i++) {
-                audio->samples[i] = vorbis_samples_i16[i] / 32768.0f;
+            short* short_view = (short*)float_buf;
+            for (int64_t i = (int64_t)total_samples - 1; i >= 0; i--) {
+                float_buf[i] = short_view[i] / 32768.0f;
             }
-            free(vorbis_samples_i16);
+            audio->samples = float_buf;
             return audio;
         }
     }

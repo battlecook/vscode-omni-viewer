@@ -59,9 +59,12 @@ export class AudioController {
             // Clear any existing regions from DOM first
             this.regionManager.clearRegionsFromDOM();
 
-            if (this.precomputedData) {
+            if (this.precomputedData && this.precomputedData.mode === 'precomputed') {
                 // === PRECOMPUTED MODE (WASM large file) ===
                 await this.initPrecomputedMode();
+            } else if (this.precomputedData && this.precomputedData.mode === 'streaming') {
+                // === STREAMING MODE (large file, WASM failed, MediaElement fallback) ===
+                await this.initStreamingMode();
             } else {
                 // === DEFAULT MODE (small file, base64 data URL) ===
                 await this.initDefaultMode();
@@ -135,6 +138,52 @@ export class AudioController {
         this.state.wavesurfer.on('ready', setupAfterReady);
         // Also listen to decode in case it fires that instead
         this.state.wavesurfer.on('decode', setupAfterReady);
+    }
+
+    /**
+     * Streaming mode: large file where WASM analysis failed.
+     * Uses MediaElement backend for playback without precomputed peaks/spectrogram.
+     * WaveSurfer decodes audio progressively for waveform display.
+     */
+    async initStreamingMode() {
+        AudioUtils.log('Streaming mode (WASM fallback): ' + this.audioSrc);
+
+        this.state.wavesurfer = this.waveSurferManager.createStreaming({ url: this.audioSrc });
+
+        this.eventManager.setupKeyboardEvents();
+
+        const setupAfterDecode = async () => {
+            if (this.state.isSetupComplete) return;
+            this.state.isSetupComplete = true;
+
+            console.log('Setting up streaming audio viewer...');
+
+            await this.pluginManager.setupSpectrogram();
+            await this.pluginManager.setupTimeline();
+            await this.pluginManager.setupRegions();
+
+            this.state.elements.loading.style.display = 'none';
+            this.state.elements.waveform.style.display = 'block';
+            this.state.elements.spectrogram.style.display = 'block';
+
+            this.eventManager.setupPlayPause();
+            this.eventManager.setupStop();
+            this.eventManager.setupVolume();
+            this.eventManager.setupLoop();
+            this.eventManager.setupSpectrogramScale();
+            this.eventManager.setupWaveSurferEvents();
+
+            const duration = this.state.wavesurfer.getDuration();
+            if (duration > 60) {
+                this.eventManager.setupZoom(duration);
+            }
+
+            this.fileInfoManager.updateDuration();
+            this.fileInfoManager.updateFileInfo();
+        };
+
+        this.state.wavesurfer.on('decode', setupAfterDecode);
+        this.state.wavesurfer.on('ready', setupAfterDecode);
     }
 
     async initDefaultMode() {

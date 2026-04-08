@@ -48,14 +48,18 @@ export const DOMUtils = {
             const script = document.getElementById('precomputed-data');
             if (script && script.textContent) {
                 const raw = JSON.parse(script.textContent);
-                if (raw.mode !== 'precomputed') return null;
-                return {
-                    mode: raw.mode,
-                    peaks: raw.peaks ? JSON.parse(raw.peaks) : null,
-                    duration: raw.duration ? parseFloat(raw.duration) : null,
-                    spectrogram: raw.spectrogram ? JSON.parse(raw.spectrogram) : null,
-                    sampleRate: raw.sampleRate ? parseInt(raw.sampleRate, 10) : null
-                };
+                if (raw.mode === 'precomputed') {
+                    return {
+                        mode: raw.mode,
+                        peaks: raw.peaks ? JSON.parse(raw.peaks) : null,
+                        duration: raw.duration ? parseFloat(raw.duration) : null,
+                        spectrogram: raw.spectrogram ? JSON.parse(raw.spectrogram) : null,
+                        sampleRate: raw.sampleRate ? parseInt(raw.sampleRate, 10) : null
+                    };
+                }
+                if (raw.mode === 'streaming') {
+                    return { mode: 'streaming' };
+                }
             }
         } catch (error) {
             console.warn('Error parsing precomputed data:', error);

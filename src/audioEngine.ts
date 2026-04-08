@@ -43,9 +43,15 @@ export class AudioEngine {
 
         const fileBuffer = await fs.promises.readFile(filePath);
         const uint8 = new Uint8Array(fileBuffer);
+        const ext = path.extname(filePath).toLowerCase();
+
+        console.log(`[AudioEngine] Analyzing: ${path.basename(filePath)} (${(uint8.length / 1024 / 1024).toFixed(1)}MB, ext=${ext})`);
 
         // Copy input data to WASM memory
         const inputPtr = this.module._malloc(uint8.length);
+        if (!inputPtr) {
+            throw new Error(`WASM malloc failed for input buffer (${(uint8.length / 1024 / 1024).toFixed(1)}MB)`);
+        }
         this.module.HEAPU8.set(uint8, inputPtr);
 
         // Decode audio
@@ -53,7 +59,11 @@ export class AudioEngine {
         this.module._free(inputPtr);
 
         if (!audioPtr) {
-            throw new Error('Failed to decode audio file');
+            const supported = ['.wav', '.mp3', '.flac', '.ogg'];
+            if (!supported.includes(ext)) {
+                throw new Error(`Unsupported audio format: ${ext}. WASM engine supports: ${supported.join(', ')}`);
+            }
+            throw new Error(`Failed to decode audio file (${ext}, ${(uint8.length / 1024 / 1024).toFixed(1)}MB). Possible memory limit exceeded.`);
         }
 
         try {
