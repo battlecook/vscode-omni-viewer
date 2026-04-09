@@ -18,7 +18,9 @@ A comprehensive audio, image, PSD, video, CSV, Excel, Word, PowerPoint, PDF, Par
 - **Audio Information**: Duration, sample rate, channels, bit depth, file size, format display
 
 ### Supported Audio Formats
-- MP3, WAV, OGG, FLAC, AAC, M4A
+- MP3, WAV, AIFF/AIF/AIFC, AMR/AWB, OGG, FLAC, AC3, AAC, M4A
+
+Note: playback still depends on the VS Code webview browser engine supporting the underlying codec.
 
 ## 🖼️ Image Viewer Features
 
@@ -66,7 +68,9 @@ A comprehensive audio, image, PSD, video, CSV, Excel, Word, PowerPoint, PDF, Par
 - **Video Information**: Resolution, duration, and file size display
 
 ### Supported Video Formats
-- MP4, AVI, MOV, WMV, FLV, WebM, MKV
+- MP4, MPEG-TS (TS/MTS/M2TS), AVI, MOV, WMV, FLV, WebM, MKV
+
+Note: `.ts` files share an extension with TypeScript source files, so automatic viewer association may require using Open With instead of a default file binding.
 
 ## 📊 CSV Viewer Features
 

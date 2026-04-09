@@ -27,12 +27,19 @@ interface PieceTableCandidate {
     score: number;
     styledParagraphs?: StyledParagraph[];
     decodedSegments?: DecodedPieceSegment[];
+    headerFooterBySection?: Map<number, LegacyHeaderFooter>;
 }
 
 interface FibInfo {
     nFib: number;
     tableStreamName: '0Table' | '1Table';
     ccpText: number;
+    ccpFtn: number;
+    ccpHdd: number;
+    fcPlcfSed: number;
+    lcbPlcfSed: number;
+    fcPlcfHdd: number;
+    lcbPlcfHdd: number;
     fcClx: number;
     lcbClx: number;
     fcPlcfBteChpx: number;
@@ -53,11 +60,15 @@ interface CharacterStyle {
     marginLeftTwips?: number;
     marginRightTwips?: number;
     firstLineIndentTwips?: number;
+    pageBreakBefore?: boolean;
+    keepWithNext?: boolean;
+    keepLinesTogether?: boolean;
     inTable?: boolean;
     isTableTerminator?: boolean;
     tableColumnCount?: number;
     tableColumnWidthsTwips?: number[];
     tableCellMerges?: TableCellMerge[];
+    tableHasExplicitBorders?: boolean;
 }
 
 interface CharacterStyleRun {
@@ -79,6 +90,7 @@ interface TableCellMerge {
 
 interface DecodedPieceSegment {
     text: string;
+    cpStart: number;
     fcStart: number;
     bytesPerChar: number;
 }
@@ -93,6 +105,20 @@ interface StyledParagraph {
     tableColumnCount?: number;
     tableColumnWidthsTwips?: number[];
     tableCellMerges?: TableCellMerge[];
+    tableHasExplicitBorders?: boolean;
+    embeddedChartAnchor?: boolean;
+    embeddedImageAnchor?: boolean;
+    embeddedAssetAnchor?: boolean;
+    embeddedAssetPreference?: 'chart' | 'image';
+    embeddedObjectClass?: string;
+    floatingSide?: 'left' | 'right' | 'center';
+    floatingWidthMode?: 'narrow' | 'regular' | 'wide';
+    floatingPlacement?: 'edge-wrap' | 'center-block';
+    floatingClearancePx?: number;
+    preserveEmpty?: boolean;
+    pageBreakBefore?: boolean;
+    sectionIndex?: number;
+    sectionLayout?: LegacyLayoutMetrics;
 }
 
 interface StyledLine {
@@ -105,25 +131,50 @@ interface StyledLine {
     tableColumnCount?: number;
     tableColumnWidthsTwips?: number[];
     tableCellMerges?: TableCellMerge[];
+    tableHasExplicitBorders?: boolean;
+    embeddedChartAnchor?: boolean;
+    embeddedImageAnchor?: boolean;
+    embeddedAssetAnchor?: boolean;
+    embeddedAssetPreference?: 'chart' | 'image';
+    embeddedObjectClass?: string;
+    floatingSide?: 'left' | 'right' | 'center';
+    floatingWidthMode?: 'narrow' | 'regular' | 'wide';
+    floatingPlacement?: 'edge-wrap' | 'center-block';
+    floatingClearancePx?: number;
+    preserveEmpty?: boolean;
+    pageBreakBefore?: boolean;
+    sectionIndex?: number;
+    sectionLayout?: LegacyLayoutMetrics;
 }
 
 type LegacyBlock =
-    | { kind: 'heading'; text: string; style?: CharacterStyle; runs?: Array<{ text: string; style?: CharacterStyle }> }
-    | { kind: 'paragraph'; text: string; style?: CharacterStyle; runs?: Array<{ text: string; style?: CharacterStyle }> }
-    | { kind: 'list'; ordered: boolean; items: Array<{ text: string; level: number; style?: CharacterStyle }> }
+    | { kind: 'heading'; text: string; style?: CharacterStyle; runs?: Array<{ text: string; style?: CharacterStyle }>; pageBreakBefore?: boolean; sectionIndex?: number; sectionLayout?: LegacyLayoutMetrics }
+    | { kind: 'paragraph'; text: string; style?: CharacterStyle; runs?: Array<{ text: string; style?: CharacterStyle }>; pageBreakBefore?: boolean; sectionIndex?: number; sectionLayout?: LegacyLayoutMetrics }
+    | { kind: 'list'; ordered: boolean; items: Array<{ text: string; level: number; style?: CharacterStyle }>; pageBreakBefore?: boolean; sectionIndex?: number; sectionLayout?: LegacyLayoutMetrics }
     | {
         kind: 'table';
         rows: Array<Array<{ text: string; colspan?: number; rowspan?: number }>>;
         columnWidthsTwips?: number[];
         cellMerges?: TableCellMerge[][];
+        hasExplicitBorders?: boolean;
+        pageBreakBefore?: boolean;
+        sectionIndex?: number;
+        sectionLayout?: LegacyLayoutMetrics;
     }
     | {
         kind: 'embedded-sheet';
-        title: string;
+        title?: string;
         chart?: { type: 'bar' | 'line'; categories: string[]; series: Array<{ name: string; values: number[]; color: string }> };
         rows?: string[][];
+        objectPlacementMode?: 'text-flow' | 'drawing-anchor';
+        pageBreakBefore?: boolean;
+        sectionIndex?: number;
+        sectionLayout?: LegacyLayoutMetrics;
     }
-    | { kind: 'image-gallery'; images: Array<{ src: string; alt: string }> };
+    | { kind: 'embedded-chart-anchor'; objectClass?: string; pageBreakBefore?: boolean; sectionIndex?: number; sectionLayout?: LegacyLayoutMetrics }
+    | { kind: 'embedded-asset-anchor'; assetPreference?: 'chart' | 'image'; pageBreakBefore?: boolean; sectionIndex?: number; sectionLayout?: LegacyLayoutMetrics }
+    | { kind: 'image'; src: string; alt: string; floating?: boolean; floatingSide?: 'left' | 'right' | 'center'; floatingWidthMode?: 'narrow' | 'regular' | 'wide'; floatingPlacement?: 'edge-wrap' | 'center-block'; floatingClearancePx?: number; pageBreakBefore?: boolean; sectionIndex?: number; sectionLayout?: LegacyLayoutMetrics }
+    | { kind: 'image-gallery'; images: Array<{ src: string; alt: string }>; floating?: boolean; floatingSide?: 'left' | 'right' | 'center'; floatingWidthMode?: 'narrow' | 'regular' | 'wide'; floatingPlacement?: 'edge-wrap' | 'center-block'; floatingClearancePx?: number; pageBreakBefore?: boolean; sectionIndex?: number; sectionLayout?: LegacyLayoutMetrics };
 
 type EmbeddedChart = {
     type: 'bar' | 'line';
@@ -132,14 +183,228 @@ type EmbeddedChart = {
 };
 
 type EmbeddedSheetData = {
-    title: string;
+    title?: string;
     rows: string[][];
     showTable: boolean;
     chart?: EmbeddedChart;
+    objectPlacementMode?: 'text-flow' | 'drawing-anchor';
+};
+
+type LegacyLayoutMetrics = {
+    pageWidthTwips: number;
+    pageHeightTwips: number;
+    marginTopTwips: number;
+    marginRightTwips: number;
+    marginBottomTwips: number;
+    marginLeftTwips: number;
+    gutterTwips: number;
+    headerTopTwips: number;
+    footerBottomTwips: number;
+    columns: number;
+    columnGapTwips: number;
+    lineBetweenColumns: boolean;
+    rtlGutter: boolean;
+    explicitColumnWidthsTwips: number[];
+    explicitColumnSpacingsTwips: number[];
+};
+
+type LegacySection = {
+    sectionIndex?: number;
+    layout: LegacyLayoutMetrics;
+    blocks: LegacyBlock[];
+    headerFooter?: LegacyHeaderFooter;
+};
+
+type SectionBoundary = {
+    sectionIndex: number;
+    cpStart: number;
+    cpEnd: number;
+    layout?: LegacyLayoutMetrics;
+};
+
+type LegacyHeaderFooter = {
+    sectionNumber?: number;
+    sectionCount?: number;
+    evenHeaderText?: string;
+    oddHeaderText?: string;
+    evenFooterText?: string;
+    oddFooterText?: string;
+    firstHeaderText?: string;
+    firstFooterText?: string;
+};
+
+type LegacyRenderedTableCell = {
+    text: string;
+    colspan?: number;
+    rowspan?: number;
+};
+
+type LegacyRenderedTableRow = {
+    cells: LegacyRenderedTableCell[];
+    cellTag: 'th' | 'td';
+};
+
+type LegacyRenderedTableModel = {
+    columnCount: number;
+    colGroupHtml: string;
+    headerRows: LegacyRenderedTableRow[];
+    bodyRows: LegacyRenderedTableRow[];
+    headerRowCount: number;
+    hasExplicitBorders?: boolean;
+};
+
+type LegacyRenderedBlockModel = {
+    kind: 'content' | 'table' | 'sheet' | 'image' | 'images';
+    html: string;
+    pageBreakBefore?: boolean;
+    style?: CharacterStyle;
+    semanticKind?: LegacySemanticBlockModel['kind'];
+    semanticTag?: 'p' | 'h1' | 'h2';
+    semanticRole?: 'caption' | 'floating-media';
+    textLength?: number;
+    hasInlineField?: boolean;
+    hasInlineBreak?: boolean;
+    itemCount?: number;
+    rowCount?: number;
+    mediaCount?: number;
+    estimatedHeightPx?: number;
+    minimumFragmentHeightPx?: number;
+    floatingSide?: 'left' | 'right' | 'center';
+    floatingWidthMode?: 'narrow' | 'regular' | 'wide';
+    floatingPlacement?: 'edge-wrap' | 'center-block';
+    floatingClearancePx?: number;
+    objectPlacementMode?: 'text-flow' | 'drawing-anchor';
+};
+
+type LegacySemanticInlineToken =
+    | { kind: 'text'; text: string; style?: CharacterStyle }
+    | { kind: 'tab' }
+    | { kind: 'line-break' }
+    | { kind: 'field'; field: 'PAGE' | 'NUMPAGES' | 'SECTIONPAGE' | 'SECTIONPAGES' | 'SECTION' | 'SECTIONS'; style?: CharacterStyle };
+
+type LegacySemanticContentBlockModel = {
+    kind: 'content';
+    tag: 'p' | 'h1' | 'h2';
+    text: string;
+    style?: CharacterStyle;
+    inlineTokens?: LegacySemanticInlineToken[];
+    semanticRole?: 'caption';
+    pageBreakBefore?: boolean;
+};
+
+type LegacySemanticListBlockModel = {
+    kind: 'list';
+    ordered: boolean;
+    items: Array<{ text: string; level: number; style?: CharacterStyle }>;
+    pageBreakBefore?: boolean;
+};
+
+type LegacySemanticTableCell = {
+    text: string;
+    colspan?: number;
+    rowspan?: number;
+};
+
+type LegacySemanticTableRow = {
+    cells: LegacySemanticTableCell[];
+    rowKind: 'header' | 'body';
+};
+
+type LegacySemanticTableModel = {
+    columnCount: number;
+    columnWidthsTwips?: number[];
+    headerRowCount: number;
+    rows: LegacySemanticTableRow[];
+    hasExplicitBorders?: boolean;
+};
+
+type LegacySemanticTableBlockModel = {
+    kind: 'table';
+    table: LegacySemanticTableModel;
+    pageBreakBefore?: boolean;
+};
+
+type LegacySemanticSheetBlockModel = {
+    kind: 'sheet';
+    title?: string;
+    chart?: EmbeddedChart;
+    rows?: string[][];
+    headerRowCount?: number;
+    objectPlacementMode?: 'text-flow' | 'drawing-anchor';
+    pageBreakBefore?: boolean;
+};
+
+type LegacySemanticImageBlockModel = {
+    kind: 'image';
+    src: string;
+    alt: string;
+    floating?: boolean;
+    floatingSide?: 'left' | 'right' | 'center';
+    floatingWidthMode?: 'narrow' | 'regular' | 'wide';
+    floatingPlacement?: 'edge-wrap' | 'center-block';
+    floatingClearancePx?: number;
+    pageBreakBefore?: boolean;
+};
+
+type LegacySemanticImageGalleryBlockModel = {
+    kind: 'images';
+    images: Array<{ src: string; alt: string }>;
+    floating?: boolean;
+    floatingSide?: 'left' | 'right' | 'center';
+    floatingWidthMode?: 'narrow' | 'regular' | 'wide';
+    floatingPlacement?: 'edge-wrap' | 'center-block';
+    floatingClearancePx?: number;
+    pageBreakBefore?: boolean;
+};
+
+type LegacySemanticBlockModel =
+    | LegacySemanticContentBlockModel
+    | LegacySemanticListBlockModel
+    | LegacySemanticTableBlockModel
+    | LegacySemanticSheetBlockModel
+    | LegacySemanticImageBlockModel
+    | LegacySemanticImageGalleryBlockModel;
+
+type LegacyHeaderFooterToken =
+    | { kind: 'text'; value: string }
+    | { kind: 'field'; field: 'PAGE' | 'NUMPAGES' | 'SECTIONPAGE' | 'SECTIONPAGES' | 'SECTION' | 'SECTIONS' };
+
+type LegacySemanticHeaderFooterModel = {
+    sectionNumber?: number;
+    sectionCount?: number;
+    evenHeaderTokens?: LegacyHeaderFooterToken[];
+    oddHeaderTokens?: LegacyHeaderFooterToken[];
+    evenFooterTokens?: LegacyHeaderFooterToken[];
+    oddFooterTokens?: LegacyHeaderFooterToken[];
+    firstHeaderTokens?: LegacyHeaderFooterToken[];
+    firstFooterTokens?: LegacyHeaderFooterToken[];
+};
+
+type LegacySemanticSectionModel = {
+    sectionIndex?: number;
+    layout: LegacyLayoutMetrics;
+    headerFooter?: LegacySemanticHeaderFooterModel;
+    blocks: LegacySemanticBlockModel[];
+};
+
+type LegacySemanticDocumentModel = {
+    sections: LegacySemanticSectionModel[];
+};
+
+type LegacyRenderedSectionModel = {
+    sectionIndex?: number;
+    layout: LegacyLayoutMetrics;
+    headerFooter?: LegacyHeaderFooter;
+    renderedBlocks: LegacyRenderedBlockModel[];
+};
+
+type LegacyRenderedDocumentModel = {
+    sections: LegacyRenderedSectionModel[];
 };
 
 export class DocBinaryParser {
     private static readonly FIELD_CODE_NOISE_PATTERN = /\b(?:HYPERLINK|PAGEREF|TOC|REF)\b\s+"[^"]*"\s*/gi;
+    private static readonly HEADER_FOOTER_FIELD_PATTERN = /\b(?:PAGE|NUMPAGES|SECTIONPAGE|SECTIONPAGES|SECTION|SECTIONS)\b/gi;
 
     public static async parseToHtml(filePath: string): Promise<string> {
         const buffer = await fs.promises.readFile(filePath);
@@ -151,13 +416,14 @@ export class DocBinaryParser {
 
         const fib = this.parseFib(wordStream);
         const extracted = this.extractDocumentText(cfb, wordStream, fib);
+        const objectPlacementMode = this.detectEmbeddedObjectPlacementMode(cfb, buffer);
         const images = this.extractImages(cfb);
-        const embeddedTables = this.extractEmbeddedWorkbookTables(cfb);
-        const embeddedPackageCharts = await this.extractEmbeddedPackageCharts(cfb);
+        const embeddedTables = this.extractEmbeddedWorkbookTables(cfb, objectPlacementMode);
+        const embeddedPackageCharts = await this.extractEmbeddedPackageCharts(cfb, objectPlacementMode);
         const blocks = this.buildDocumentBlocks(extracted.text, images, extracted.styledParagraphs);
         if (blocks.length > 0 || embeddedTables.length > 0 || embeddedPackageCharts.length > 0) {
-            const combinedBlocks = this.composeDocumentBlocks(blocks, embeddedPackageCharts, embeddedTables);
-            return this.wrapLegacyHtml(this.renderBlocks(combinedBlocks));
+            const combinedBlocks = this.composeDocumentBlocks(blocks, embeddedPackageCharts, embeddedTables, images);
+            return this.wrapLegacyHtml(this.buildLegacySections(combinedBlocks, extracted.headerFooterBySection));
         }
 
         return '<div class="ov-doc-legacy-empty">No readable text content found in this .doc file.</div>';
@@ -169,15 +435,18 @@ export class DocBinaryParser {
         if (preferredTableStream) {
             const styleRuns = this.extractCharacterStyleRuns(wordStream, preferredTableStream, fib);
             const paragraphStyleRuns = this.extractParagraphStyleRuns(wordStream, preferredTableStream, fib);
+            const sectionBoundaries = this.extractSectionBoundaries(preferredTableStream, fib, wordStream);
             const clxCandidate = this.extractFromClx(wordStream, preferredTableStream, fib);
             if (clxCandidate) {
-                clxCandidate.styledParagraphs = this.buildStyledParagraphs(clxCandidate, styleRuns, paragraphStyleRuns);
+                clxCandidate.styledParagraphs = this.buildStyledParagraphs(clxCandidate, styleRuns, paragraphStyleRuns, sectionBoundaries);
+                clxCandidate.headerFooterBySection = this.extractHeaderFooterBySection(clxCandidate.decodedSegments, preferredTableStream, fib);
                 candidates.push(clxCandidate);
             }
 
             const candidate = this.extractFromPieceTable(wordStream, preferredTableStream);
             if (candidate) {
-                candidate.styledParagraphs = this.buildStyledParagraphs(candidate, styleRuns, paragraphStyleRuns);
+                candidate.styledParagraphs = this.buildStyledParagraphs(candidate, styleRuns, paragraphStyleRuns, sectionBoundaries);
+                candidate.headerFooterBySection = this.extractHeaderFooterBySection(candidate.decodedSegments, preferredTableStream, fib);
                 candidates.push(candidate);
             }
         }
@@ -191,6 +460,340 @@ export class DocBinaryParser {
             text: this.extractFallbackText(wordStream, cfb, fib),
             score: 0
         };
+    }
+
+    private static extractSectionBoundaries(tableStream: Buffer, fib: FibInfo, wordStream: Buffer): SectionBoundary[] {
+        if (fib.lcbPlcfSed <= 0 || fib.fcPlcfSed < 0 || fib.fcPlcfSed + fib.lcbPlcfSed > tableStream.length) {
+            return [];
+        }
+
+        const plc = tableStream.subarray(fib.fcPlcfSed, fib.fcPlcfSed + fib.lcbPlcfSed);
+        const possibleSedSize = 12;
+        const numerator = plc.length - 4;
+        const denominator = possibleSedSize + 4;
+        if (numerator <= 0 || numerator % denominator !== 0) {
+            return [];
+        }
+
+        const sectionCount = numerator / denominator;
+        if (sectionCount <= 0) {
+            return [];
+        }
+
+        const cps: number[] = [];
+        for (let index = 0; index < sectionCount + 1; index++) {
+            cps.push(plc.readUInt32LE(index * 4));
+        }
+
+        const boundaries: SectionBoundary[] = [];
+        for (let index = 0; index < sectionCount; index++) {
+            const cpStart = cps[index];
+            const cpEnd = cps[index + 1];
+            if (cpEnd <= cpStart) {
+                continue;
+            }
+
+            boundaries.push({
+                sectionIndex: index,
+                cpStart,
+                cpEnd,
+                layout: this.extractSectionLayoutFromSed(wordStream, plc, sectionCount, index)
+            });
+        }
+
+        return boundaries;
+    }
+
+    private static extractHeaderFooterBySection(
+        segments: DecodedPieceSegment[] | undefined,
+        tableStream: Buffer,
+        fib: FibInfo
+    ): Map<number, LegacyHeaderFooter> {
+        const sectionMap = new Map<number, LegacyHeaderFooter>();
+        if (!segments || segments.length === 0 || fib.lcbPlcfHdd <= 0 || fib.ccpHdd <= 0) {
+            return sectionMap;
+        }
+        if (fib.fcPlcfHdd < 0 || fib.fcPlcfHdd + fib.lcbPlcfHdd > tableStream.length) {
+            return sectionMap;
+        }
+
+        const plc = tableStream.subarray(fib.fcPlcfHdd, fib.fcPlcfHdd + fib.lcbPlcfHdd);
+        if (plc.length < 12 || plc.length % 4 !== 0) {
+            return sectionMap;
+        }
+
+        const cpCount = plc.length / 4;
+        const storyCount = cpCount - 2;
+        if (storyCount <= 0) {
+            return sectionMap;
+        }
+
+        const cps: number[] = [];
+        for (let index = 0; index < cpCount; index++) {
+            cps.push(plc.readUInt32LE(index * 4));
+        }
+
+        const hddBaseCp = fib.ccpText + fib.ccpFtn;
+        const resolveStoryText = (storyIndex: number): string | undefined => {
+            if (storyIndex < 0 || storyIndex >= storyCount) {
+                return undefined;
+            }
+            const startCp = hddBaseCp + cps[storyIndex];
+            const endCp = hddBaseCp + cps[storyIndex + 1];
+            if (endCp <= startCp) {
+                return undefined;
+            }
+            return this.extractTextForCpRange(segments, startCp, endCp);
+        };
+
+        const resolveInheritedStoryText = (sectionIndex: number, storyOffset: number): string | undefined => {
+            for (let currentSection = sectionIndex; currentSection >= 0; currentSection--) {
+                const storyText = resolveStoryText(6 + currentSection * 6 + storyOffset);
+                if (storyText) {
+                    return storyText;
+                }
+            }
+            return undefined;
+        };
+
+        const sectionCount = Math.max(0, Math.floor((storyCount - 6) / 6));
+        for (let sectionIndex = 0; sectionIndex < sectionCount; sectionIndex++) {
+            sectionMap.set(sectionIndex, {
+                sectionNumber: sectionIndex + 1,
+                sectionCount,
+                evenHeaderText: resolveInheritedStoryText(sectionIndex, 0),
+                oddHeaderText: resolveInheritedStoryText(sectionIndex, 1),
+                evenFooterText: resolveInheritedStoryText(sectionIndex, 2),
+                oddFooterText: resolveInheritedStoryText(sectionIndex, 3),
+                firstHeaderText: resolveInheritedStoryText(sectionIndex, 4),
+                firstFooterText: resolveInheritedStoryText(sectionIndex, 5)
+            });
+        }
+
+        return sectionMap;
+    }
+
+    private static extractTextForCpRange(
+        segments: DecodedPieceSegment[],
+        startCp: number,
+        endCp: number
+    ): string | undefined {
+        if (endCp <= startCp) {
+            return undefined;
+        }
+
+        let text = '';
+        for (const segment of segments) {
+            const segmentStart = segment.cpStart;
+            const segmentEnd = segment.cpStart + segment.text.length;
+            if (segmentEnd <= startCp || segmentStart >= endCp) {
+                continue;
+            }
+
+            const localStart = Math.max(0, startCp - segmentStart);
+            const localEnd = Math.min(segment.text.length, endCp - segmentStart);
+            text += segment.text.slice(localStart, localEnd);
+        }
+
+        const normalized = text
+            .replace(/\u0007/g, '\n')
+            .replace(/\r/g, '\n')
+            .replace(/[ \t]+\n/g, '\n')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+
+        if (!normalized.length) {
+            return undefined;
+        }
+
+        const cleaned = this.normalizeHeaderFooterText(normalized);
+        return cleaned.length > 0 ? cleaned : undefined;
+    }
+
+    private static normalizeHeaderFooterText(raw: string): string {
+        return (raw || '')
+            .replace(this.FIELD_CODE_NOISE_PATTERN, '')
+            .replace(/[\u0000-\u001f]+/g, ' ')
+            .replace(/[ ]{2,}/g, ' ')
+            .replace(/\s*\n\s*/g, '\n')
+            .trim();
+    }
+
+    private static extractSectionLayoutFromSed(
+        wordStream: Buffer,
+        plc: Buffer,
+        sectionCount: number,
+        sectionIndex: number
+    ): LegacyLayoutMetrics | undefined {
+        const sedSize = 12;
+        const sedOffset = (sectionCount + 1) * 4 + sectionIndex * sedSize;
+        if (sedOffset < 0 || sedOffset + sedSize > plc.length) {
+            return undefined;
+        }
+
+        const fcSepx = plc.readInt32LE(sedOffset + 2);
+        if (fcSepx <= 0 || fcSepx + 2 > wordStream.length) {
+            return undefined;
+        }
+
+        return this.parseSepxLayout(wordStream, fcSepx);
+    }
+
+    private static parseSepxLayout(wordStream: Buffer, fcSepx: number): LegacyLayoutMetrics | undefined {
+        if (fcSepx < 0 || fcSepx + 2 > wordStream.length) {
+            return undefined;
+        }
+
+        const cb = wordStream.readUInt16LE(fcSepx);
+        const grpprlOffset = fcSepx + 2;
+        if (cb <= 0 || grpprlOffset + cb > wordStream.length) {
+            return undefined;
+        }
+
+        return this.parseSectionGrpprl(wordStream.subarray(grpprlOffset, grpprlOffset + cb));
+    }
+
+    private static parseSectionGrpprl(grpprl: Buffer): LegacyLayoutMetrics | undefined {
+        const defaults = this.defaultLegacyLayoutMetrics();
+        let layout: LegacyLayoutMetrics = { ...defaults };
+        let hasOverride = false;
+        let orientationLandscape = false;
+        let evenlySpacedColumns = false;
+        let offset = 0;
+
+        while (offset + 2 <= grpprl.length) {
+            const sprm = grpprl.readUInt16LE(offset);
+            const operandLength = this.getSprmOperandLength(sprm, grpprl, offset + 2);
+            if (operandLength < 0 || offset + 2 + operandLength > grpprl.length) {
+                break;
+            }
+
+            const operandOffset = offset + 2;
+            switch (sprm) {
+            case 0xF203:
+                if (operandLength >= 3) {
+                    const columnIndex = grpprl[operandOffset];
+                    const value = grpprl.readUInt16LE(operandOffset + 1);
+                    layout.explicitColumnWidthsTwips[columnIndex] = value;
+                    hasOverride = true;
+                }
+                break;
+            case 0xF204:
+                if (operandLength >= 3) {
+                    const columnIndex = grpprl[operandOffset];
+                    const value = grpprl.readUInt16LE(operandOffset + 1);
+                    layout.explicitColumnSpacingsTwips[columnIndex] = value;
+                    hasOverride = true;
+                }
+                break;
+            case 0x500B:
+                if (operandLength >= 2) {
+                    layout.columns = Math.max(1, grpprl.readUInt16LE(operandOffset));
+                    hasOverride = true;
+                }
+                break;
+            case 0x900C:
+                if (operandLength >= 2) {
+                    layout.columnGapTwips = grpprl.readUInt16LE(operandOffset);
+                    hasOverride = true;
+                }
+                break;
+            case 0xB01F:
+                if (operandLength >= 2) {
+                    layout.pageWidthTwips = grpprl.readUInt16LE(operandOffset);
+                    hasOverride = true;
+                }
+                break;
+            case 0x3005:
+                evenlySpacedColumns = grpprl[operandOffset] !== 0;
+                hasOverride = true;
+                break;
+            case 0xB017:
+                if (operandLength >= 2) {
+                    layout.headerTopTwips = grpprl.readUInt16LE(operandOffset);
+                    hasOverride = true;
+                }
+                break;
+            case 0xB018:
+                if (operandLength >= 2) {
+                    layout.footerBottomTwips = grpprl.readUInt16LE(operandOffset);
+                    hasOverride = true;
+                }
+                break;
+            case 0x3019:
+                layout.lineBetweenColumns = grpprl[operandOffset] !== 0;
+                hasOverride = true;
+                break;
+            case 0xB020:
+                if (operandLength >= 2) {
+                    layout.pageHeightTwips = grpprl.readUInt16LE(operandOffset);
+                    hasOverride = true;
+                }
+                break;
+            case 0xB021:
+                if (operandLength >= 2) {
+                    layout.marginLeftTwips = grpprl.readUInt16LE(operandOffset);
+                    hasOverride = true;
+                }
+                break;
+            case 0xB022:
+                if (operandLength >= 2) {
+                    layout.marginRightTwips = grpprl.readUInt16LE(operandOffset);
+                    hasOverride = true;
+                }
+                break;
+            case 0x9023:
+                if (operandLength >= 2) {
+                    layout.marginTopTwips = Math.max(0, grpprl.readInt16LE(operandOffset));
+                    hasOverride = true;
+                }
+                break;
+            case 0x9024:
+                if (operandLength >= 2) {
+                    layout.marginBottomTwips = Math.max(0, grpprl.readInt16LE(operandOffset));
+                    hasOverride = true;
+                }
+                break;
+            case 0xB025:
+                if (operandLength >= 2) {
+                    layout.gutterTwips = grpprl.readUInt16LE(operandOffset);
+                    hasOverride = true;
+                }
+                break;
+            case 0x301D:
+                orientationLandscape = grpprl[operandOffset] !== 0;
+                hasOverride = true;
+                break;
+            case 0x322A:
+                layout.rtlGutter = grpprl[operandOffset] !== 0;
+                hasOverride = true;
+                break;
+            default:
+                break;
+            }
+
+            offset += 2 + operandLength;
+        }
+
+        if (!hasOverride) {
+            return undefined;
+        }
+
+        if (orientationLandscape && layout.pageHeightTwips > layout.pageWidthTwips) {
+            [layout.pageWidthTwips, layout.pageHeightTwips] = [layout.pageHeightTwips, layout.pageWidthTwips];
+        }
+
+        if (layout.columns < 1) {
+            layout.columns = 1;
+        }
+        if (!evenlySpacedColumns && layout.columns > 1) {
+            layout.columns = Math.max(1, layout.columns);
+        }
+        if (layout.explicitColumnWidthsTwips.length > 0) {
+            layout.columns = Math.max(layout.columns, layout.explicitColumnWidthsTwips.filter((value) => value > 0).length);
+        }
+
+        return layout;
     }
 
     private static parseFib(wordStream: Buffer): FibInfo {
@@ -213,6 +816,12 @@ export class DocBinaryParser {
         const ccpText = fibRgLwLength >= 16 && fibRgLwOffset + 16 <= wordStream.length
             ? wordStream.readUInt32LE(fibRgLwOffset + 12)
             : 0;
+        const ccpFtn = fibRgLwLength >= 20 && fibRgLwOffset + 20 <= wordStream.length
+            ? wordStream.readUInt32LE(fibRgLwOffset + 16)
+            : 0;
+        const ccpHdd = fibRgLwLength >= 24 && fibRgLwOffset + 24 <= wordStream.length
+            ? wordStream.readUInt32LE(fibRgLwOffset + 20)
+            : 0;
         offset += fibRgLwLength;
 
         const cbRgFcLcb = wordStream.readUInt16LE(offset);
@@ -231,6 +840,8 @@ export class DocBinaryParser {
             };
         };
 
+        const sed = readPair(6);
+        const hdd = readPair(11);
         const clx = readPair(33);
         const chpx = readPair(12);
         const papx = readPair(13);
@@ -239,6 +850,12 @@ export class DocBinaryParser {
             nFib,
             tableStreamName,
             ccpText,
+            ccpFtn,
+            ccpHdd,
+            fcPlcfSed: sed.fc,
+            lcbPlcfSed: sed.lcb,
+            fcPlcfHdd: hdd.fc,
+            lcbPlcfHdd: hdd.lcb,
             fcClx: clx.fc,
             lcbClx: clx.lcb,
             fcPlcfBteChpx: chpx.fc,
@@ -246,6 +863,37 @@ export class DocBinaryParser {
             fcPlcfBtePapx: papx.fc,
             lcbPlcfBtePapx: papx.lcb
         };
+    }
+
+    private static detectEmbeddedObjectPlacementMode(
+        cfb: CfbReader,
+        fileBuffer: Buffer
+    ): 'text-flow' | 'drawing-anchor' {
+        const markerStreams = cfb.listStreams()
+            .map((stream) => stream.name)
+            .join('\n');
+        const markerPattern = /ObjectPool|MsoDataStore|OfficeArt|Escher|Drawing/i;
+        if (markerPattern.test(markerStreams)) {
+            return 'drawing-anchor';
+        }
+
+        const probeBuffers = [
+            fileBuffer,
+            cfb.getStream('WordDocument'),
+            cfb.getStream('1Table'),
+            cfb.getStream('0Table'),
+            cfb.getStream('Data')
+        ].filter((buffer): buffer is Buffer => Buffer.isBuffer(buffer));
+
+        const markerBytes = [/MSODRAWING/i, /OfficeArt/i, /Escher/i, /FSPA/i, /PlcfSpa/i];
+        for (const probe of probeBuffers) {
+            const ascii = probe.toString('latin1');
+            if (markerBytes.some((pattern) => pattern.test(ascii))) {
+                return 'drawing-anchor';
+            }
+        }
+
+        return 'text-flow';
     }
 
     private static extractFromClx(wordStream: Buffer, tableStream: Buffer, fib: FibInfo): PieceTableCandidate | null {
@@ -375,6 +1023,7 @@ export class DocBinaryParser {
                     decodedByAnsiDecoder.get(name)?.push(pieceText);
                     segmentsByAnsiDecoder.get(name)?.push({
                         text: pieceText,
+                        cpStart: cps[i],
                         fcStart: byteOffset,
                         bytesPerChar: 1
                     });
@@ -385,6 +1034,7 @@ export class DocBinaryParser {
                     decodedByAnsiDecoder.get(name)?.push(pieceText);
                     segmentsByAnsiDecoder.get(name)?.push({
                         text: pieceText,
+                        cpStart: cps[i],
                         fcStart: byteOffset,
                         bytesPerChar: 2
                     });
@@ -621,9 +1271,21 @@ export class DocBinaryParser {
             }
 
             const operandOffset = offset + 2;
+            if (this.isExplicitTableBorderSprm(sprm)) {
+                style.tableHasExplicitBorders = true;
+            }
             switch (sprm) {
             case 0x2403:
                 style.textAlign = this.parseParagraphAlignment(grpprl[operandOffset]);
+                break;
+            case 0x2405:
+                style.keepLinesTogether = grpprl[operandOffset] !== 0;
+                break;
+            case 0x2406:
+                style.keepWithNext = grpprl[operandOffset] !== 0;
+                break;
+            case 0x2407:
+                style.pageBreakBefore = grpprl[operandOffset] !== 0;
                 break;
             case 0x2416:
                 style.inTable = grpprl[operandOffset] !== 0;
@@ -672,6 +1334,10 @@ export class DocBinaryParser {
         }
 
         return style;
+    }
+
+    private static isExplicitTableBorderSprm(sprm: number): boolean {
+        return sprm === 0xD634 || sprm === 0xD612 || sprm === 0xD670;
     }
 
     private static parseTDefTableOperand(
@@ -955,14 +1621,15 @@ export class DocBinaryParser {
     private static buildStyledParagraphs(
         candidate: PieceTableCandidate,
         styleRuns: CharacterStyleRun[],
-        paragraphStyleRuns: ParagraphStyleRun[]
+        paragraphStyleRuns: ParagraphStyleRun[],
+        sectionBoundaries: SectionBoundary[]
     ): StyledParagraph[] | undefined {
         if ((!styleRuns.length && !paragraphStyleRuns.length) || !candidate.decodedSegments || candidate.decodedSegments.length === 0) {
             return undefined;
         }
 
         return this.enrichStructuredTableParagraphs(
-            this.buildStyledParagraphsFromSegments(candidate.decodedSegments, styleRuns, paragraphStyleRuns)
+            this.buildStyledParagraphsFromSegments(candidate.decodedSegments, styleRuns, paragraphStyleRuns, sectionBoundaries)
         );
     }
 
@@ -1001,6 +1668,7 @@ export class DocBinaryParser {
                 target.tableColumnCount = target.tableColumnCount ?? paragraph.tableColumnCount;
                 target.tableColumnWidthsTwips = target.tableColumnWidthsTwips ?? paragraph.tableColumnWidthsTwips;
                 target.tableCellMerges = target.tableCellMerges ?? paragraph.tableCellMerges;
+                target.tableHasExplicitBorders = target.tableHasExplicitBorders ?? paragraph.tableHasExplicitBorders;
                 if (paragraph.style?.backgroundColor && !target.style?.backgroundColor) {
                     target.style = this.mergeStyles(target.style, { backgroundColor: paragraph.style.backgroundColor });
                 }
@@ -1015,7 +1683,8 @@ export class DocBinaryParser {
     private static buildStyledParagraphsFromSegments(
         segments: DecodedPieceSegment[],
         styleRuns: CharacterStyleRun[],
-        paragraphStyleRuns: ParagraphStyleRun[]
+        paragraphStyleRuns: ParagraphStyleRun[],
+        sectionBoundaries: SectionBoundary[]
     ): StyledParagraph[] {
         const paragraphs: StyledParagraph[] = [];
         let currentText = '';
@@ -1027,10 +1696,55 @@ export class DocBinaryParser {
         let boldCount = 0;
         let italicCount = 0;
         let underlineCount = 0;
+        let pendingPageBreakBefore = false;
+        let paragraphCpStart: number | undefined;
         const fontSizes = new Map<number, number>();
         const textColors = new Map<string, number>();
         const backgroundColors = new Map<string, number>();
         const highlightColors = new Map<string, number>();
+
+        const resolveSectionIndex = (cp: number | undefined): number | undefined => {
+            const boundary = resolveSectionBoundary(cp);
+            return boundary?.sectionIndex;
+        };
+
+        const resolveSectionBoundary = (cp: number | undefined): SectionBoundary | undefined => {
+            if (cp === undefined || sectionBoundaries.length === 0) {
+                return undefined;
+            }
+
+            for (const boundary of sectionBoundaries) {
+                if (cp >= boundary.cpStart && cp < boundary.cpEnd) {
+                    return boundary;
+                }
+            }
+
+            return cp >= sectionBoundaries[sectionBoundaries.length - 1].cpEnd
+                ? sectionBoundaries[sectionBoundaries.length - 1]
+                : undefined;
+        };
+        const countAdjacentParagraphBreaks = (
+            text: string,
+            startIndex: number,
+            direction: -1 | 1
+        ): number => {
+            let count = 0;
+            let cursor = startIndex + direction;
+            while (cursor >= 0 && cursor < text.length) {
+                const code = text.charCodeAt(cursor);
+                if (code === 0x000d || code === 0x000b) {
+                    count += 1;
+                    cursor += direction;
+                    continue;
+                }
+                if (code === 0x0020 || code === 0x0009) {
+                    cursor += direction;
+                    continue;
+                }
+                break;
+            }
+            return count;
+        };
 
         const flushRun = () => {
             if (currentRunText.length === 0) {
@@ -1048,7 +1762,11 @@ export class DocBinaryParser {
         const flushParagraph = () => {
             flushRun();
             const normalized = this.normalizeParagraphText(currentText, true);
-            if (normalized.length > 0 || currentParagraphStyle.inTable || currentParagraphStyle.isTableTerminator) {
+            const preserveEmpty = normalized.length === 0
+                && !currentParagraphStyle.inTable
+                && !currentParagraphStyle.isTableTerminator
+                && this.hasCharacterStyle(currentParagraphStyle);
+            if (normalized.length > 0 || currentParagraphStyle.inTable || currentParagraphStyle.isTableTerminator || preserveEmpty) {
                 const style: CharacterStyle = {};
                 if (visibleCount > 0) {
                     if (boldCount / visibleCount >= 0.55) style.bold = true;
@@ -1083,6 +1801,7 @@ export class DocBinaryParser {
                     }
                 }
 
+                const sectionBoundary = resolveSectionBoundary(paragraphCpStart);
                 paragraphs.push({
                     text: normalized,
                     style: this.mergeStyles(currentParagraphStyle, this.hasCharacterStyle(style) ? style : undefined),
@@ -1092,8 +1811,14 @@ export class DocBinaryParser {
                     isTableTerminator: Boolean(currentParagraphStyle.isTableTerminator),
                     tableColumnCount: currentParagraphStyle.tableColumnCount,
                     tableColumnWidthsTwips: currentParagraphStyle.tableColumnWidthsTwips,
-                    tableCellMerges: currentParagraphStyle.tableCellMerges
+                    tableCellMerges: currentParagraphStyle.tableCellMerges,
+                    tableHasExplicitBorders: currentParagraphStyle.tableHasExplicitBorders,
+                    preserveEmpty,
+                    pageBreakBefore: pendingPageBreakBefore || Boolean(currentParagraphStyle.pageBreakBefore),
+                    sectionIndex: sectionBoundary?.sectionIndex,
+                    sectionLayout: sectionBoundary?.layout
                 });
+                pendingPageBreakBefore = false;
             }
 
             currentText = '';
@@ -1105,6 +1830,7 @@ export class DocBinaryParser {
             boldCount = 0;
             italicCount = 0;
             underlineCount = 0;
+            paragraphCpStart = undefined;
             fontSizes.clear();
             textColors.clear();
             backgroundColors.clear();
@@ -1115,8 +1841,87 @@ export class DocBinaryParser {
             for (let index = 0; index < segment.text.length; index++) {
                 const char = segment.text[index];
                 const code = char.charCodeAt(0);
+                const cp = segment.cpStart + index;
                 const fc = segment.fcStart + index * segment.bytesPerChar;
                 const paragraphStyle = this.findParagraphStyleForFc(paragraphStyleRuns, fc);
+
+                if (code === 0x0013) {
+                    const field = this.readFieldInstruction(segment.text, index);
+                    if (field) {
+                        const embeddedObjectClass = this.parseEmbeddedChartObjectClass(field.fieldCode);
+                        if (embeddedObjectClass) {
+                            const anchorPageBreakBefore = pendingPageBreakBefore
+                                || Boolean(currentParagraphStyle.pageBreakBefore);
+                            if (paragraphStyle) {
+                                currentParagraphStyle = this.mergeStyles(currentParagraphStyle, paragraphStyle) ?? currentParagraphStyle;
+                            }
+                            flushParagraph();
+                            const sectionBoundary = resolveSectionBoundary(cp);
+                            paragraphs.push({
+                                text: '',
+                                embeddedChartAnchor: true,
+                                embeddedObjectClass,
+                                pageBreakBefore: anchorPageBreakBefore,
+                                sectionIndex: sectionBoundary?.sectionIndex,
+                                sectionLayout: sectionBoundary?.layout
+                            });
+                            pendingPageBreakBefore = false;
+                        }
+                        index = field.fieldEndIndex;
+                        continue;
+                    }
+                }
+
+                if (code === 0x0001) {
+                    const anchorPageBreakBefore = pendingPageBreakBefore || Boolean(currentParagraphStyle.pageBreakBefore);
+                    if (paragraphStyle) {
+                        currentParagraphStyle = this.mergeStyles(currentParagraphStyle, paragraphStyle) ?? currentParagraphStyle;
+                    }
+                    flushParagraph();
+                    const sectionBoundary = resolveSectionBoundary(cp);
+                    paragraphs.push({
+                        text: '',
+                        embeddedImageAnchor: true,
+                        floatingSide: this.inferFloatingSideFromStyle(currentParagraphStyle),
+                        floatingWidthMode: this.inferFloatingWidthModeFromStyle(currentParagraphStyle),
+                        floatingPlacement: this.inferFloatingPlacementFromStyle(currentParagraphStyle),
+                        floatingClearancePx: this.inferFloatingClearancePx(currentParagraphStyle),
+                        pageBreakBefore: anchorPageBreakBefore,
+                        sectionIndex: sectionBoundary?.sectionIndex,
+                        sectionLayout: sectionBoundary?.layout
+                    });
+                    pendingPageBreakBefore = false;
+                    continue;
+                }
+
+                if (code === 0x0008) {
+                    const surroundingBreakCount = countAdjacentParagraphBreaks(segment.text, index, -1)
+                        + countAdjacentParagraphBreaks(segment.text, index, 1);
+                    const anchorPageBreakBefore = pendingPageBreakBefore
+                        || Boolean(currentParagraphStyle.pageBreakBefore);
+                    const embeddedAssetPreference = surroundingBreakCount >= 8 ? 'chart' : 'image';
+                    if (paragraphStyle) {
+                        currentParagraphStyle = this.mergeStyles(currentParagraphStyle, paragraphStyle) ?? currentParagraphStyle;
+                    }
+                    flushParagraph();
+                    const sectionBoundary = resolveSectionBoundary(cp);
+                    paragraphs.push({
+                        text: '',
+                        embeddedAssetAnchor: true,
+                        embeddedAssetPreference,
+                        pageBreakBefore: anchorPageBreakBefore,
+                        sectionIndex: sectionBoundary?.sectionIndex,
+                        sectionLayout: sectionBoundary?.layout
+                    });
+                    pendingPageBreakBefore = false;
+                    continue;
+                }
+
+                if (code === 0x000c) {
+                    flushParagraph();
+                    pendingPageBreakBefore = true;
+                    continue;
+                }
 
                 if (char === '\r' || code === 0x0007 || code === 0x000b) {
                     if (paragraphStyle) {
@@ -1132,6 +1937,9 @@ export class DocBinaryParser {
                 const style = this.findCharacterStyleForFc(styleRuns, fc);
                 if (paragraphStyle) {
                     currentParagraphStyle = this.mergeStyles(currentParagraphStyle, paragraphStyle) ?? currentParagraphStyle;
+                }
+                if (paragraphCpStart === undefined) {
+                    paragraphCpStart = cp;
                 }
 
                 currentText += char;
@@ -1165,11 +1973,53 @@ export class DocBinaryParser {
         return paragraphs;
     }
 
+    private static readFieldInstruction(
+        text: string,
+        startIndex: number
+    ): { fieldCode: string; fieldEndIndex: number } | undefined {
+        if (text.charCodeAt(startIndex) !== 0x0013) {
+            return undefined;
+        }
+
+        let separatorIndex = -1;
+        let endIndex = -1;
+        for (let index = startIndex + 1; index < text.length; index++) {
+            const code = text.charCodeAt(index);
+            if (code === 0x0014 && separatorIndex < 0) {
+                separatorIndex = index;
+            }
+            if (code === 0x0015) {
+                endIndex = index;
+                break;
+            }
+        }
+
+        if (endIndex < 0) {
+            return undefined;
+        }
+
+        const rawCode = text.slice(startIndex + 1, separatorIndex >= 0 ? separatorIndex : endIndex);
+        return {
+            fieldCode: rawCode.replace(/[\u0000-\u001f]+/g, ' ').trim(),
+            fieldEndIndex: endIndex
+        };
+    }
+
+    private static parseEmbeddedChartObjectClass(fieldCode: string): string | undefined {
+        const match = fieldCode.match(/\bEMBED\s+([^\s]+)/i);
+        if (!match) {
+            return undefined;
+        }
+
+        const objectClass = match[1].trim();
+        return /chart/i.test(objectClass) ? objectClass : undefined;
+    }
+
     private static normalizeInlineRuns(runs: Array<{ text: string; style?: CharacterStyle }>): Array<{ text: string; style?: CharacterStyle }> | undefined {
         const normalizedRuns: Array<{ text: string; style?: CharacterStyle }> = [];
 
         for (const run of runs) {
-            const text = run.text.replace(/\t/g, ' ').replace(/[ ]{2,}/g, ' ');
+            const text = run.text.replace(/\u0000/g, '');
             if (text.length === 0) {
                 continue;
             }
@@ -1227,6 +2077,9 @@ export class DocBinaryParser {
             && (left?.marginLeftTwips ?? 0) === (right?.marginLeftTwips ?? 0)
             && (left?.marginRightTwips ?? 0) === (right?.marginRightTwips ?? 0)
             && (left?.firstLineIndentTwips ?? 0) === (right?.firstLineIndentTwips ?? 0)
+            && Boolean(left?.pageBreakBefore) === Boolean(right?.pageBreakBefore)
+            && Boolean(left?.keepWithNext) === Boolean(right?.keepWithNext)
+            && Boolean(left?.keepLinesTogether) === Boolean(right?.keepLinesTogether)
             && Boolean(left?.inTable) === Boolean(right?.inTable)
             && Boolean(left?.isTableTerminator) === Boolean(right?.isTableTerminator)
             && (left?.tableColumnCount ?? 0) === (right?.tableColumnCount ?? 0);
@@ -1239,6 +2092,9 @@ export class DocBinaryParser {
                 || style.marginLeftTwips
                 || style.marginRightTwips
                 || style.firstLineIndentTwips
+                || style.pageBreakBefore
+                || style.keepWithNext
+                || style.keepLinesTogether
                 || style.inTable
                 || style.isTableTerminator
                 || style.tableColumnCount
@@ -1359,7 +2215,7 @@ export class DocBinaryParser {
             return '';
         }
 
-        return this.wrapLegacyHtml(this.renderBlocks(blocks));
+        return this.wrapLegacyHtml(this.buildLegacySections(blocks));
     }
 
     private static buildDocumentBlocks(
@@ -1372,36 +2228,64 @@ export class DocBinaryParser {
             return [];
         }
 
-        const blocks = this.buildBlocks(lines);
-        if (images.length > 0) {
-            blocks.push({ kind: 'image-gallery', images });
-        }
-        return blocks;
+        return this.buildBlocks(lines);
     }
 
     private static buildRenderableLines(rawText: string, styledParagraphs?: StyledParagraph[]): StyledLine[] {
         const rawLines: StyledLine[] = styledParagraphs && styledParagraphs.length > 0
             ? styledParagraphs
-                .map((entry) => ({
-                    text: this.normalizeParagraphText(entry.text, true),
-                    style: entry.style,
-                    runs: entry.runs,
-                    listLevel: entry.listLevel,
-                    inTable: entry.inTable,
-                    isTableTerminator: entry.isTableTerminator,
-                    tableColumnCount: entry.tableColumnCount,
-                    tableColumnWidthsTwips: entry.tableColumnWidthsTwips,
-                    tableCellMerges: entry.tableCellMerges
-                }))
-                .filter((entry) => entry.text.length > 0 || entry.inTable || entry.isTableTerminator)
+                .map((entry) => {
+                    const normalizedText = this.normalizeParagraphText(entry.text, true);
+                    const fallbackEmbeddedObjectClass = !entry.embeddedChartAnchor
+                        ? this.parseEmbeddedChartObjectClass(normalizedText)
+                        : undefined;
+                    return {
+                        text: normalizedText,
+                        style: entry.style,
+                        runs: entry.runs,
+                        listLevel: entry.listLevel,
+                        inTable: entry.inTable,
+                        isTableTerminator: entry.isTableTerminator,
+                        tableColumnCount: entry.tableColumnCount,
+                        tableColumnWidthsTwips: entry.tableColumnWidthsTwips,
+                        tableCellMerges: entry.tableCellMerges,
+                        tableHasExplicitBorders: entry.tableHasExplicitBorders,
+                        embeddedChartAnchor: entry.embeddedChartAnchor || Boolean(fallbackEmbeddedObjectClass),
+                        embeddedImageAnchor: entry.embeddedImageAnchor,
+                        embeddedAssetAnchor: entry.embeddedAssetAnchor,
+                        embeddedAssetPreference: entry.embeddedAssetPreference,
+                        embeddedObjectClass: entry.embeddedObjectClass || fallbackEmbeddedObjectClass,
+                        floatingSide: entry.floatingSide,
+                        floatingWidthMode: entry.floatingWidthMode,
+                        floatingPlacement: entry.floatingPlacement,
+                        floatingClearancePx: entry.floatingClearancePx,
+                        preserveEmpty: entry.preserveEmpty,
+                        pageBreakBefore: entry.pageBreakBefore,
+                        sectionIndex: entry.sectionIndex,
+                        sectionLayout: entry.sectionLayout
+                    };
+                })
+                .filter((entry) => entry.text.length > 0 || entry.preserveEmpty || entry.inTable || entry.isTableTerminator || entry.embeddedChartAnchor || entry.embeddedImageAnchor || entry.embeddedAssetAnchor)
             : rawText
                 .split(/\n+/)
-                .map((text) => ({ text: this.normalizeParagraphText(text, true) }))
+                .map((text) => {
+                    const normalizedText = this.normalizeParagraphText(text, true);
+                    const fallbackEmbeddedObjectClass = this.parseEmbeddedChartObjectClass(normalizedText);
+                    return {
+                        text: normalizedText,
+                        embeddedChartAnchor: Boolean(fallbackEmbeddedObjectClass),
+                        embeddedObjectClass: fallbackEmbeddedObjectClass
+                    };
+                })
                 .filter((entry) => entry.text.length > 0);
 
         return rawLines.filter((line, index) => (
             line.inTable
+            || line.preserveEmpty
             || line.isTableTerminator
+            || line.embeddedChartAnchor
+            || line.embeddedImageAnchor
+            || line.embeddedAssetAnchor
             || !this.shouldDropLine(line.text, rawLines[index - 1]?.text || '', rawLines[index + 1]?.text || '')
         ));
     }
@@ -1409,20 +2293,229 @@ export class DocBinaryParser {
     private static composeDocumentBlocks(
         baseBlocks: LegacyBlock[],
         packageCharts: EmbeddedSheetData[],
-        workbookTables: EmbeddedSheetData[]
+        workbookTables: EmbeddedSheetData[],
+        images: Array<{ src: string; alt: string }> = []
     ): LegacyBlock[] {
         const combinedBlocks = [...baseBlocks];
         const packageBlocks = this.buildEmbeddedSheetBlocks(packageCharts);
+        const inferSectionMetadataAround = (blocks: LegacyBlock[], index: number): Pick<LegacyBlock, 'sectionIndex' | 'sectionLayout'> => {
+            for (let current = index - 1; current >= 0; current--) {
+                const candidate = blocks[current];
+                if (candidate.sectionIndex !== undefined || candidate.sectionLayout !== undefined) {
+                    return {
+                        sectionIndex: candidate.sectionIndex,
+                        sectionLayout: candidate.sectionLayout
+                    };
+                }
+            }
+
+            for (let current = index; current < blocks.length; current++) {
+                const candidate = blocks[current];
+                if (candidate.sectionIndex !== undefined || candidate.sectionLayout !== undefined) {
+                    return {
+                        sectionIndex: candidate.sectionIndex,
+                        sectionLayout: candidate.sectionLayout
+                    };
+                }
+            }
+
+            return {};
+        };
+        const inheritBlockMetadata = <T extends LegacyBlock>(
+            block: T,
+            metadata?: Pick<LegacyBlock, 'sectionIndex' | 'sectionLayout' | 'pageBreakBefore'>
+        ): T => ({
+            ...block,
+            pageBreakBefore: block.pageBreakBefore ?? metadata?.pageBreakBefore,
+            sectionIndex: block.sectionIndex ?? metadata?.sectionIndex,
+            sectionLayout: block.sectionLayout ?? metadata?.sectionLayout
+        });
+        const imageQueue = [...images];
+        const chartQueue = [...packageBlocks];
+        const normalizeAssetCueText = (value: string | undefined): string => this.normalizeParagraphText(this.stripFieldCodeNoise(value || ''))
+            .replace(/\s+/g, ' ')
+            .trim();
+        const getCaptionCueKind = (block: LegacyBlock): 'chart' | 'image' | undefined => {
+            if (block.kind !== 'paragraph' && block.kind !== 'heading') {
+                return undefined;
+            }
+
+            const normalized = normalizeAssetCueText(block.text);
+            if (!normalized || normalized.length > 120) {
+                return undefined;
+            }
+
+            if (/^(chart|table|diagram|graph|도표|차트|표)\s*([0-9]+|[ivxlcdm]+)?(?:[\s:.)-]|$)/i.test(normalized)) {
+                return 'chart';
+            }
+
+            if (/^(figure|fig\.?|image|photo|picture|그림|사진)\s*([0-9]+|[ivxlcdm]+)?(?:[\s:.)-]|$)/i.test(normalized)) {
+                return 'image';
+            }
+
+            return undefined;
+        };
+        const findCaptionInsertionIndex = (blocks: LegacyBlock[], kind: 'chart' | 'image'): number | undefined => {
+            for (let index = 0; index < blocks.length; index++) {
+                const cueKind = getCaptionCueKind(blocks[index]);
+                if (cueKind === kind) {
+                    return index + 1;
+                }
+            }
+
+            return undefined;
+        };
+        for (let index = 0; index < combinedBlocks.length; index++) {
+            if (combinedBlocks[index].kind !== 'embedded-asset-anchor') {
+                continue;
+            }
+
+            const anchor = combinedBlocks[index];
+            if (anchor.kind !== 'embedded-asset-anchor') {
+                continue;
+            }
+            const metadata = {
+                pageBreakBefore: anchor.pageBreakBefore,
+                sectionIndex: anchor.sectionIndex,
+                sectionLayout: anchor.sectionLayout
+            };
+            const preferredKind = anchor.assetPreference;
+
+            if (preferredKind === 'chart' && chartQueue.length > 0) {
+                combinedBlocks.splice(index, 1, inheritBlockMetadata(
+                    chartQueue.shift() as LegacyBlock,
+                    metadata
+                ));
+                continue;
+            }
+
+            if (preferredKind === 'image' && imageQueue.length > 0) {
+                const image = imageQueue.shift() as { src: string; alt: string };
+                combinedBlocks.splice(index, 1, inheritBlockMetadata({
+                    kind: 'image',
+                    ...image
+                }, metadata));
+                continue;
+            }
+
+            if (imageQueue.length > 0) {
+                const image = imageQueue.shift() as { src: string; alt: string };
+                combinedBlocks.splice(index, 1, inheritBlockMetadata({
+                    kind: 'image',
+                    ...image
+                }, metadata));
+                continue;
+            }
+
+            if (chartQueue.length > 0) {
+                combinedBlocks.splice(index, 1, inheritBlockMetadata(
+                    chartQueue.shift() as LegacyBlock,
+                    metadata
+                ));
+                continue;
+            }
+        }
         if (packageBlocks.length > 0) {
-            this.insertBlocksBeforeFirstTable(combinedBlocks, packageBlocks);
+            const remaining = [...chartQueue];
+            for (let index = 0; index < combinedBlocks.length && remaining.length > 0; index++) {
+                if (combinedBlocks[index].kind !== 'embedded-chart-anchor') {
+                    continue;
+                }
+
+                const anchor = combinedBlocks[index];
+                combinedBlocks.splice(index, 1, inheritBlockMetadata(
+                    remaining.shift() as LegacyBlock,
+                    {
+                        pageBreakBefore: anchor.pageBreakBefore,
+                        sectionIndex: anchor.sectionIndex,
+                        sectionLayout: anchor.sectionLayout
+                    }
+                ));
+            }
+
+            const filtered = combinedBlocks.filter((block) => block.kind !== 'embedded-chart-anchor');
+            combinedBlocks.splice(0, combinedBlocks.length, ...filtered);
+
+            if (remaining.length > 0) {
+                for (const block of remaining) {
+                    const insertionIndex = findCaptionInsertionIndex(combinedBlocks, 'chart')
+                        ?? this.findPreferredAssetInsertionIndex(combinedBlocks);
+                    const sectionMetadata = inferSectionMetadataAround(combinedBlocks, insertionIndex);
+                    combinedBlocks.splice(insertionIndex, 0, inheritBlockMetadata(block, sectionMetadata));
+                }
+            }
+        } else {
+            const filtered = combinedBlocks.filter((block) => block.kind !== 'embedded-chart-anchor');
+            combinedBlocks.splice(0, combinedBlocks.length, ...filtered);
         }
 
         const workbookBlocks = this.buildEmbeddedSheetBlocks(workbookTables);
         if (workbookBlocks.length > 0) {
-            combinedBlocks.push(...workbookBlocks);
+                const insertionIndex = this.findPreferredAssetInsertionIndex(combinedBlocks);
+                const sectionMetadata = inferSectionMetadataAround(combinedBlocks, insertionIndex);
+                combinedBlocks.splice(insertionIndex, 0, ...workbookBlocks.map((block) => inheritBlockMetadata(block, sectionMetadata)));
+            }
+
+        const imageAnchorIndexes = combinedBlocks
+            .map((block, index) => (block.kind === 'image-gallery' && block.images.length === 0 ? index : -1))
+            .filter((index) => index >= 0);
+
+        const remainingImages = [...imageQueue];
+        for (const index of imageAnchorIndexes) {
+            const gallery = combinedBlocks[index];
+            if (gallery.kind !== 'image-gallery') {
+                continue;
+            }
+
+            if (remainingImages.length === 0) {
+                continue;
+            }
+
+            const image = remainingImages.shift() as { src: string; alt: string };
+            combinedBlocks.splice(index, 1, {
+                kind: 'image',
+                ...image,
+                floating: gallery.floating,
+                floatingSide: gallery.floatingSide,
+                floatingWidthMode: gallery.floatingWidthMode,
+                floatingPlacement: gallery.floatingPlacement,
+                floatingClearancePx: gallery.floatingClearancePx,
+                pageBreakBefore: gallery.pageBreakBefore,
+                sectionIndex: gallery.sectionIndex,
+                sectionLayout: gallery.sectionLayout
+            });
         }
 
+        if (remainingImages.length > 0) {
+            for (const image of remainingImages) {
+                const insertionIndex = findCaptionInsertionIndex(combinedBlocks, 'image')
+                    ?? findCaptionInsertionIndex(combinedBlocks, 'chart')
+                    ?? this.findPreferredAssetInsertionIndex(combinedBlocks);
+                const sectionMetadata = inferSectionMetadataAround(combinedBlocks, insertionIndex);
+                combinedBlocks.splice(insertionIndex, 0, inheritBlockMetadata({
+                    kind: 'image',
+                    ...image
+                }, sectionMetadata));
+            }
+        }
+
+        const filteredBlocks = combinedBlocks.filter((block) => (
+            !(block.kind === 'image-gallery' && block.images.length === 0)
+            && block.kind !== 'embedded-asset-anchor'
+        ));
+        combinedBlocks.splice(0, combinedBlocks.length, ...filteredBlocks);
+
         return combinedBlocks;
+    }
+
+    private static findPreferredAssetInsertionIndex(blocks: LegacyBlock[]): number {
+        for (let index = blocks.length - 1; index >= 0; index--) {
+            if (blocks[index].kind === 'table') {
+                return index + 1;
+            }
+        }
+
+        return blocks.length;
     }
 
     private static buildEmbeddedSheetBlocks(sheets: EmbeddedSheetData[]): LegacyBlock[] {
@@ -1430,26 +2523,242 @@ export class DocBinaryParser {
             kind: 'embedded-sheet',
             title: sheet.title,
             chart: sheet.chart,
-            rows: sheet.showTable ? sheet.rows : undefined
+            rows: sheet.showTable ? sheet.rows : undefined,
+            objectPlacementMode: sheet.objectPlacementMode
         }));
     }
 
-    private static insertBlocksBeforeFirstTable(targetBlocks: LegacyBlock[], blocksToInsert: LegacyBlock[]): void {
-        if (blocksToInsert.length === 0) {
-            return;
-        }
-
-        const firstTableIndex = targetBlocks.findIndex((block) => block.kind === 'table');
-        if (firstTableIndex >= 0) {
-            targetBlocks.splice(firstTableIndex, 0, ...blocksToInsert);
-            return;
-        }
-
-        targetBlocks.push(...blocksToInsert);
+    private static wrapLegacyHtml(sections: LegacySection[]): string {
+        return this.renderLegacyDocumentModel(this.buildRenderedDocumentModel(this.buildSemanticDocumentModel(sections)));
     }
 
-    private static wrapLegacyHtml(content: string): string {
+    private static buildSemanticDocumentModel(sections: LegacySection[]): LegacySemanticDocumentModel {
+        return {
+            sections: sections.map((section) => this.buildSemanticSectionModel(section))
+        };
+    }
+
+    private static buildSemanticSectionModel(section: LegacySection): LegacySemanticSectionModel {
+        const semanticBlocks: LegacySemanticBlockModel[] = [];
+        for (const block of section.blocks) {
+            const model = this.buildSemanticBlockModel(block, semanticBlocks.length === 0);
+            if (model) {
+                semanticBlocks.push(model);
+            }
+        }
+
+        return {
+            sectionIndex: section.sectionIndex,
+            layout: section.layout,
+            headerFooter: this.buildSemanticHeaderFooterModel(section.headerFooter),
+            blocks: semanticBlocks
+        };
+    }
+
+    private static buildRenderedDocumentModel(documentModel: LegacySemanticDocumentModel): LegacyRenderedDocumentModel {
+        return {
+            sections: documentModel.sections.map((section) => this.buildRenderedSectionModel(section))
+        };
+    }
+
+    private static buildRenderedSectionModel(section: LegacySemanticSectionModel): LegacyRenderedSectionModel {
+        const renderedBlocks: LegacyRenderedBlockModel[] = [];
+        for (const block of section.blocks) {
+            const model = this.buildRenderedBlockModel(block);
+            if (model) {
+                renderedBlocks.push(model);
+            }
+        }
+
+        return {
+            sectionIndex: section.sectionIndex,
+            layout: section.layout,
+            headerFooter: this.buildRenderedHeaderFooterModel(section.headerFooter),
+            renderedBlocks
+        };
+    }
+
+    private static buildSemanticHeaderFooterModel(headerFooter?: LegacyHeaderFooter): LegacySemanticHeaderFooterModel | undefined {
+        if (!headerFooter) {
+            return undefined;
+        }
+
+        const buildTokens = (value?: string): LegacyHeaderFooterToken[] | undefined => {
+            const tokens = this.tokenizeHeaderFooterText(value);
+            return tokens.length > 0 ? tokens : undefined;
+        };
+
+        return {
+            sectionNumber: headerFooter.sectionNumber,
+            sectionCount: headerFooter.sectionCount,
+            evenHeaderTokens: buildTokens(headerFooter.evenHeaderText),
+            oddHeaderTokens: buildTokens(headerFooter.oddHeaderText),
+            evenFooterTokens: buildTokens(headerFooter.evenFooterText),
+            oddFooterTokens: buildTokens(headerFooter.oddFooterText),
+            firstHeaderTokens: buildTokens(headerFooter.firstHeaderText),
+            firstFooterTokens: buildTokens(headerFooter.firstFooterText)
+        };
+    }
+
+    private static buildRenderedHeaderFooterModel(headerFooter?: LegacySemanticHeaderFooterModel): LegacyHeaderFooter | undefined {
+        if (!headerFooter) {
+            return undefined;
+        }
+
+        const stringify = (tokens?: LegacyHeaderFooterToken[]): string | undefined => {
+            if (!tokens || tokens.length === 0) {
+                return undefined;
+            }
+            return tokens.map((token) => token.kind === 'text' ? token.value : token.field).join('');
+        };
+
+        return {
+            sectionNumber: headerFooter.sectionNumber,
+            sectionCount: headerFooter.sectionCount,
+            evenHeaderText: stringify(headerFooter.evenHeaderTokens),
+            oddHeaderText: stringify(headerFooter.oddHeaderTokens),
+            evenFooterText: stringify(headerFooter.evenFooterTokens),
+            oddFooterText: stringify(headerFooter.oddFooterTokens),
+            firstHeaderText: stringify(headerFooter.firstHeaderTokens),
+            firstFooterText: stringify(headerFooter.firstFooterTokens)
+        };
+    }
+
+    private static renderLegacyDocumentModel(documentModel: LegacyRenderedDocumentModel): string {
+        const content = documentModel.sections
+            .map((section) => {
+                const style = [
+                    `--ov-page-width-mm:${this.twipsToMm(section.layout.pageWidthTwips).toFixed(2)}mm`,
+                    `--ov-page-height-mm:${this.twipsToMm(section.layout.pageHeightTwips).toFixed(2)}mm`,
+                    `--ov-page-padding-top-mm:${this.twipsToMm(section.layout.marginTopTwips).toFixed(2)}mm`,
+                    `--ov-page-padding-right-mm:${this.twipsToMm(section.layout.marginRightTwips).toFixed(2)}mm`,
+                    `--ov-page-padding-bottom-mm:${this.twipsToMm(section.layout.marginBottomTwips).toFixed(2)}mm`,
+                    `--ov-page-padding-left-mm:${this.twipsToMm(section.layout.marginLeftTwips).toFixed(2)}mm`,
+                    `--ov-page-gutter-mm:${this.twipsToMm(section.layout.gutterTwips).toFixed(2)}mm`,
+                    `--ov-page-header-mm:${this.twipsToMm(section.layout.headerTopTwips).toFixed(2)}mm`,
+                    `--ov-page-footer-mm:${this.twipsToMm(section.layout.footerBottomTwips).toFixed(2)}mm`,
+                    `--ov-columns:${Math.max(1, section.layout.columns)}`,
+                    `--ov-column-gap-mm:${this.twipsToMm(section.layout.columnGapTwips).toFixed(2)}mm`,
+                    `--ov-column-rule-width:${section.layout.lineBetweenColumns ? '1px' : '0px'}`,
+                    `--ov-gutter-side:${section.layout.rtlGutter ? 'right' : 'left'}`
+                ].join(';');
+
+                const metaJson = this.escapeHtml(JSON.stringify(section.headerFooter ?? {}));
+                const columnWidths = section.layout.explicitColumnWidthsTwips.map((value) => this.twipsToMm(value).toFixed(2)).join(',');
+                const columnSpacings = section.layout.explicitColumnSpacingsTwips.map((value) => this.twipsToMm(value).toFixed(2)).join(',');
+                const blocksHtml = section.renderedBlocks
+                    .map((block) => this.wrapLegacyBlock(block))
+                    .join('\n');
+                return `<section class="ov-doc-legacy-section" data-ov-gutter-side="${section.layout.rtlGutter ? 'right' : 'left'}" data-ov-columns="${Math.max(1, section.layout.columns)}" data-ov-custom-columns="${section.layout.explicitColumnWidthsTwips.length > 0 ? 'true' : 'false'}" data-ov-column-widths="${columnWidths}" data-ov-column-spacings="${columnSpacings}" style="${style}"><script type="application/json" class="ov-doc-legacy-section-meta">${metaJson}</script>${blocksHtml}</section>`;
+            })
+            .join('');
+
         return `<div class="ov-doc-legacy">${content}</div>`;
+    }
+
+    private static inferLegacyLayoutMetrics(blocks: LegacyBlock[]): LegacyLayoutMetrics {
+        const explicitLayout = blocks.find((block) => block.sectionLayout)?.sectionLayout;
+        if (explicitLayout) {
+            return explicitLayout;
+        }
+
+        const a4Portrait = { width: 11906, height: 16838 };
+        const a4Landscape = { width: 16838, height: 11906 };
+        const standardMarginTwips = 1440;
+        const narrowMarginTwips = 1080;
+
+        const widestTableTwips = blocks
+            .filter((block): block is Extract<LegacyBlock, { kind: 'table' }> => block.kind === 'table')
+            .map((block) => (block.columnWidthsTwips ?? []).reduce((sum, width) => sum + Math.max(0, width), 0))
+            .reduce((widest, width) => Math.max(widest, width), 0);
+
+        const needsLandscape = widestTableTwips > (a4Portrait.width - standardMarginTwips * 2);
+        const page = needsLandscape ? a4Landscape : a4Portrait;
+        const sideMarginTwips = needsLandscape && widestTableTwips > (page.width - standardMarginTwips * 2)
+            ? narrowMarginTwips
+            : standardMarginTwips;
+
+        return {
+            pageWidthTwips: page.width,
+            pageHeightTwips: page.height,
+            marginTopTwips: standardMarginTwips,
+            marginRightTwips: sideMarginTwips,
+            marginBottomTwips: standardMarginTwips,
+            marginLeftTwips: sideMarginTwips,
+            gutterTwips: 0,
+            headerTopTwips: 720,
+            footerBottomTwips: 720,
+            columns: 1,
+            columnGapTwips: 720,
+            lineBetweenColumns: false,
+            rtlGutter: false,
+            explicitColumnWidthsTwips: [],
+            explicitColumnSpacingsTwips: []
+        };
+    }
+
+    private static defaultLegacyLayoutMetrics(): LegacyLayoutMetrics {
+        return {
+            pageWidthTwips: 11906,
+            pageHeightTwips: 16838,
+            marginTopTwips: 1440,
+            marginRightTwips: 1440,
+            marginBottomTwips: 1440,
+            marginLeftTwips: 1440,
+            gutterTwips: 0,
+            headerTopTwips: 720,
+            footerBottomTwips: 720,
+            columns: 1,
+            columnGapTwips: 720,
+            lineBetweenColumns: false,
+            rtlGutter: false,
+            explicitColumnWidthsTwips: [],
+            explicitColumnSpacingsTwips: []
+        };
+    }
+
+    private static buildLegacySections(blocks: LegacyBlock[], headerFooterBySection?: Map<number, LegacyHeaderFooter>): LegacySection[] {
+        if (blocks.length === 0) {
+            return [];
+        }
+
+        const sections: LegacySection[] = [];
+        let currentBlocks: LegacyBlock[] = [];
+
+        const flushSection = () => {
+            if (currentBlocks.length === 0) {
+                return;
+            }
+
+            sections.push({
+                sectionIndex: currentBlocks[0]?.sectionIndex,
+                layout: this.inferLegacyLayoutMetrics(currentBlocks),
+                blocks: currentBlocks,
+                headerFooter: currentBlocks[0]?.sectionIndex !== undefined
+                    ? headerFooterBySection?.get(currentBlocks[0].sectionIndex)
+                    : undefined
+            });
+            currentBlocks = [];
+        };
+
+        for (const block of blocks) {
+            const sectionIndexChanged = currentBlocks.length > 0
+                && block.sectionIndex !== undefined
+                && currentBlocks[currentBlocks.length - 1].sectionIndex !== undefined
+                && block.sectionIndex !== currentBlocks[currentBlocks.length - 1].sectionIndex;
+
+            if (sectionIndexChanged && currentBlocks.length > 0) {
+                flushSection();
+            }
+            currentBlocks.push(block);
+        }
+
+        flushSection();
+        return sections;
+    }
+
+    private static twipsToMm(value: number): number {
+        return (Math.max(0, value) / 1440) * 25.4;
     }
 
     private static buildBlocks(lines: StyledLine[]): LegacyBlock[] {
@@ -1459,8 +2768,109 @@ export class DocBinaryParser {
         while (index < lines.length) {
             const line = lines[index];
             const text = line.text;
-            if (index === 0 && text.length <= 120 && this.hasEnoughLetters(text)) {
-                blocks.push({ kind: 'heading', text: this.normalizeParagraphText(text), style: line.style, runs: line.runs });
+            if (line.embeddedChartAnchor) {
+                blocks.push({
+                    kind: 'embedded-chart-anchor',
+                    objectClass: line.embeddedObjectClass,
+                    pageBreakBefore: line.pageBreakBefore,
+                    sectionIndex: line.sectionIndex,
+                    sectionLayout: line.sectionLayout
+                });
+                index += 1;
+                continue;
+            }
+            if (line.embeddedAssetAnchor) {
+                blocks.push({
+                    kind: 'embedded-asset-anchor',
+                    assetPreference: line.embeddedAssetPreference,
+                    pageBreakBefore: line.pageBreakBefore,
+                    sectionIndex: line.sectionIndex,
+                    sectionLayout: line.sectionLayout
+                });
+                index += 1;
+                continue;
+            }
+            if (line.embeddedImageAnchor) {
+                blocks.push({
+                    kind: 'image-gallery',
+                    images: [],
+                    floating: true,
+                    floatingSide: line.floatingSide,
+                    floatingWidthMode: line.floatingWidthMode,
+                    floatingPlacement: line.floatingPlacement,
+                    floatingClearancePx: line.floatingClearancePx,
+                    pageBreakBefore: line.pageBreakBefore,
+                    sectionIndex: line.sectionIndex,
+                    sectionLayout: line.sectionLayout
+                });
+                index += 1;
+                continue;
+            }
+            const implicitBulletList = this.collectImplicitBulletList(lines, index);
+            if (implicitBulletList) {
+                blocks.push({
+                    kind: 'list',
+                    ordered: false,
+                    items: implicitBulletList.items,
+                    pageBreakBefore: line.pageBreakBefore,
+                    sectionIndex: line.sectionIndex,
+                    sectionLayout: line.sectionLayout
+                });
+                index = implicitBulletList.nextIndex;
+                continue;
+            }
+            if (this.isLikelyDocumentTitle(line, index, lines)) {
+                blocks.push({
+                    kind: 'heading',
+                    text: this.normalizeParagraphText(text),
+                    style: line.style,
+                    runs: line.runs,
+                    pageBreakBefore: line.pageBreakBefore,
+                    sectionIndex: line.sectionIndex,
+                    sectionLayout: line.sectionLayout
+                });
+                index += 1;
+                continue;
+            }
+            if (this.isLikelyLeadParagraph(line, lines[index + 1])) {
+                blocks.push({
+                    kind: 'paragraph',
+                    text: this.normalizeParagraphText(text),
+                    style: {
+                        ...line.style,
+                        bold: true,
+                        fontSizeHalfPoints: Math.max(line.style?.fontSizeHalfPoints ?? 0, 36),
+                        firstLineIndentTwips: 0
+                    },
+                    runs: this.promoteInlineRuns(line.runs, {
+                        bold: true,
+                        fontSizeHalfPoints: Math.max(line.style?.fontSizeHalfPoints ?? 0, 36),
+                        firstLineIndentTwips: 0
+                    }),
+                    pageBreakBefore: line.pageBreakBefore,
+                    sectionIndex: line.sectionIndex,
+                    sectionLayout: line.sectionLayout
+                });
+                index += 1;
+                continue;
+            }
+            if (this.isLikelySectionLeadParagraph(line, lines[index - 1], lines[index + 1])) {
+                blocks.push({
+                    kind: 'heading',
+                    text: this.normalizeParagraphText(text),
+                    style: {
+                        ...line.style,
+                        bold: true,
+                        fontSizeHalfPoints: Math.max(line.style?.fontSizeHalfPoints ?? 0, 32)
+                    },
+                    runs: this.promoteInlineRuns(line.runs, {
+                        bold: true,
+                        fontSizeHalfPoints: Math.max(line.style?.fontSizeHalfPoints ?? 0, 32)
+                    }),
+                    pageBreakBefore: line.pageBreakBefore,
+                    sectionIndex: line.sectionIndex,
+                    sectionLayout: line.sectionLayout
+                });
                 index += 1;
                 continue;
             }
@@ -1471,7 +2881,11 @@ export class DocBinaryParser {
                     kind: 'table',
                     rows: this.buildTableCells(structuredTable.rows, structuredTable.cellMerges),
                     columnWidthsTwips: structuredTable.columnWidthsTwips,
-                    cellMerges: structuredTable.cellMerges
+                    cellMerges: structuredTable.cellMerges,
+                    hasExplicitBorders: structuredTable.hasExplicitBorders,
+                    pageBreakBefore: line.pageBreakBefore,
+                    sectionIndex: line.sectionIndex,
+                    sectionLayout: line.sectionLayout
                 });
                 index = structuredTable.nextIndex;
                 continue;
@@ -1479,32 +2893,29 @@ export class DocBinaryParser {
 
             const definitionSection = this.collectDefinitionSection(lines.map((entry) => entry.text), index);
             if (definitionSection) {
-                blocks.push({ kind: 'heading', text: definitionSection.heading });
-                blocks.push({ kind: 'table', rows: this.buildTableCells(definitionSection.rows) });
+                blocks.push({ kind: 'heading', text: definitionSection.heading, sectionIndex: line.sectionIndex, sectionLayout: line.sectionLayout });
+                blocks.push({ kind: 'table', rows: this.buildTableCells(definitionSection.rows), pageBreakBefore: line.pageBreakBefore, sectionIndex: line.sectionIndex, sectionLayout: line.sectionLayout });
                 index = definitionSection.nextIndex;
                 continue;
             }
 
-            if (this.looksLikeSectionHeading(text, lines[index - 1]?.text || '', lines[index + 1]?.text || '')) {
-                blocks.push({ kind: 'heading', text: this.normalizeParagraphText(text), style: line.style, runs: line.runs });
+            if (this.looksLikeSectionHeading(line, lines[index - 1], lines[index + 1])) {
+                blocks.push({
+                    kind: 'heading',
+                    text: this.normalizeParagraphText(text),
+                    style: line.style,
+                    runs: line.runs,
+                    pageBreakBefore: line.pageBreakBefore,
+                    sectionIndex: line.sectionIndex,
+                    sectionLayout: line.sectionLayout
+                });
                 index += 1;
                 continue;
             }
 
-            const plainLines = lines.map((entry) => entry.text);
-            const definitionTable = this.collectDefinitionTable(plainLines, index);
-            if (definitionTable) {
-                blocks.push({ kind: 'table', rows: this.buildTableCells(definitionTable.rows) });
-                index = definitionTable.nextIndex;
-                continue;
-            }
-
-            const table = this.collectTableRows(plainLines, index);
-            if (table) {
-                blocks.push({ kind: 'table', rows: this.buildTableCells(table.rows) });
-                index = table.nextIndex;
-                continue;
-            }
+            // Avoid reconstructing generic tab-delimited/plain-text tables heuristically.
+            // For legacy .doc files this frequently misclassifies flowing paragraphs as
+            // side-by-side columns. Prefer binary table metadata only.
 
             const listKind = this.getListKind(text);
             if (listKind) {
@@ -1522,15 +2933,154 @@ export class DocBinaryParser {
                     });
                     index += 1;
                 }
-                blocks.push({ kind: 'list', ordered: listKind.kind === 'ordered', items });
+                blocks.push({ kind: 'list', ordered: listKind.kind === 'ordered', items, pageBreakBefore: line.pageBreakBefore, sectionIndex: line.sectionIndex, sectionLayout: line.sectionLayout });
                 continue;
             }
 
-            blocks.push({ kind: 'paragraph', text: this.normalizeParagraphText(text), style: line.style, runs: line.runs });
+            blocks.push({
+                kind: 'paragraph',
+                text: this.normalizeParagraphText(text),
+                style: line.style,
+                runs: line.runs,
+                pageBreakBefore: line.pageBreakBefore,
+                sectionIndex: line.sectionIndex,
+                sectionLayout: line.sectionLayout
+            });
             index += 1;
         }
 
         return blocks;
+    }
+
+    private static collectImplicitBulletList(
+        lines: StyledLine[],
+        startIndex: number
+    ): { items: Array<{ text: string; level: number; style?: CharacterStyle }>; nextIndex: number } | null {
+        const items: Array<{ text: string; level: number; style?: CharacterStyle }> = [];
+        let index = startIndex;
+
+        while (index < lines.length) {
+            const line = lines[index];
+            const normalizedText = this.normalizeParagraphText(line.text);
+            if (!this.isImplicitBulletCandidate(line, normalizedText)) {
+                break;
+            }
+
+            items.push({
+                text: normalizedText,
+                level: Math.max(0, line.listLevel ?? 0),
+                style: line.style
+            });
+            index += 1;
+        }
+
+        if (items.length < 3) {
+            return null;
+        }
+
+        return {
+            items,
+            nextIndex: index
+        };
+    }
+
+    private static isImplicitBulletCandidate(line: StyledLine | undefined, normalizedText: string): boolean {
+        if (!line || !normalizedText) {
+            return false;
+        }
+
+        if (
+            line.inTable
+            || line.isTableTerminator
+            || line.embeddedChartAnchor
+            || line.embeddedImageAnchor
+            || line.embeddedAssetAnchor
+        ) {
+            return false;
+        }
+
+        if ((line.style?.keepWithNext ?? false) || (line.style?.pageBreakBefore ?? false)) {
+            return false;
+        }
+
+        if (this.getListKind(normalizedText)) {
+            return false;
+        }
+
+        const wordCount = normalizedText.split(/\s+/).length;
+        return normalizedText.length <= 96 && wordCount >= 2 && wordCount <= 14;
+    }
+
+    private static isLikelyLeadParagraph(line: StyledLine | undefined, next?: StyledLine): boolean {
+        if (!line) {
+            return false;
+        }
+
+        const normalizedText = this.normalizeParagraphText(line.text);
+        if (!normalizedText || normalizedText.length > 120 || !this.hasEnoughLetters(normalizedText)) {
+            return false;
+        }
+
+        const hasLeadCue = Boolean(line.style?.keepWithNext)
+            || Math.abs(line.style?.firstLineIndentTwips ?? 0) >= 360;
+        if (!hasLeadCue) {
+            return false;
+        }
+
+        const nextText = this.normalizeParagraphText(next?.text || '');
+        const nextLength = nextText.length;
+        const nextIsSpacer = nextLength === 0;
+        const nextLooksTabular = Boolean(next?.inTable);
+
+        return nextLength > 120 || nextIsSpacer || nextLooksTabular;
+    }
+
+    private static isLikelySectionLeadParagraph(
+        line: StyledLine | undefined,
+        previous?: StyledLine,
+        next?: StyledLine
+    ): boolean {
+        if (!line) {
+            return false;
+        }
+
+        const normalizedText = this.normalizeParagraphText(line.text);
+        if (!normalizedText || normalizedText.length > 96 || !this.hasEnoughLetters(normalizedText)) {
+            return false;
+        }
+
+        if (
+            line.inTable
+            || line.isTableTerminator
+            || line.embeddedChartAnchor
+            || line.embeddedImageAnchor
+            || line.embeddedAssetAnchor
+        ) {
+            return false;
+        }
+
+        const previousLength = this.normalizeParagraphText(previous?.text || '').length;
+        const nextLength = this.normalizeParagraphText(next?.text || '').length;
+        const sparseStyle = !line.style
+            || Object.keys(line.style).every((key) => ['bold', 'fontSizeHalfPoints'].includes(key));
+        return nextLength > 120 && (previousLength > 120 || sparseStyle);
+    }
+
+    private static promoteInlineRuns(
+        runs: Array<{ text: string; style?: CharacterStyle }> | undefined,
+        style: CharacterStyle
+    ): Array<{ text: string; style?: CharacterStyle }> | undefined {
+        if (!runs || runs.length === 0) {
+            return undefined;
+        }
+
+        return runs.map((run) => ({
+            text: run.text,
+            style: {
+                ...run.style,
+                ...style
+            }
+        }));
     }
 
     private static collectDefinitionSection(
@@ -1567,7 +3117,7 @@ export class DocBinaryParser {
     private static collectStructuredTable(
         lines: StyledLine[],
         startIndex: number
-    ): { rows: string[][]; columnWidthsTwips?: number[]; cellMerges?: TableCellMerge[][]; nextIndex: number } | null {
+    ): { rows: string[][]; columnWidthsTwips?: number[]; cellMerges?: TableCellMerge[][]; hasExplicitBorders?: boolean; nextIndex: number } | null {
         if (!lines[startIndex]?.inTable) {
             return null;
         }
@@ -1577,6 +3127,9 @@ export class DocBinaryParser {
         let columnWidthsTwips: number[] | undefined;
         const cellMerges: TableCellMerge[][] = [];
         let index = startIndex;
+        let sawTerminator = false;
+        let sawExplicitTableMetadata = false;
+        let hasExplicitBorders = false;
 
         while (index < lines.length && lines[index].inTable) {
             const rowLines: StyledLine[] = [];
@@ -1591,10 +3144,15 @@ export class DocBinaryParser {
                 }
                 if (line.tableColumnCount || line.tableCellMerges?.length || line.isTableTerminator) {
                     rowMetadata = line;
+                    if ((line.tableColumnCount ?? 0) >= 2 || (line.tableCellMerges?.length ?? 0) > 0) {
+                        sawExplicitTableMetadata = true;
+                    }
                 }
+                hasExplicitBorders = hasExplicitBorders || Boolean(line.tableHasExplicitBorders);
                 index += 1;
 
                 if (line.isTableTerminator) {
+                    sawTerminator = true;
                     break;
                 }
             }
@@ -1618,10 +3176,15 @@ export class DocBinaryParser {
             return null;
         }
 
+        if (!sawTerminator || !sawExplicitTableMetadata) {
+            return null;
+        }
+
         return {
             rows: rows.map((row) => [...row, ...Array(Math.max(0, maxColumns - row.length)).fill('')]),
             columnWidthsTwips,
             cellMerges,
+            hasExplicitBorders,
             nextIndex: index
         };
     }
@@ -1759,86 +3322,424 @@ export class DocBinaryParser {
         const rendered: string[] = [];
 
         for (const block of blocks) {
-            if (block.kind === 'heading') {
-                const tag = rendered.length === 0 ? 'h1' : 'h2';
-                const merged = this.flattenSingleRunBlock(block.text, block.style, block.runs);
-                const content = this.renderInlineStyledText(merged.runs, merged.text);
-                rendered.push(`<${tag}${this.renderInlineStyleAttribute(merged.style)}>${content}</${tag}>`);
+            const semanticModel = this.buildSemanticBlockModel(block, rendered.length === 0);
+            const model = semanticModel ? this.buildRenderedBlockModel(semanticModel) : undefined;
+            if (!model) {
                 continue;
             }
 
-            if (block.kind === 'paragraph') {
-                const merged = this.flattenSingleRunBlock(block.text, block.style, block.runs);
-                const content = this.renderInlineStyledText(merged.runs, merged.text);
-                rendered.push(`<p${this.renderInlineStyleAttribute(merged.style)}>${content}</p>`);
-                continue;
-            }
-
-            if (block.kind === 'list') {
-                const listTag = block.ordered ? 'ol' : 'ul';
-                rendered.push(
-                    `<${listTag}>${block.items.map((item) => {
-                        const style = this.renderInlineStyleAttribute({
-                            ...item.style,
-                            marginLeftTwips: (item.level || 0) * 360
-                        });
-                        return `<li${style}>${this.escapeHtml(item.text)}</li>`;
-                    }).join('')}</${listTag}>`
-                );
-                continue;
-            }
-
-            if (block.kind === 'table') {
-                const colGroup = this.renderTableColGroup(
-                    block.columnWidthsTwips,
-                    Math.max(...block.rows.map((row) => row.reduce((sum, cell) => sum + (cell.colspan ?? 1), 0)))
-                );
-                const rowsHtml = block.rows
-                    .map((row, rowIndex) => {
-                        const tag = rowIndex === 0 ? 'th' : 'td';
-                        return `<tr>${row.map((cell) => {
-                            const colspanAttr = cell.colspan && cell.colspan > 1 ? ` colspan="${cell.colspan}"` : '';
-                            const rowspanAttr = cell.rowspan && cell.rowspan > 1 ? ` rowspan="${cell.rowspan}"` : '';
-                            return `<${tag}${colspanAttr}${rowspanAttr}>${this.escapeHtml(cell.text)}</${tag}>`;
-                        }).join('')}</tr>`;
-                    })
-                    .join('');
-                rendered.push(`<div class="ov-doc-legacy-table"><table>${colGroup}<tbody>${rowsHtml}</tbody></table></div>`);
-                continue;
-            }
-
-            if (block.kind === 'embedded-sheet') {
-                const parts = [`<section class="ov-doc-embedded-sheet"><div class="ov-doc-embedded-sheet-card"><div class="ov-doc-embedded-sheet-head"><h2>${this.escapeHtml(block.title)}</h2></div>`];
-                if (block.chart) {
-                    parts.push(this.renderEmbeddedChart(block.chart));
-                }
-                if (block.rows) {
-                    const rowsHtml = block.rows
-                        .map((row, rowIndex) => {
-                            const tag = rowIndex === 0 ? 'th' : 'td';
-                            return `<tr>${row.map((cell) => `<${tag}>${this.escapeHtml(cell)}</${tag}>`).join('')}</tr>`;
-                        })
-                        .join('');
-                    parts.push(`<div class="ov-doc-embedded-table-wrap"><div class="ov-doc-embedded-table-label">Data Table</div><div class="ov-doc-legacy-table"><table><tbody>${rowsHtml}</tbody></table></div></div>`);
-                }
-                parts.push(`</div></section>`);
-                rendered.push(parts.join(''));
-                continue;
-            }
-
-            if (block.kind === 'image-gallery' && block.images.length > 0) {
-                const items = block.images
-                    .map((image) => `<figure class="ov-doc-legacy-image"><img src="${image.src}" alt="${this.escapeHtml(image.alt)}"><figcaption>${this.escapeHtml(image.alt)}</figcaption></figure>`)
-                    .join('');
-                if (block.images.length === 1) {
-                    rendered.push(`<section class="ov-doc-legacy-images"><div class="ov-doc-legacy-image-grid">${items}</div></section>`);
-                } else {
-                    rendered.push(`<section class="ov-doc-legacy-images"><h2>Images</h2><div class="ov-doc-legacy-image-grid">${items}</div></section>`);
-                }
-            }
+            rendered.push(this.wrapLegacyBlock(model));
         }
 
         return rendered.join('\n');
+    }
+
+    private static buildSemanticBlockModel(block: LegacyBlock, isFirstRenderableBlock: boolean): LegacySemanticBlockModel | undefined {
+        if (block.kind === 'heading') {
+            const merged = this.flattenSingleRunBlock(block.text, block.style, block.runs);
+            return {
+                kind: 'content',
+                tag: isFirstRenderableBlock ? 'h1' : 'h2',
+                text: merged.text,
+                inlineTokens: this.buildSemanticInlineTokens(merged.runs, merged.text),
+                pageBreakBefore: block.pageBreakBefore,
+                style: merged.style
+            };
+        }
+
+        if (block.kind === 'paragraph') {
+            const merged = this.flattenSingleRunBlock(block.text, block.style, block.runs);
+            return {
+                kind: 'content',
+                tag: 'p',
+                text: merged.text,
+                inlineTokens: this.buildSemanticInlineTokens(merged.runs, merged.text),
+                semanticRole: this.inferSemanticContentRole(merged.text, merged.style),
+                pageBreakBefore: block.pageBreakBefore,
+                style: merged.style
+            };
+        }
+
+        if (block.kind === 'list') {
+            return {
+                kind: 'list',
+                ordered: block.ordered,
+                items: block.items.map((item) => ({
+                    text: item.text,
+                    level: item.level,
+                    style: {
+                        ...item.style,
+                        marginLeftTwips: (item.level || 0) * 360
+                    }
+                })),
+                pageBreakBefore: block.pageBreakBefore
+            };
+        }
+
+        if (block.kind === 'table') {
+            return {
+                kind: 'table',
+                table: this.buildSemanticTableModel(block),
+                pageBreakBefore: block.pageBreakBefore
+            };
+        }
+
+        if (block.kind === 'embedded-sheet') {
+            return {
+                kind: 'sheet',
+                title: block.title,
+                chart: block.chart,
+                rows: block.rows,
+                headerRowCount: this.detectEmbeddedSheetHeaderRowCount(block.rows),
+                objectPlacementMode: block.objectPlacementMode,
+                pageBreakBefore: block.pageBreakBefore
+            };
+        }
+
+        if (block.kind === 'image') {
+            return {
+                kind: 'image',
+                src: block.src,
+                alt: block.alt,
+                floating: block.floating,
+                floatingSide: block.floatingSide,
+                floatingWidthMode: block.floatingWidthMode,
+                floatingPlacement: block.floatingPlacement,
+                floatingClearancePx: block.floatingClearancePx,
+                pageBreakBefore: block.pageBreakBefore
+            };
+        }
+
+        if (block.kind === 'image-gallery' && block.images.length > 0) {
+            return {
+                kind: 'images',
+                images: block.images,
+                floating: block.floating,
+                floatingSide: block.floatingSide,
+                floatingWidthMode: block.floatingWidthMode,
+                floatingPlacement: block.floatingPlacement,
+                floatingClearancePx: block.floatingClearancePx,
+                pageBreakBefore: block.pageBreakBefore
+            };
+        }
+
+        return undefined;
+    }
+
+    private static buildRenderedBlockModel(block: LegacySemanticBlockModel): LegacyRenderedBlockModel | undefined {
+        if (block.kind === 'content') {
+            const content = this.renderSemanticInlineTokens(block.inlineTokens, block.text);
+            const hasInlineField = !!block.inlineTokens?.some((token) => token.kind === 'field');
+            const hasInlineBreak = !!block.inlineTokens?.some((token) => token.kind === 'tab' || token.kind === 'line-break');
+            const textLength = this.stripFieldCodeNoise(block.text).trim().length;
+            return {
+                kind: 'content',
+                html: `<${block.tag}${this.renderInlineStyleAttribute(block.style)}>${content}</${block.tag}>`,
+                pageBreakBefore: block.pageBreakBefore,
+                style: block.style,
+                semanticKind: block.kind,
+                semanticTag: block.tag,
+                semanticRole: block.semanticRole,
+                textLength,
+                hasInlineField,
+                hasInlineBreak,
+                estimatedHeightPx: this.estimateContentBlockHeightPx(block.tag, textLength, hasInlineBreak, block.semanticRole),
+                minimumFragmentHeightPx: this.estimateContentBlockHeightPx(block.tag, Math.min(textLength, 72), hasInlineBreak, block.semanticRole)
+            };
+        }
+
+        if (block.kind === 'list') {
+            const listTag = block.ordered ? 'ol' : 'ul';
+            const itemCount = block.items.length;
+            return {
+                kind: 'content',
+                html: `<${listTag}>${block.items.map((item) => {
+                    const style = this.renderInlineStyleAttribute(item.style);
+                    return `<li${style}>${this.escapeHtml(item.text)}</li>`;
+                }).join('')}</${listTag}>`,
+                pageBreakBefore: block.pageBreakBefore,
+                semanticKind: block.kind,
+                itemCount,
+                estimatedHeightPx: this.estimateListBlockHeightPx(itemCount),
+                minimumFragmentHeightPx: this.estimateListBlockHeightPx(Math.min(itemCount, 2))
+            };
+        }
+
+        if (block.kind === 'table') {
+            const rowCount = block.table.rows.length;
+            return {
+                kind: 'table',
+                html: this.renderRenderedTableModel(this.buildRenderedTableModel(block.table)),
+                pageBreakBefore: block.pageBreakBefore,
+                semanticKind: block.kind,
+                rowCount,
+                estimatedHeightPx: this.estimateTableBlockHeightPx(rowCount, block.table.headerRowCount),
+                minimumFragmentHeightPx: this.estimateTableBlockHeightPx(
+                    Math.min(rowCount, Math.max(block.table.headerRowCount + 2, 3)),
+                    Math.min(block.table.headerRowCount, rowCount)
+                )
+            };
+        }
+
+        if (block.kind === 'sheet') {
+            const parts = ['<section class="ov-doc-embedded-sheet"><div class="ov-doc-embedded-sheet-card">'];
+            if (block.title) {
+                parts.push(`<div class="ov-doc-embedded-sheet-head"><h2>${this.escapeHtml(block.title)}</h2></div>`);
+            }
+            if (block.chart) {
+                parts.push(this.renderEmbeddedChart(block.chart));
+            }
+            if (block.rows) {
+                const headerRowCount = Math.min(block.headerRowCount || 0, block.rows.length);
+                const headerRows = block.rows.slice(0, headerRowCount);
+                const bodyRows = block.rows.slice(headerRowCount);
+                const renderRows = (rows: string[][], cellTag: 'th' | 'td') => rows
+                    .map((row) => `<tr>${row.map((cell) => `<${cellTag}>${this.escapeHtml(cell)}</${cellTag}>`).join('')}</tr>`)
+                    .join('');
+                const theadHtml = headerRows.length > 0 ? `<thead>${renderRows(headerRows, 'th')}</thead>` : '';
+                const tbodyHtml = bodyRows.length > 0 ? `<tbody>${renderRows(bodyRows, 'td')}</tbody>` : '';
+                parts.push(`<div class="ov-doc-embedded-table-wrap"><div class="ov-doc-embedded-table-label">Data Table</div><div class="ov-doc-legacy-table" data-ov-table-header-rows="${headerRows.length}"><table>${theadHtml}${tbodyHtml}</table></div></div>`);
+            }
+            parts.push(`</div></section>`);
+            return {
+                kind: 'sheet',
+                html: parts.join(''),
+                pageBreakBefore: block.pageBreakBefore,
+                semanticKind: block.kind,
+                rowCount: block.rows?.length || 0,
+                objectPlacementMode: block.objectPlacementMode,
+                estimatedHeightPx: this.estimateSheetBlockHeightPx(block.rows?.length || 0, !!block.chart),
+                minimumFragmentHeightPx: this.estimateSheetBlockHeightPx(
+                    Math.min(block.rows?.length || 0, 3),
+                    !!block.chart
+                )
+            };
+        }
+
+        if (block.kind === 'image') {
+            const floatingClass = block.floating
+                ? ` ov-doc-legacy-image-floating ov-doc-legacy-image-floating-${block.floatingSide || 'right'} ov-doc-legacy-image-floating-${block.floatingWidthMode || 'regular'}`
+                : '';
+            const figureClass = `ov-doc-legacy-image ov-doc-legacy-image-inline${floatingClass}`;
+            const captionHtml = block.alt ? `<figcaption>${this.escapeHtml(block.alt)}</figcaption>` : '';
+            return {
+                kind: 'image',
+                html: `<figure class="${figureClass}"><img src="${block.src}" alt="${this.escapeHtml(block.alt)}">${captionHtml}</figure>`,
+                pageBreakBefore: block.pageBreakBefore,
+                semanticKind: block.kind,
+                semanticRole: block.floating ? 'floating-media' : undefined,
+                mediaCount: 1,
+                estimatedHeightPx: this.estimateImageBlockHeightPx(1),
+                minimumFragmentHeightPx: this.estimateImageBlockHeightPx(1),
+                floatingSide: block.floatingSide,
+                floatingWidthMode: block.floatingWidthMode,
+                floatingPlacement: block.floatingPlacement,
+                floatingClearancePx: block.floatingClearancePx
+            };
+        }
+
+        if (block.kind === 'images') {
+            const items = block.images
+                .map((image) => `<figure class="ov-doc-legacy-image${block.floating ? ` ov-doc-legacy-image-floating ov-doc-legacy-image-floating-${block.floatingSide || 'right'} ov-doc-legacy-image-floating-${block.floatingWidthMode || 'regular'}` : ''}"><img src="${image.src}" alt="${this.escapeHtml(image.alt)}">${image.alt ? `<figcaption>${this.escapeHtml(image.alt)}</figcaption>` : ''}</figure>`)
+                .join('');
+            const mediaCount = block.images.length;
+            return {
+                kind: 'images',
+                html: block.images.length === 1
+                    ? `<section class="ov-doc-legacy-images"><div class="ov-doc-legacy-image-grid">${items}</div></section>`
+                    : `<section class="ov-doc-legacy-images"><h2>Images</h2><div class="ov-doc-legacy-image-grid">${items}</div></section>`,
+                pageBreakBefore: block.pageBreakBefore,
+                semanticKind: block.kind,
+                semanticRole: block.floating ? 'floating-media' : undefined,
+                mediaCount,
+                estimatedHeightPx: this.estimateImageBlockHeightPx(mediaCount),
+                minimumFragmentHeightPx: this.estimateImageBlockHeightPx(Math.min(mediaCount, 2)),
+                floatingSide: block.floatingSide,
+                floatingWidthMode: block.floatingWidthMode,
+                floatingPlacement: block.floatingPlacement,
+                floatingClearancePx: block.floatingClearancePx
+            };
+        }
+
+        return undefined;
+    }
+
+    private static renderRenderedTableModel(tableModel: LegacyRenderedTableModel): string {
+        const renderRow = (row: LegacyRenderedTableRow) => (
+            `<tr>${row.cells.map((cell) => {
+                const colspanAttr = cell.colspan && cell.colspan > 1 ? ` colspan="${cell.colspan}"` : '';
+                const rowspanAttr = cell.rowspan && cell.rowspan > 1 ? ` rowspan="${cell.rowspan}"` : '';
+                return `<${row.cellTag}${colspanAttr}${rowspanAttr}>${this.escapeHtml(cell.text)}</${row.cellTag}>`;
+            }).join('')}</tr>`
+        );
+
+        const theadHtml = tableModel.headerRows.length > 0
+            ? `<thead>${tableModel.headerRows.map((row) => renderRow(row)).join('')}</thead>`
+            : '';
+        const tbodyHtml = `<tbody>${tableModel.bodyRows.map((row) => renderRow(row)).join('')}</tbody>`;
+        const explicitBordersAttr = tableModel.hasExplicitBorders ? ' data-ov-explicit-borders="true"' : '';
+        return `<div class="ov-doc-legacy-table" data-ov-table-header-rows="${tableModel.headerRowCount}"${explicitBordersAttr}><table>${tableModel.colGroupHtml}${theadHtml}${tbodyHtml}</table></div>`;
+    }
+
+    private static buildRenderedTableModel(tableModel: LegacySemanticTableModel): LegacyRenderedTableModel {
+        return {
+            columnCount: tableModel.columnCount,
+            colGroupHtml: this.renderTableColGroup(tableModel.columnWidthsTwips, tableModel.columnCount),
+            headerRowCount: tableModel.headerRowCount,
+            hasExplicitBorders: tableModel.hasExplicitBorders,
+            headerRows: tableModel.rows
+                .filter((row) => row.rowKind === 'header')
+                .map((row) => ({
+                    cellTag: 'th',
+                    cells: row.cells.map((cell) => ({
+                        text: cell.text,
+                        colspan: cell.colspan,
+                        rowspan: cell.rowspan
+                    }))
+                })),
+            bodyRows: tableModel.rows
+                .filter((row) => row.rowKind === 'body')
+                .map((row) => ({
+                    cellTag: 'td',
+                    cells: row.cells.map((cell) => ({
+                        text: cell.text,
+                        colspan: cell.colspan,
+                        rowspan: cell.rowspan
+                    }))
+                }))
+        };
+    }
+
+    private static wrapLegacyBlock(block: LegacyRenderedBlockModel): string {
+        const attrs = [
+            `class="ov-doc-legacy-block ov-doc-legacy-block-${block.kind}"`,
+            block.pageBreakBefore ? 'data-ov-page-break-before="true"' : '',
+            block.style?.keepWithNext ? 'data-ov-keep-with-next="true"' : '',
+            block.style?.keepLinesTogether ? 'data-ov-keep-lines-together="true"' : '',
+            block.semanticKind ? `data-ov-semantic-kind="${block.semanticKind}"` : '',
+            block.semanticTag ? `data-ov-semantic-tag="${block.semanticTag}"` : '',
+            block.semanticRole ? `data-ov-semantic-role="${block.semanticRole}"` : '',
+            typeof block.textLength === 'number' ? `data-ov-text-length="${block.textLength}"` : '',
+            block.hasInlineField ? 'data-ov-inline-field="true"' : '',
+            block.hasInlineBreak ? 'data-ov-inline-break="true"' : '',
+            typeof block.itemCount === 'number' ? `data-ov-item-count="${block.itemCount}"` : '',
+            typeof block.rowCount === 'number' ? `data-ov-row-count="${block.rowCount}"` : '',
+            typeof block.mediaCount === 'number' ? `data-ov-media-count="${block.mediaCount}"` : '',
+            typeof block.estimatedHeightPx === 'number' ? `data-ov-estimated-height="${block.estimatedHeightPx}"` : '',
+            typeof block.minimumFragmentHeightPx === 'number' ? `data-ov-min-fragment-height="${block.minimumFragmentHeightPx}"` : '',
+            block.floatingSide ? `data-ov-floating-side="${block.floatingSide}"` : '',
+            block.floatingWidthMode ? `data-ov-floating-width="${block.floatingWidthMode}"` : '',
+            block.floatingPlacement ? `data-ov-floating-placement="${block.floatingPlacement}"` : '',
+            typeof block.floatingClearancePx === 'number' ? `data-ov-floating-clearance="${block.floatingClearancePx}"` : '',
+            block.objectPlacementMode ? `data-ov-object-placement="${block.objectPlacementMode}"` : ''
+        ].filter(Boolean).join(' ');
+
+        return `<div ${attrs}>${block.html}</div>`;
+    }
+
+    private static detectEmbeddedSheetHeaderRowCount(rows?: string[][]): number {
+        if (!rows || rows.length === 0) {
+            return 0;
+        }
+
+        if (rows.length === 1) {
+            return 1;
+        }
+
+        const normalize = (value: string): string => String(value || '').trim();
+        const firstRow = rows[0];
+        const secondRow = rows[1];
+        const firstFilled = firstRow.filter((cell) => normalize(cell).length > 0).length;
+        const secondFilled = secondRow.filter((cell) => normalize(cell).length > 0).length;
+        const firstNumeric = firstRow.filter((cell) => /^[-+]?[\d,.%]+$/.test(normalize(cell))).length;
+        const secondNumeric = secondRow.filter((cell) => /^[-+]?[\d,.%]+$/.test(normalize(cell))).length;
+
+        if (rows.length > 2 && firstFilled > 0 && secondFilled > 0 && firstNumeric === 0 && secondNumeric === 0) {
+            return 2;
+        }
+
+        return 1;
+    }
+
+    private static inferFloatingSideFromStyle(style?: CharacterStyle): 'left' | 'right' | 'center' {
+        if (style?.textAlign === 'center') {
+            return 'center';
+        }
+        if (style?.textAlign === 'right') {
+            return 'right';
+        }
+        if ((style?.marginRightTwips ?? 0) > (style?.marginLeftTwips ?? 0)) {
+            return 'left';
+        }
+        return 'right';
+    }
+
+    private static inferFloatingWidthModeFromStyle(style?: CharacterStyle): 'narrow' | 'regular' | 'wide' {
+        if (style?.textAlign === 'center') {
+            return 'wide';
+        }
+
+        const left = Math.max(0, style?.marginLeftTwips ?? 0);
+        const right = Math.max(0, style?.marginRightTwips ?? 0);
+        const total = left + right;
+        if (total >= 1440) {
+            return 'narrow';
+        }
+        if (total <= 240) {
+            return 'wide';
+        }
+        return 'regular';
+    }
+
+    private static inferFloatingPlacementFromStyle(style?: CharacterStyle): 'edge-wrap' | 'center-block' {
+        const side = this.inferFloatingSideFromStyle(style);
+        const widthMode = this.inferFloatingWidthModeFromStyle(style);
+        if (side === 'center' || widthMode === 'wide') {
+            return 'center-block';
+        }
+        return 'edge-wrap';
+    }
+
+    private static inferFloatingClearancePx(style?: CharacterStyle): number {
+        const side = this.inferFloatingSideFromStyle(style);
+        const widthMode = this.inferFloatingWidthModeFromStyle(style);
+        if (side === 'center') {
+            return 18;
+        }
+        if (widthMode === 'wide') {
+            return 16;
+        }
+        if (widthMode === 'narrow') {
+            return 8;
+        }
+        return 12;
+    }
+
+    private static estimateContentBlockHeightPx(
+        tag: 'p' | 'h1' | 'h2',
+        textLength: number,
+        hasInlineBreak: boolean,
+        semanticRole?: 'caption' | 'floating-media'
+    ): number {
+        const base = tag === 'h1' ? 64 : tag === 'h2' ? 52 : semanticRole === 'caption' ? 42 : 34;
+        const approxLines = Math.max(1, Math.ceil(textLength / (tag === 'p' ? 72 : 40)) + (hasInlineBreak ? 1 : 0));
+        return base + Math.max(0, approxLines - 1) * 18;
+    }
+
+    private static estimateListBlockHeightPx(itemCount: number): number {
+        return 28 + Math.max(1, itemCount) * 24;
+    }
+
+    private static estimateTableBlockHeightPx(rowCount: number, headerRowCount: number): number {
+        return 32 + Math.max(1, headerRowCount) * 28 + Math.max(0, rowCount - headerRowCount) * 24;
+    }
+
+    private static estimateSheetBlockHeightPx(rowCount: number, hasChart: boolean): number {
+        return 72 + (hasChart ? 180 : 0) + Math.max(0, rowCount) * 22;
+    }
+
+    private static estimateImageBlockHeightPx(mediaCount: number): number {
+        return mediaCount <= 1 ? 260 : 120 + (Math.ceil(mediaCount / 2) * 180);
     }
 
     private static flattenSingleRunBlock(
@@ -1883,6 +3784,7 @@ export class DocBinaryParser {
         }
         if (style.fontSizeHalfPoints && style.fontSizeHalfPoints >= 2) {
             declarations.push(`font-size:${(style.fontSizeHalfPoints / 2).toFixed(1)}pt`);
+            declarations.push(`line-height:${Math.max(1.15, Math.min(1.9, (style.fontSizeHalfPoints / 24) + 0.8)).toFixed(2)}`);
         }
         if (style.color) {
             declarations.push(`color:${style.color}`);
@@ -1928,6 +3830,134 @@ export class DocBinaryParser {
             .join('');
     }
 
+    private static buildSemanticInlineTokens(
+        runs: Array<{ text: string; style?: CharacterStyle }> | undefined,
+        fallbackText: string
+    ): LegacySemanticInlineToken[] | undefined {
+        if (!runs || runs.length === 0) {
+            const tokens = this.tokenizeSemanticInlineText(this.stripFieldCodeNoise(fallbackText));
+            return tokens.length > 0 ? tokens : undefined;
+        }
+
+        const tokens = runs.flatMap((run) => this.tokenizeSemanticInlineText(this.stripFieldCodeNoise(run.text), run.style));
+
+        return tokens.length > 0 ? tokens : undefined;
+    }
+
+    private static renderSemanticInlineTokens(
+        tokens: LegacySemanticInlineToken[] | undefined,
+        fallbackText: string
+    ): string {
+        if (!tokens || tokens.length === 0) {
+            return this.escapeHtml(this.stripFieldCodeNoise(fallbackText));
+        }
+
+        return tokens
+            .map((token) => {
+                if (token.kind === 'tab') {
+                    return '\t';
+                }
+                if (token.kind === 'line-break') {
+                    return '<br>';
+                }
+                const text = this.escapeHtml(token.kind === 'field' ? token.field : token.text);
+                const styleAttr = this.renderInlineStyleAttribute(token.style);
+                return styleAttr ? `<span${styleAttr}>${text}</span>` : text;
+            })
+            .join('');
+    }
+
+    private static tokenizeSemanticInlineText(
+        raw: string,
+        style?: CharacterStyle
+    ): LegacySemanticInlineToken[] {
+        if (!raw) {
+            return [];
+        }
+
+        const tokens: LegacySemanticInlineToken[] = [];
+        const pattern = /(SECTIONPAGES|SECTIONPAGE|NUMPAGES|SECTIONS|SECTION|PAGE)|(\t)|(\n)/g;
+        let lastIndex = 0;
+        let match: RegExpExecArray | null;
+
+        while ((match = pattern.exec(raw)) !== null) {
+            if (match.index > lastIndex) {
+                tokens.push({ kind: 'text', text: raw.slice(lastIndex, match.index), style });
+            }
+
+            if (match[1]) {
+                tokens.push({
+                    kind: 'field',
+                    field: match[1] as 'PAGE' | 'NUMPAGES' | 'SECTIONPAGE' | 'SECTIONPAGES' | 'SECTION' | 'SECTIONS',
+                    style
+                });
+            } else if (match[2]) {
+                tokens.push({ kind: 'tab' });
+            } else if (match[3]) {
+                tokens.push({ kind: 'line-break' });
+            }
+
+            lastIndex = match.index + match[0].length;
+        }
+
+        if (lastIndex < raw.length) {
+            tokens.push({ kind: 'text', text: raw.slice(lastIndex), style });
+        }
+
+        return tokens.filter((token) => token.kind !== 'text' || token.text.length > 0);
+    }
+
+    private static inferSemanticContentRole(
+        text: string,
+        style?: CharacterStyle
+    ): 'caption' | undefined {
+        const normalized = this.stripFieldCodeNoise(text).replace(/\s+/g, ' ').trim();
+        if (!normalized || normalized.length > 120) {
+            return undefined;
+        }
+
+        const captionPattern = /^(figure|fig\.?|table|chart|image|photo|picture|diagram|exhibit|그림|표|사진|도표)\s*([0-9]+|[ivxlcdm]+)?(?:[\s:.)-]|$)/i;
+        if (captionPattern.test(normalized)) {
+            return 'caption';
+        }
+
+        if ((style?.italic || style?.textAlign === 'center') && normalized.length <= 80) {
+            return 'caption';
+        }
+
+        return undefined;
+    }
+
+    private static tokenizeHeaderFooterText(raw: string | undefined): LegacyHeaderFooterToken[] {
+        const text = String(raw || '');
+        if (!text) {
+            return [];
+        }
+
+        const tokens: LegacyHeaderFooterToken[] = [];
+        let lastIndex = 0;
+        const pattern = /\b(SECTIONPAGES|SECTIONPAGE|NUMPAGES|SECTIONS|SECTION|PAGE)\b/g;
+        let match: RegExpExecArray | null;
+
+        while ((match = pattern.exec(text)) !== null) {
+            if (match.index > lastIndex) {
+                tokens.push({ kind: 'text', value: text.slice(lastIndex, match.index) });
+            }
+
+            tokens.push({
+                kind: 'field',
+                field: match[1].toUpperCase() as 'PAGE' | 'NUMPAGES' | 'SECTIONPAGE' | 'SECTIONPAGES' | 'SECTION' | 'SECTIONS'
+            });
+            lastIndex = match.index + match[0].length;
+        }
+
+        if (lastIndex < text.length) {
+            tokens.push({ kind: 'text', value: text.slice(lastIndex) });
+        }
+
+        return tokens.filter((token) => token.kind !== 'text' || token.value.length > 0);
+    }
+
     private static renderTableColGroup(columnWidthsTwips: number[] | undefined, columnCount: number): string {
         if (!columnWidthsTwips || columnWidthsTwips.length === 0 || columnCount <= 0) {
             return '';
@@ -1943,6 +3973,106 @@ export class DocBinaryParser {
             .map((width) => `<col style="width:${((Math.max(0, width) / total) * 100).toFixed(2)}%">`)
             .join('');
         return `<colgroup>${cols}</colgroup>`;
+    }
+
+    private static buildSemanticTableModel(
+        block: Extract<LegacyBlock, { kind: 'table' }>
+    ): LegacySemanticTableModel {
+        const columnCount = Math.max(...block.rows.map((row) => row.reduce((sum, cell) => sum + (cell.colspan ?? 1), 0)));
+        const headerRowCount = this.detectTableHeaderRowCount(block.rows);
+        const mapRows = (
+            rows: Array<Array<{ text: string; colspan?: number; rowspan?: number }>>,
+            rowKind: 'header' | 'body'
+        ): LegacySemanticTableRow[] => rows.map((row) => ({
+            rowKind,
+            cells: row.map((cell) => ({
+                text: cell.text,
+                colspan: cell.colspan,
+                rowspan: cell.rowspan
+            }))
+        }));
+
+        return {
+            columnCount,
+            columnWidthsTwips: block.columnWidthsTwips,
+            headerRowCount,
+            hasExplicitBorders: block.hasExplicitBorders,
+            rows: [
+                ...mapRows(block.rows.slice(0, headerRowCount), 'header'),
+                ...mapRows(block.rows.slice(headerRowCount), 'body')
+            ]
+        };
+    }
+
+    private static detectTableHeaderRowCount(
+        rows: Array<Array<{ text: string; colspan?: number; rowspan?: number }>>
+    ): number {
+        if (rows.length < 2) {
+            return 0;
+        }
+
+        const isNumericLike = (text: string): boolean => {
+            const normalized = this.normalizeParagraphText(text);
+            return /^[-+]?[$]?\d[\d\s,./:%-]*$/.test(normalized);
+        };
+
+        const hasStructuralSpan = (row: Array<{ text: string; colspan?: number; rowspan?: number }>): boolean => (
+            row.some((cell) => (cell.colspan ?? 1) > 1 || (cell.rowspan ?? 1) > 1)
+        );
+
+        const isDenseHeaderRow = (row: Array<{ text: string; colspan?: number; rowspan?: number }>): boolean => {
+            if (!row.length) {
+                return false;
+            }
+
+            const nonEmptyCells = row.filter((cell) => this.normalizeParagraphText(cell.text).length > 0);
+            if (nonEmptyCells.length !== row.length) {
+                return false;
+            }
+
+            return nonEmptyCells.every((cell) => {
+                const text = this.normalizeParagraphText(cell.text);
+                return text.length > 0 && text.length <= 80;
+            });
+        };
+
+        const looksLikeDataRow = (row: Array<{ text: string; colspan?: number; rowspan?: number }>): boolean => {
+            const normalizedCells = row
+                .map((cell) => this.normalizeParagraphText(cell.text))
+                .filter((text) => text.length > 0);
+            if (normalizedCells.length < 2) {
+                return false;
+            }
+
+            const numericLikeCount = normalizedCells.filter((text) => isNumericLike(text)).length;
+            return numericLikeCount / normalizedCells.length >= 0.5;
+        };
+
+        if (!isDenseHeaderRow(rows[0])) {
+            return 0;
+        }
+
+        let headerRowCount = 1;
+        const maxHeaderRows = Math.min(3, rows.length - 1);
+
+        for (let index = 1; index < maxHeaderRows; index++) {
+            const row = rows[index];
+            if (!isDenseHeaderRow(row)) {
+                break;
+            }
+            if (looksLikeDataRow(row) && !hasStructuralSpan(rows[index - 1])) {
+                break;
+            }
+
+            if (hasStructuralSpan(rows[index - 1]) || hasStructuralSpan(row) || !looksLikeDataRow(row)) {
+                headerRowCount += 1;
+                continue;
+            }
+
+            break;
+        }
+
+        return headerRowCount;
     }
 
     private static getListKind(text: string): { kind: 'bullet' | 'ordered'; pattern: RegExp } | null {
@@ -2051,8 +4181,8 @@ export class DocBinaryParser {
         return [key, value];
     }
 
-    private static looksLikeSectionHeading(text: string, previous: string, next: string): boolean {
-        const normalizedText = this.normalizeParagraphText(text);
+    private static looksLikeSectionHeading(line: StyledLine, previous?: StyledLine, next?: StyledLine): boolean {
+        const normalizedText = this.normalizeParagraphText(line.text);
         if (!normalizedText || normalizedText.includes(':') || /[.!?]$/.test(normalizedText)) {
             return false;
         }
@@ -2060,9 +4190,26 @@ export class DocBinaryParser {
             return false;
         }
 
-        const previousLength = this.normalizeParagraphText(previous).length;
-        const nextLength = this.normalizeParagraphText(next).length;
-        return nextLength > 15 && (previousLength === 0 || previousLength > 20);
+        const previousLength = this.normalizeParagraphText(previous?.text || '').length;
+        const nextLength = this.normalizeParagraphText(next?.text || '').length;
+        const prominentStyle = Boolean(line.style?.bold)
+            || Boolean(line.style?.textAlign === 'center')
+            || (line.style?.fontSizeHalfPoints ?? 0) >= 26;
+        return prominentStyle && nextLength > 15 && (previousLength === 0 || previousLength > 20);
+    }
+
+    private static isLikelyDocumentTitle(line: StyledLine, index: number, lines: StyledLine[]): boolean {
+        const text = this.normalizeParagraphText(line.text);
+        if (index > 2 || !text || text.length > 120 || !this.hasEnoughLetters(text)) {
+            return false;
+        }
+
+        const nextLength = this.normalizeParagraphText(lines[index + 1]?.text || '').length;
+        const strongStyle = (line.style?.fontSizeHalfPoints ?? 0) >= 28
+            || Boolean(line.style?.bold && line.style?.textAlign === 'center')
+            || Boolean(line.style?.bold && text.length <= 48);
+
+        return strongStyle && nextLength > 20;
     }
 
     private static isCompactHeadingCandidate(text: string): boolean {
@@ -2288,11 +4435,19 @@ export class DocBinaryParser {
     }
 
     private static normalizeParagraphText(raw: string, preserveTabs = false): string {
-        const whitespacePattern = preserveTabs ? /[^\S\t]+/g : /\s+/g;
-        return (raw || '')
+        const normalized = (raw || '')
             .replace(this.FIELD_CODE_NOISE_PATTERN, '')
             .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, ' ')
-            .replace(whitespacePattern, ' ')
+            .replace(/\r/g, '');
+
+        if (preserveTabs) {
+            return normalized
+                .replace(/[ \t]+\n/g, '\n')
+                .trim();
+        }
+
+        return normalized
+            .replace(/\s+/g, ' ')
             .trim();
     }
 
@@ -2341,6 +4496,19 @@ export class DocBinaryParser {
         return letters >= Math.max(3, Math.floor(text.length * 0.25));
     }
 
+    private static normalizeImageLabel(label: string | undefined, fallbackIndex?: number): string {
+        const normalized = this.normalizeParagraphText(String(label || ''));
+        if (!normalized) {
+            return '';
+        }
+
+        if (/^(worddocument|data|properties_stream|package_stream|\x01compobj|\x01ole)$/i.test(normalized)) {
+            return '';
+        }
+
+        return normalized;
+    }
+
     private static extractImages(cfb: CfbReader): Array<{ src: string; alt: string }> {
         const images: Array<{ src: string; alt: string }> = [];
 
@@ -2357,7 +4525,7 @@ export class DocBinaryParser {
 
             images.push({
                 src: `data:${extracted.mimeType};base64,${extracted.buffer.toString('base64')}`,
-                alt: stream.name
+                alt: this.normalizeImageLabel(stream.name, images.length + 1)
             });
 
             if (images.length >= 8) {
@@ -2369,7 +4537,8 @@ export class DocBinaryParser {
     }
 
     private static extractEmbeddedWorkbookTables(
-        cfb: CfbReader
+        cfb: CfbReader,
+        objectPlacementMode: 'text-flow' | 'drawing-anchor'
     ): EmbeddedSheetData[] {
         const workbook = cfb.getStream('Workbook');
         if (!workbook) {
@@ -2392,7 +4561,8 @@ export class DocBinaryParser {
                         title: `Embedded ${sheetName}`,
                         rows: normalizedRows,
                         showTable: !/^chart/i.test(sheetName),
-                        chart: this.buildEmbeddedChart(normalizedRows)
+                        chart: this.buildEmbeddedChart(normalizedRows),
+                        objectPlacementMode
                     };
                 })
                 .filter(Boolean) as EmbeddedSheetData[])
@@ -2404,7 +4574,8 @@ export class DocBinaryParser {
     }
 
     private static async extractEmbeddedPackageCharts(
-        cfb: CfbReader
+        cfb: CfbReader,
+        objectPlacementMode: 'text-flow' | 'drawing-anchor'
     ): Promise<EmbeddedSheetData[]> {
         const packageStream = cfb.getStream('package_stream');
         if (!packageStream) {
@@ -2423,7 +4594,7 @@ export class DocBinaryParser {
                 return [];
             }
 
-            const parsed = this.parseOdfChartContent(contentXml);
+            const parsed = this.parseOdfChartContent(contentXml, objectPlacementMode);
             return parsed ? [parsed] : [];
         } catch (error) {
             console.warn('[DOC] Failed to parse embedded chart package:', error);
@@ -2432,7 +4603,8 @@ export class DocBinaryParser {
     }
 
     private static parseOdfChartContent(
-        contentXml: string
+        contentXml: string,
+        objectPlacementMode: 'text-flow' | 'drawing-anchor'
     ): EmbeddedSheetData | undefined {
         const rowMatches = Array.from(contentXml.matchAll(/<table:table-row[\s\S]*?<\/table:table-row>/g));
         if (rowMatches.length < 2) {
@@ -2448,12 +4620,11 @@ export class DocBinaryParser {
 
         const firstSeries = contentXml.match(/<chart:series[^>]*chart:class="chart:([^"]+)"/i)?.[1];
         const chart = this.buildEmbeddedChart(rows);
-        const title = 'Embedded Chart';
 
         return {
-            title,
             rows,
             showTable: false,
+            objectPlacementMode,
             chart: chart
                 ? {
                     ...chart,
@@ -2579,11 +4750,9 @@ export class DocBinaryParser {
         const legend = chart.series
             .map((series) => `<div class="ov-doc-embedded-chart-legend-item"><span class="ov-doc-embedded-chart-swatch" style="background:${series.color}"></span><span>${this.escapeHtml(series.name)}</span></div>`)
             .join('');
-        const typeLabel = chart.type === 'line' ? 'Line chart' : 'Bar chart';
 
         return `
             <div class="ov-doc-embedded-chart">
-                <div class="ov-doc-embedded-chart-meta">${typeLabel}</div>
                 <div class="ov-doc-embedded-chart-frame">
                     <svg class="ov-doc-embedded-chart-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMinYMin meet">
                         ${parts.join('')}

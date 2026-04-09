@@ -1,0 +1,213 @@
+:root {
+    --bg-top: color-mix(in srgb, var(--vscode-editor-background) 88%, #133c55 12%);
+    --bg-bottom: color-mix(in srgb, var(--vscode-sideBar-background) 90%, #efe8d8 10%);
+    --panel: color-mix(in srgb, var(--vscode-editorWidget-background) 92%, #ffffff 8%);
+    --line: color-mix(in srgb, var(--vscode-panel-border, #3c3c3c) 70%, transparent 30%);
+    --muted: var(--vscode-descriptionForeground);
+    --accent: #d97706;
+    --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent 84%);
+    --text: var(--vscode-editor-foreground);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+    color: var(--text);
+    background:
+        radial-gradient(circle at top left, rgba(217, 119, 6, 0.14), transparent 28%),
+        linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
+}
+
+.page {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 28px 20px 40px;
+}
+
+.hero,
+.controls,
+.stats,
+.table-wrap {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+}
+
+.hero {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 24px;
+    align-items: flex-start;
+}
+
+.eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 700;
+}
+
+h1 {
+    margin: 8px 0 6px;
+    font-size: clamp(26px, 4vw, 40px);
+    line-height: 1.1;
+}
+
+.subtitle,
+.note {
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+.pill-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.pill {
+    padding: 10px 14px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent 70%);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.controls,
+.stats,
+.table-wrap {
+    margin-top: 16px;
+}
+
+.controls {
+    padding: 16px;
+}
+
+.search-wrap {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.search-wrap span {
+    display: block;
+    margin-bottom: 8px;
+}
+
+input[type="search"] {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+}
+
+.note {
+    margin-top: 12px;
+    font-size: 13px;
+}
+
+.stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    padding: 16px;
+}
+
+.stat-card {
+    padding: 14px;
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--panel) 74%, #000 26%);
+    border: 1px solid var(--line);
+}
+
+.stat-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 6px;
+}
+
+.stat-value {
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.table-wrap {
+    overflow: hidden;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th,
+td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    vertical-align: top;
+    font-size: 13px;
+}
+
+th {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    background: color-mix(in srgb, var(--panel) 80%, #000 20%);
+}
+
+.entry-path {
+    font-family: "IBM Plex Mono", "Cascadia Code", monospace;
+    word-break: break-word;
+}
+
+.kind-badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    background: color-mix(in srgb, var(--vscode-badge-background) 80%, transparent 20%);
+}
+
+.empty {
+    padding: 26px 18px;
+    text-align: center;
+    color: var(--muted);
+}
+
+@media (max-width: 720px) {
+    .hero {
+        flex-direction: column;
+    }
+
+    .pill-row {
+        justify-content: flex-start;
+    }
+
+    th:nth-child(3),
+    th:nth-child(4),
+    th:nth-child(5),
+    td:nth-child(3),
+    td:nth-child(4),
+    td:nth-child(5) {
+        display: none;
+    }
+}

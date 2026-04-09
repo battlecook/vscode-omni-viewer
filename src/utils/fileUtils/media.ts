@@ -1,16 +1,24 @@
 import * as fs from 'fs';
 import * as mm from 'music-metadata';
 import * as path from 'path';
+import { spawn } from 'child_process';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
+const WEBVIEW_TRANSCODE_EXTENSIONS = new Set(['.aiff', '.aif', '.aifc', '.ac3', '.amr', '.awb']);
 
 export function getAudioMimeType(filePath: string): string {
     const ext = path.extname(filePath).toLowerCase();
     const mimeTypes: { [key: string]: string } = {
         '.mp3': 'audio/mpeg',
         '.wav': 'audio/wav',
+        '.aiff': 'audio/aiff',
+        '.aif': 'audio/aiff',
+        '.aifc': 'audio/aiff',
+        '.amr': 'audio/amr',
+        '.awb': 'audio/amr-wb',
         '.ogg': 'audio/ogg',
         '.flac': 'audio/flac',
+        '.ac3': 'audio/ac3',
         '.aac': 'audio/aac',
         '.m4a': 'audio/mp4'
     };
@@ -21,6 +29,9 @@ export function getVideoMimeType(filePath: string): string {
     const ext = path.extname(filePath).toLowerCase();
     const mimeTypes: { [key: string]: string } = {
         '.mp4': 'video/mp4',
+        '.ts': 'video/mp2t',
+        '.mts': 'video/mp2t',
+        '.m2ts': 'video/mp2t',
         '.avi': 'video/x-msvideo',
         '.mov': 'video/quicktime',
         '.wmv': 'video/x-ms-wmv',
@@ -54,6 +65,95 @@ export async function fileToDataUrl(filePath: string, mimeType: string): Promise
     }
 
     return `data:${mimeType};base64,${buffer.toString('base64')}`;
+}
+
+export async function getAudioWebviewSource(filePath: string): Promise<{ dataUrl: string; mimeType: string; transcoded: boolean }> {
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeType = getAudioMimeType(filePath);
+
+    if (!WEBVIEW_TRANSCODE_EXTENSIONS.has(ext)) {
+        return {
+            dataUrl: await fileToDataUrl(filePath, mimeType),
+            mimeType,
+            transcoded: false
+        };
+    }
+
+    try {
+        const wavBuffer = await transcodeAudioToWav(filePath);
+        return {
+            dataUrl: `data:audio/wav;base64,${wavBuffer.toString('base64')}`,
+            mimeType: 'audio/wav',
+            transcoded: true
+        };
+    } catch (error) {
+        console.warn(`Failed to transcode ${path.basename(filePath)} for webview playback:`, error);
+        return {
+            dataUrl: await fileToDataUrl(filePath, mimeType),
+            mimeType,
+            transcoded: false
+        };
+    }
+}
+
+async function transcodeAudioToWav(filePath: string): Promise<Buffer> {
+    const ffmpegPath = await findExecutable('ffmpeg');
+    if (!ffmpegPath) {
+        throw new Error('ffmpeg is not available in PATH.');
+    }
+
+    return await new Promise<Buffer>((resolve, reject) => {
+        const chunks: Buffer[] = [];
+        const stderrChunks: Buffer[] = [];
+        const process = spawn(ffmpegPath, [
+            '-v', 'error',
+            '-i', filePath,
+            '-f', 'wav',
+            '-acodec', 'pcm_s16le',
+            '-'
+        ]);
+
+        process.stdout.on('data', (chunk: Buffer) => chunks.push(chunk));
+        process.stderr.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
+        process.on('error', reject);
+        process.on('close', (code) => {
+            if (code !== 0) {
+                const message = Buffer.concat(stderrChunks).toString('utf8').trim() || `ffmpeg exited with code ${code}`;
+                reject(new Error(message));
+                return;
+            }
+
+            const buffer = Buffer.concat(chunks);
+            if (buffer.length === 0) {
+                reject(new Error('ffmpeg produced no audio output.'));
+                return;
+            }
+
+            if (buffer.length > MAX_FILE_SIZE) {
+                reject(new Error(`Transcoded file too large (${(buffer.length / 1024 / 1024).toFixed(1)}MB). Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB.`));
+                return;
+            }
+
+            resolve(buffer);
+        });
+    });
+}
+
+async function findExecutable(command: string): Promise<string | null> {
+    const envPath = process.env.PATH || '';
+    const pathEntries = envPath.split(path.delimiter).filter(Boolean);
+
+    for (const entry of pathEntries) {
+        const candidate = path.join(entry, command);
+        try {
+            await fs.promises.access(candidate, fs.constants.X_OK);
+            return candidate;
+        } catch {
+            continue;
+        }
+    }
+
+    return null;
 }
 
 export async function getFileSize(filePath: string): Promise<string> {

@@ -169,10 +169,11 @@ body {
 }
 
 .excel-table {
-    width: 100%;
+    width: max-content;
     border-collapse: collapse;
     font-size: 13px;
     background: var(--vscode-editor-background);
+    table-layout: fixed;
 }
 
 .excel-table thead {
@@ -185,12 +186,13 @@ body {
 .excel-table th {
     background: var(--vscode-list-hoverBackground);
     border: 1px solid var(--vscode-panel-border);
-    padding: 8px 12px;
+    padding: 8px 20px 8px 12px;
     text-align: left;
     font-weight: 600;
     color: var(--vscode-editor-foreground);
     user-select: none;
     position: relative;
+    box-sizing: border-box;
 }
 
 .excel-table td {
@@ -198,10 +200,44 @@ body {
     padding: 6px 12px;
     color: var(--vscode-editor-foreground);
     word-break: break-word;
-    max-width: 200px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    box-sizing: border-box;
+}
+
+.column-resize-handle {
+    position: absolute;
+    top: 0;
+    right: -4px;
+    width: 8px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 2;
+}
+
+.column-resize-handle::after {
+    content: '';
+    position: absolute;
+    top: 20%;
+    bottom: 20%;
+    left: 50%;
+    width: 2px;
+    transform: translateX(-50%);
+    background: transparent;
+    border-radius: 999px;
+    transition: background-color 0.15s ease;
+}
+
+.excel-table th:hover .column-resize-handle::after,
+.is-resizing-columns .column-resize-handle::after {
+    background: var(--vscode-focusBorder);
+}
+
+body.is-resizing-columns,
+body.is-resizing-columns * {
+    cursor: col-resize !important;
+    user-select: none !important;
 }
 
 .excel-table tbody tr:nth-child(even) {

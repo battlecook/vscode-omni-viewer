@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Archive Viewer - {{fileName}}</title>
+    <link rel="stylesheet" href="css/archiveViewer.css">
+</head>
+<body>
+    <div class="page">
+        <header class="hero">
+            <div>
+                <div class="eyebrow">Archive Preview</div>
+                <h1 id="archiveName">{{fileName}}</h1>
+                <p class="subtitle" id="archiveSummary"></p>
+            </div>
+            <div class="pill-row">
+                <span class="pill" id="formatPill"></span>
+                <span class="pill" id="entryPill"></span>
+                <span class="pill" id="sizePill"></span>
+            </div>
+        </header>
+
+        <section class="controls">
+            <label class="search-wrap" for="searchInput">
+                <span>Filter</span>
+                <input id="searchInput" type="search" placeholder="Search by file name or path">
+            </label>
+            <div class="note" id="noteBox" hidden></div>
+        </section>
+
+        <section class="stats" id="statsGrid"></section>
+
+        <section class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Path</th>
+                        <th>Type</th>
+                        <th>Compressed Size</th>
+                        <th>Original Size</th>
+                        <th>Modified</th>
+                    </tr>
+                </thead>
+                <tbody id="entryTableBody"></tbody>
+            </table>
+            <div class="empty" id="emptyState" hidden>No matching entries found.</div>
+        </section>
+    </div>
+
+    <script>
+        window.archiveData = {{archiveData}};
+    </script>
+    <script src="js/archiveViewer.js"></script>
+</body>
+</html>

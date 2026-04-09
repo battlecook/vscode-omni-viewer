@@ -39,13 +39,13 @@ export class WordViewerProvider implements vscode.CustomReadonlyEditorProvider {
                 fileName: wordFileName,
                 wordContent: wordContent.renderer === 'legacy-html' ? (wordContent.htmlContent || '') : '',
                 fileSize: wordContent.fileSize || '',
-                wordConfigJson: JSON.stringify({
+                wordConfigJson: Buffer.from(JSON.stringify({
                     renderer: wordContent.renderer,
                     docxBase64: wordContent.docxBase64,
                     htmlContent: wordContent.htmlContent,
                     sourceFormat: wordContent.sourceFormat,
                     wasConverted: wordContent.wasConverted
-                })
+                }), 'utf8').toString('base64')
             });
             webviewPanel.webview.html = html;
             MessageHandler.setupMessageListener(webviewPanel.webview, document.uri);

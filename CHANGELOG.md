@@ -1,5 +1,75 @@
 # Changelog
 
+## [0.18.0] - 2026-04-07
+
+### Added
+- **Archive Viewer**
+  - Added a new Archive Viewer supporting ZIP, TAR, GZIP, and other common archive formats
+  - Added an `ArchiveViewerProvider` with dedicated HTML/CSS/JS templates for browsing archive contents
+  - Registered archive files in the viewer registry and context menu so they can be opened directly from the explorer
+  - Updated `package.json` description and keywords to advertise archive format support
+- **Audio format detection**
+  - Added detection for AIFF, AC3, and AMR audio formats in the file utility layer
+  - Added regression tests covering the new archive and audio format detection paths
+- **CSV Viewer**
+  - Added user-resizable columns with drag handles in the CSV viewer
+  - Added persistence of column widths so layout adjustments are restored across sessions
+  - Improved table rendering to honor dynamic column widths for better readability on wide datasets
+
+## [0.17.1] - 2026-04-07
+
+### Fixed
+- **Legacy Word (`.doc`) rendering**
+  - Improved lead paragraph promotion so short section lead lines can be elevated into stronger heading-like blocks when surrounded by longer body text
+  - Improved keep-with-next lead paragraph handling so emphasized opening lines retain bold/larger styling instead of flattening into regular body text
+  - Improved legacy table fidelity by detecting explicit table-border sprms and rendering stronger border styling when the original document requested it
+  - Reduced noisy legacy image captions by suppressing internal OLE/storage stream labels that should not surface as visible image captions
+
+## [0.17.0] - 2026-04-05
+
+### Added
+- **CSV Viewer**
+  - Added clickable per-column sorting with ascending, descending, and clear-sort states
+  - Added sort metadata to JSON export so filtered exports preserve the current table ordering context
+- **Legacy Word (`.doc`) rendering**
+  - Added semantic block modeling for legacy `.doc` content before HTML emission so the viewer can paginate sections more faithfully
+  - Added paged legacy document rendering with section-aware headers/footers, multi-column layouts, floating media flow, and stronger table header modeling
+  - Added cleanup for field-code noise such as hyperlink instructions before rendering inline text
+- **HWP / HWPX Viewer**
+  - Added footnote/endnote extraction, note summaries, and linked note reference highlighting in rendered pages
+  - Added richer HWP/HWPX layout metadata including section type, column counts, page number starts, layout signatures, and semantic summaries for the new renderer
+- **Regression coverage**
+  - Added expanded regression tests for legacy `.doc` semantic rendering and additional legacy `.ppt` title/image-placement heuristics
+
+### Changed
+- **Extension architecture**
+  - Centralized viewer registration, read-only document helpers, reroute logic, and shared error rendering so all viewer providers follow the same activation and recovery flow
+  - Split message handling and file utility logic into focused modules for media, PDF, text, tabular, and Word workflows
+- **PDF / PowerPoint runtime**
+  - Upgraded bundled `pdfjs-dist` from 3.x to 4.x and switched packaged PDF/PPT webviews to dynamic ES module loading with `.mjs` assets
+  - Raised the VS Code engine requirement to `^1.79.0`
+- **HWP / HWPX typography**
+  - Refined the HWP renderer with paragraph/run diagnostics, inline object placement rules, tab-stop handling, and stronger multi-column page presentation
+
+### Fixed
+- **CSV Viewer**
+  - Fixed row editing, copy/export, and pagination state after filtering by tracking visible row indices instead of mutating filtered row snapshots
+- **PDF Viewer**
+  - Fixed packaged PDF loading in stricter webview environments by using module-based PDF.js loading and disabling `eval`-dependent parsing paths
+- **Legacy PowerPoint (`.ppt`)**
+  - Fixed wide top text boxes and cover-style text blocks being misclassified as body content instead of titles
+  - Fixed image placement when multiple visual slots share the same bounds by preferring the most appropriate asset rather than sequential fallback alone
+  - Fixed activity-list and master-image decks so backdrop images are not duplicated or sprayed into every text cell, and full-slide background images remain visible
+  - Fixed packaged PPT PDF preview loading by moving to the same module-based PDF.js initialization flow used by the PDF viewer
+- **Audio Viewer**
+  - Fixed selected region time overlays not following region drag/resize updates consistently in the waveform UI
+- **Legacy Word (`.doc`)**
+  - Fixed legacy pagination gaps around embedded charts, floating media, captions, page breaks, and complex table headers so rendered pages stay closer to document structure
+  - Fixed chart-adjacent empty paragraphs and DOCX style-host handling to reduce stray spacing and preserve injected rendering styles more reliably
+- **HWP / HWPX Viewer**
+  - Fixed HWP/HWPX block ordering and anchor resolution so inline tables, images, lines, and text boxes stay attached to the nearest paragraph or cell more reliably
+  - Fixed HWP/HWPX paragraph styling by carrying more direct/referenced style information, underline/vertical-align/letter-spacing data, and table-cell paragraph rendering into the viewer
+
 ## [0.16.0] - 2026-03-23
 
 ### Added

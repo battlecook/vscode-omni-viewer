@@ -36,10 +36,10 @@ export class PdfViewerProvider implements vscode.CustomReadonlyEditorProvider {
             const pdfBytes = await vscode.workspace.fs.readFile(pdfUri);
             const pdfBase64 = Buffer.from(pdfBytes).toString('base64');
             const pdfJsScriptUri = webviewPanel.webview.asWebviewUri(
-                vscode.Uri.file(path.join(this.context.extensionPath, 'node_modules', 'pdfjs-dist', 'build', 'pdf.min.js'))
+                vscode.Uri.file(path.join(this.context.extensionPath, 'node_modules', 'pdfjs-dist', 'build', 'pdf.min.mjs'))
             );
             const pdfJsWorkerUri = webviewPanel.webview.asWebviewUri(
-                vscode.Uri.file(path.join(this.context.extensionPath, 'node_modules', 'pdfjs-dist', 'build', 'pdf.worker.min.js'))
+                vscode.Uri.file(path.join(this.context.extensionPath, 'node_modules', 'pdfjs-dist', 'build', 'pdf.worker.min.mjs'))
             );
 
             const html = await TemplateUtils.loadTemplate(this.context, 'pdf/pdfViewer.html', {

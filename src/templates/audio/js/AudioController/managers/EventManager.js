@@ -231,8 +231,17 @@ export class EventManager {
         });
 
         this.state.wavesurfer.on('error', (error) => {
-            AudioUtils.showStatus('Error: ' + error.message, this.state.elements.status);
-            vscode.postMessage({ command: 'error', text: error.message });
+            const errorMessage = error?.message || String(error);
+            AudioUtils.showStatus('Error: ' + errorMessage, this.state.elements.status);
+
+            if (!this.state.isSetupComplete && this.state.audioController?.showLoadError) {
+                this.state.audioController.showLoadError(
+                    `Unable to decode this audio file. ${errorMessage}. This format may not be supported by the VS Code webview browser engine.`
+                );
+                return;
+            }
+
+            this.state.audioController?.vscode?.postMessage({ command: 'error', text: errorMessage });
         });
 
         this.state.wavesurfer.on('ready', () => {

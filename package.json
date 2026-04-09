@@ -2,15 +2,15 @@
   "name": "omni-viewer",
   "displayName": "omni-viewer",
   "publisher": "battlecook",
-  "description": "A VSCode extension for viewing audio, image, video, csv, excel, word, powerpoint, parquet, jsonl, hwp, PSD and PDF files",
-  "version": "0.16.0",
+  "description": "A VSCode extension for viewing audio, image, video, archive, csv, excel, word, powerpoint, parquet, jsonl, hwp, PSD and PDF files",
+  "version": "0.18.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
   },
   "license": "MIT",
   "engines": {
-    "vscode": "^1.74.0"
+    "vscode": "^1.79.0"
   },
   "categories": [
     "Other"
@@ -20,6 +20,10 @@
     "audio",
     "video",
     "image",
+    "archive",
+    "zip",
+    "tar",
+    "gz",
     "PDF",
     "CSV",
     "Excel",
@@ -44,6 +48,55 @@
   "contributes": {
     "customEditors": [
       {
+        "viewType": "omni-viewer.archiveViewer",
+        "displayName": "Archive Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.zip"
+          },
+          {
+            "filenamePattern": "*.rar"
+          },
+          {
+            "filenamePattern": "*.7z"
+          },
+          {
+            "filenamePattern": "*.dmg"
+          },
+          {
+            "filenamePattern": "*.jar"
+          },
+          {
+            "filenamePattern": "*.apk"
+          },
+          {
+            "filenamePattern": "*.tar"
+          },
+          {
+            "filenamePattern": "*.tgz"
+          },
+          {
+            "filenamePattern": "*.tar.gz"
+          },
+          {
+            "filenamePattern": "*.tbz2"
+          },
+          {
+            "filenamePattern": "*.tar.bz2"
+          },
+          {
+            "filenamePattern": "*.txz"
+          },
+          {
+            "filenamePattern": "*.tar.xz"
+          },
+          {
+            "filenamePattern": "*.gz"
+          }
+        ],
+        "priority": "default"
+      },
+      {
         "viewType": "omni-viewer.audioViewer",
         "displayName": "Audio Viewer",
         "selector": [
@@ -54,10 +107,28 @@
             "filenamePattern": "*.wav"
           },
           {
+            "filenamePattern": "*.aiff"
+          },
+          {
+            "filenamePattern": "*.aif"
+          },
+          {
+            "filenamePattern": "*.aifc"
+          },
+          {
+            "filenamePattern": "*.amr"
+          },
+          {
+            "filenamePattern": "*.awb"
+          },
+          {
             "filenamePattern": "*.ogg"
           },
           {
             "filenamePattern": "*.flac"
+          },
+          {
+            "filenamePattern": "*.ac3"
           },
           {
             "filenamePattern": "*.aac"
@@ -74,6 +145,12 @@
         "selector": [
           {
             "filenamePattern": "*.mp4"
+          },
+          {
+            "filenamePattern": "*.mts"
+          },
+          {
+            "filenamePattern": "*.m2ts"
           },
           {
             "filenamePattern": "*.avi"
@@ -239,6 +316,21 @@
     "menus": {
       "explorer/context": [
         {
+          "command": "omni-viewer.openArchiveViewer",
+          "when": "resourceExtname == '.zip' || resourceExtname == '.rar' || resourceExtname == '.7z' || resourceExtname == '.dmg' || resourceExtname == '.jar' || resourceExtname == '.apk' || resourceExtname == '.tar' || resourceExtname == '.tgz' || resourceExtname == '.tbz2' || resourceExtname == '.bz2' || resourceExtname == '.txz' || resourceExtname == '.xz' || resourceExtname == '.gz'",
+          "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openAudioViewer",
+          "when": "resourceExtname == '.mp3' || resourceExtname == '.wav' || resourceExtname == '.aiff' || resourceExtname == '.aif' || resourceExtname == '.aifc' || resourceExtname == '.amr' || resourceExtname == '.awb' || resourceExtname == '.ogg' || resourceExtname == '.flac' || resourceExtname == '.ac3' || resourceExtname == '.aac' || resourceExtname == '.m4a'",
+          "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openVideoViewer",
+          "when": "resourceExtname == '.mp4' || resourceExtname == '.mts' || resourceExtname == '.m2ts' || resourceExtname == '.avi' || resourceExtname == '.mov' || resourceExtname == '.wmv' || resourceExtname == '.flv' || resourceExtname == '.webm' || resourceExtname == '.mkv'",
+          "group": "navigation"
+        },
+        {
           "command": "omni-viewer.openImageViewer",
           "when": "resourceExtname == '.jpg' || resourceExtname == '.jpeg' || resourceExtname == '.png' || resourceExtname == '.gif' || resourceExtname == '.bmp' || resourceExtname == '.webp' || resourceExtname == '.svg'",
           "group": "navigation"
@@ -286,6 +378,21 @@
       ]
     },
     "commands": [
+      {
+        "command": "omni-viewer.openArchiveViewer",
+        "title": "Open with Archive Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openAudioViewer",
+        "title": "Open with Audio Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openVideoViewer",
+        "title": "Open with Video Viewer",
+        "category": "Omni Viewer"
+      },
       {
         "command": "omni-viewer.openImageViewer",
         "title": "Open with Image Editor",
@@ -373,7 +480,7 @@
     "jszip": "^3.10.1",
     "music-metadata": "^11.8.3",
     "pdf-lib": "^1.17.1",
-    "pdfjs-dist": "^3.11.174",
+    "pdfjs-dist": "^4.10.38",
     "wavesurfer.js": "^7.12.3",
     "xlsx": "^0.18.5"
   }

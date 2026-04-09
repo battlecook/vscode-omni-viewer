@@ -135,14 +135,14 @@ body {
 }
 
 .word-content.legacy-mode {
-    background: #ffffff;
+    background: transparent;
     color: #111111;
-    padding: 32px 44px;
+    padding: 0;
     min-width: 210mm;
-    max-width: 210mm;
-    min-height: 297mm;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-    overflow-x: hidden;
+    max-width: none;
+    min-height: auto;
+    box-shadow: none;
+    overflow: visible;
 }
 
 .word-content.legacy-mode .ov-doc-legacy,
@@ -157,61 +157,220 @@ body {
 
 .word-content.legacy-mode .ov-doc-legacy {
     display: block;
-    width: 100%;
-    background: #ffffff;
-    overflow-x: hidden;
+    width: fit-content;
+    background: transparent;
+    overflow: visible;
 }
 
-.word-content.legacy-mode .ov-doc-legacy h1 {
+.word-content.legacy-mode .ov-doc-legacy-section + .ov-doc-legacy-section {
+    margin-top: 18px;
+}
+
+.word-content.legacy-mode .ov-doc-legacy-pages {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.word-content.legacy-mode .ov-doc-legacy-page {
+    width: var(--ov-page-width-mm, 210mm);
+    min-height: var(--ov-page-height-mm, 297mm);
+    background: #ffffff;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    overflow: visible;
+    position: relative;
+}
+
+.word-content.legacy-mode .ov-doc-legacy-page-content {
+    --ov-gutter-left-mm: 0mm;
+    --ov-gutter-right-mm: 0mm;
+    display: block;
+    width: 100%;
+    min-height: calc(
+        var(--ov-page-height-mm, 297mm)
+        - var(--ov-page-padding-top-mm, 11.29mm)
+        - var(--ov-page-padding-bottom-mm, 11.29mm)
+    );
+    padding:
+        max(var(--ov-page-padding-top-mm, 11.29mm), var(--ov-page-active-header-mm, var(--ov-page-header-mm, 12.70mm)))
+        calc(var(--ov-page-padding-right-mm, 17.64mm) + var(--ov-gutter-right-mm))
+        max(var(--ov-page-padding-bottom-mm, 11.29mm), var(--ov-page-active-footer-mm, var(--ov-page-footer-mm, 12.70mm)))
+        calc(var(--ov-page-padding-left-mm, 17.64mm) + var(--ov-gutter-left-mm));
+    overflow: visible;
+}
+
+.word-content.legacy-mode .ov-doc-legacy-page-content-custom-columns {
+    padding-bottom: 0;
+}
+
+.word-content.legacy-mode .ov-doc-legacy-page-columns {
+    display: grid;
+    height: 100%;
+    align-items: start;
+    width: 100%;
+    min-width: 0;
+}
+
+.word-content.legacy-mode .ov-doc-legacy-page-column {
+    min-width: 0;
+    height: 100%;
+    overflow: hidden;
+    width: 100%;
+}
+
+.word-content.legacy-mode .ov-doc-legacy-page-column-gap {
+    min-width: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    background:
+        linear-gradient(
+            to right,
+            transparent calc(50% - (var(--ov-column-rule-width, 0px) / 2)),
+            rgba(148, 163, 184, 0.65) calc(50% - (var(--ov-column-rule-width, 0px) / 2)),
+            rgba(148, 163, 184, 0.65) calc(50% + (var(--ov-column-rule-width, 0px) / 2)),
+            transparent calc(50% + (var(--ov-column-rule-width, 0px) / 2))
+        );
+}
+
+.word-content.legacy-mode .ov-doc-legacy-page-column > .ov-doc-legacy-block + .ov-doc-legacy-block {
+    margin-top: 12px;
+}
+
+.word-content.legacy-mode .ov-doc-legacy-page-header,
+.word-content.legacy-mode .ov-doc-legacy-page-footer {
+    position: absolute;
+    left: calc(var(--ov-page-padding-left-mm, 17.64mm) + var(--ov-gutter-left-mm, 0mm));
+    right: calc(var(--ov-page-padding-right-mm, 17.64mm) + var(--ov-gutter-right-mm, 0mm));
+    font-size: 11px;
+    line-height: 1.3;
+    color: #4b5563;
+    white-space: pre-wrap;
+    pointer-events: none;
+}
+
+.word-content.legacy-mode .ov-doc-legacy-page-header {
+    top: max(4mm, calc(var(--ov-page-active-header-mm, var(--ov-page-header-mm, 12.70mm)) - 4mm));
+}
+
+.word-content.legacy-mode .ov-doc-legacy-page-footer {
+    bottom: max(4mm, calc(var(--ov-page-active-footer-mm, var(--ov-page-footer-mm, 12.70mm)) - 4mm));
+}
+
+.word-content.legacy-mode .ov-doc-legacy-page-header[hidden],
+.word-content.legacy-mode .ov-doc-legacy-page-footer[hidden] {
+    display: none;
+}
+
+.word-content.legacy-mode .ov-doc-legacy-section[data-ov-gutter-side="left"] .ov-doc-legacy-page-content {
+    --ov-gutter-left-mm: var(--ov-page-gutter-mm, 0mm);
+}
+
+.word-content.legacy-mode .ov-doc-legacy-section[data-ov-gutter-side="right"] .ov-doc-legacy-page-content {
+    --ov-gutter-right-mm: var(--ov-page-gutter-mm, 0mm);
+}
+
+.word-content.legacy-mode .ov-doc-legacy-block {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    clear: both;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    -webkit-column-break-inside: avoid;
+}
+
+.word-content.legacy-mode .ov-doc-legacy-block[data-ov-semantic-role="floating-media"] {
+    clear: none;
+    margin-bottom: var(--ov-floating-clearance, 12px);
+}
+
+.word-content.legacy-mode .ov-doc-legacy-block[data-ov-semantic-role="floating-media"][data-ov-floating-placement="center-block"] {
+    clear: both;
+}
+
+.word-content.legacy-mode .ov-doc-legacy-block[data-ov-clear-float="true"] {
+    clear: both;
+    padding-top: var(--ov-clear-float-padding, 4px);
+}
+
+.word-content.legacy-mode .ov-doc-legacy-block + .ov-doc-legacy-block {
+    margin-top: 12px;
+}
+
+.word-content.legacy-mode .ov-doc-legacy-block-overflow {
+    break-inside: auto;
+    page-break-inside: auto;
+}
+
+.word-content.legacy-mode .ov-doc-legacy-page-content h1 {
     font-size: 28px;
     margin: 0 0 18px 0;
     line-height: 1.25;
 }
 
-.word-content.legacy-mode .ov-doc-legacy h2 {
+.word-content.legacy-mode .ov-doc-legacy-page-content h2 {
     font-size: 18px;
     margin: 26px 0 10px 0;
     line-height: 1.35;
 }
 
-.word-content.legacy-mode .ov-doc-legacy p {
-    margin: 0 0 12px 0;
+.word-content.legacy-mode .ov-doc-legacy-page-content p {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    clear: both;
+    margin: 0;
     line-height: 1.6;
     white-space: pre-wrap;
+    tab-size: 4;
 }
 
-.word-content.legacy-mode .ov-doc-legacy ul,
-.word-content.legacy-mode .ov-doc-legacy ol {
-    margin: 0 0 14px 24px;
+.word-content.legacy-mode .ov-doc-legacy-page-content ul,
+.word-content.legacy-mode .ov-doc-legacy-page-content ol {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    clear: both;
+    margin: 0 0 0 24px;
     padding: 0;
 }
 
-.word-content.legacy-mode .ov-doc-legacy li {
+.word-content.legacy-mode .ov-doc-legacy-page-content li {
     margin: 0 0 8px 0;
     line-height: 1.6;
+    white-space: pre-wrap;
+    tab-size: 4;
 }
 
 .word-content.legacy-mode .ov-doc-legacy-table {
-    margin: 18px 0;
+    display: block;
+    width: 100%;
+    margin: 0;
     max-width: 100%;
     overflow-x: auto;
 }
 
-.word-content.legacy-mode .ov-doc-legacy table {
+.word-content.legacy-mode .ov-doc-legacy-page-content table {
     width: 100%;
     border-collapse: collapse;
     font-size: 14px;
 }
 
-.word-content.legacy-mode .ov-doc-legacy th,
-.word-content.legacy-mode .ov-doc-legacy td {
+.word-content.legacy-mode .ov-doc-legacy-page-content th,
+.word-content.legacy-mode .ov-doc-legacy-page-content td {
     border: 1px solid var(--border-color, #3c3c3c);
     padding: 8px 10px;
     text-align: left;
     vertical-align: top;
 }
 
-.word-content.legacy-mode .ov-doc-legacy th {
+.word-content.legacy-mode .ov-doc-legacy-table[data-ov-explicit-borders="true"] th,
+.word-content.legacy-mode .ov-doc-legacy-table[data-ov-explicit-borders="true"] td {
+    border-color: #111111;
+}
+
+.word-content.legacy-mode .ov-doc-legacy-page-content th {
     background: #f3f4f6;
     font-weight: 600;
 }
@@ -221,6 +380,8 @@ body {
 }
 
 .word-content.legacy-mode .ov-doc-embedded-sheet {
+    display: block;
+    clear: both;
     margin: 18px 0;
     width: 100%;
     max-width: 100%;
@@ -322,6 +483,41 @@ body {
     padding: 10px;
 }
 
+.word-content.legacy-mode .ov-doc-legacy-image-inline {
+    max-width: min(100%, 360px);
+}
+
+.word-content.legacy-mode .ov-doc-legacy-image-floating {
+    width: min(44%, 320px);
+    max-width: min(44%, 320px);
+    float: right;
+    margin: 0 0 14px 18px;
+    clear: none;
+}
+
+.word-content.legacy-mode .ov-doc-legacy-image-floating-narrow {
+    width: min(32%, 240px);
+    max-width: min(32%, 240px);
+}
+
+.word-content.legacy-mode .ov-doc-legacy-image-floating-wide {
+    width: min(52%, 400px);
+    max-width: min(52%, 400px);
+}
+
+.word-content.legacy-mode .ov-doc-legacy-image-floating-left {
+    float: left;
+    margin: 0 18px 14px 0;
+}
+
+.word-content.legacy-mode .ov-doc-legacy-image-floating-center {
+    float: none;
+    width: min(56%, 360px);
+    max-width: min(56%, 360px);
+    margin: 0 auto 14px;
+    clear: both;
+}
+
 .word-content.legacy-mode .ov-doc-legacy-image img {
     display: block;
     width: 100%;
@@ -339,6 +535,23 @@ body {
 .word-content.legacy-mode .ov-doc-legacy-empty {
     color: #6b7280;
     font-style: italic;
+}
+
+@media print {
+    .word-content.legacy-mode .ov-doc-legacy-pages {
+        gap: 0;
+    }
+
+    .word-content.legacy-mode .ov-doc-legacy-page {
+        box-shadow: none;
+        break-after: page;
+        page-break-after: always;
+    }
+
+    .word-content.legacy-mode .ov-doc-legacy-page:last-child {
+        break-after: auto;
+        page-break-after: auto;
+    }
 }
 
 .word-content.docx-mode .docx-wrapper {

@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { ArchiveViewerProvider } from './archiveViewerProvider';
 import { AudioViewerProvider } from './audioViewerProvider';
 import { CsvViewerProvider } from './csvViewerProvider';
 import { ExcelViewerProvider } from './excelViewerProvider';
@@ -22,6 +23,13 @@ export interface ViewerRegistration {
 }
 
 export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
+    {
+        viewType: ArchiveViewerProvider.viewType,
+        command: 'omni-viewer.openArchiveViewer',
+        missingMessage: 'No archive file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new ArchiveViewerProvider(context)
+    },
     {
         viewType: AudioViewerProvider.viewType,
         command: 'omni-viewer.openAudioViewer',

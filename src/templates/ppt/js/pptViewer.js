@@ -31,7 +31,6 @@
     const SCALE_STEP = 0.1;
 
     let pdfDoc = null;
-    let pdfJsReady = false;
     let renderToken = 0;
 
     const RENDER_TIMEOUT_MS = 30000;
@@ -213,6 +212,21 @@
                 p.appendChild(document.createTextNode(paragraph.text || ''));
             }
             box.appendChild(p);
+        });
+
+        box.style.overflow = 'hidden';
+
+        requestAnimationFrame(() => {
+            if (box.scrollHeight > box.clientHeight + 2) {
+                const ratio = box.clientHeight / box.scrollHeight;
+                const ps = box.querySelectorAll('p.text-line');
+                ps.forEach((p) => {
+                    const cur = parseFloat(p.style.fontSize) || 24;
+                    const next = Math.max(9, Math.floor(cur * ratio));
+                    p.style.fontSize = `${next}px`;
+                    p.style.lineHeight = `${Math.max(12, Math.round(next * 1.18))}px`;
+                });
+            }
         });
 
         return box;
@@ -766,65 +780,28 @@
         if (!presentation.pdfBase64) {
             throw new Error('No converted PDF data found for this .ppt file.');
         }
-        await ensurePdfJsLoaded();
-
-        if (window.__OMNI_PDFJS_WORKER__ && pdfjsLib && pdfjsLib.GlobalWorkerOptions) {
-            pdfjsLib.GlobalWorkerOptions.workerSrc = window.__OMNI_PDFJS_WORKER__;
-        }
+        const pdfjsLib = await getPdfJsLib();
         const bytes = base64ToUint8Array(presentation.pdfBase64);
-        const loadingTask = pdfjsLib.getDocument({ data: bytes });
+        const loadingTask = pdfjsLib.getDocument({ data: bytes, isEvalSupported: false });
         pdfDoc = await loadingTask.promise;
         populateSlideSelect(pdfDoc.numPages);
     }
 
-    async function ensurePdfJsLoaded() {
-        if (pdfJsReady && typeof pdfjsLib !== 'undefined') return;
-        if (typeof pdfjsLib !== 'undefined') {
-            pdfJsReady = true;
-            return;
+    async function getPdfJsLib() {
+        const ready = window.__OMNI_PDFJS_READY__;
+        if (!ready || typeof ready.then !== 'function') {
+            throw new Error('pdf.js loader was not initialized.');
         }
 
-        await new Promise((resolve, reject) => {
-            let timeoutId = null;
-            const clear = () => {
-                if (timeoutId) clearTimeout(timeoutId);
-            };
-            timeoutId = setTimeout(() => {
-                reject(new Error('Timed out while loading pdf.js. Network access may be blocked.'));
-            }, PDFJS_LOAD_TIMEOUT_MS);
-
-            const existing = document.querySelector('script[data-pdfjs="true"]');
-            if (existing) {
-                existing.addEventListener('load', () => {
-                    clear();
-                    resolve();
-                }, { once: true });
-                existing.addEventListener('error', () => {
-                    clear();
-                    reject(new Error('Failed to load pdf.js'));
-                }, { once: true });
-                return;
-            }
-
-            const script = document.createElement('script');
-            script.src = window.__OMNI_PDFJS_SCRIPT__ || '';
-            script.async = true;
-            script.dataset.pdfjs = 'true';
-            script.onload = () => {
-                clear();
-                resolve();
-            };
-            script.onerror = () => {
-                clear();
-                reject(new Error('pdf.js failed to load from the packaged extension assets.'));
-            };
-            document.head.appendChild(script);
-        });
-
-        if (typeof pdfjsLib === 'undefined') {
+        const pdfjsLib = await withTimeout(
+            ready,
+            PDFJS_LOAD_TIMEOUT_MS,
+            'Timed out while loading pdf.js from the packaged extension assets.'
+        );
+        if (!pdfjsLib) {
             throw new Error('pdf.js failed to initialize.');
         }
-        pdfJsReady = true;
+        return pdfjsLib;
     }
 
     function initXmlMode() {

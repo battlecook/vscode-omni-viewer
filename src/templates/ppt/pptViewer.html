@@ -37,8 +37,16 @@
     </div>
 
     <script>
-        window.__OMNI_PDFJS_SCRIPT__ = '{{pdfJsScriptUri}}';
         window.__OMNI_PDFJS_WORKER__ = '{{pdfJsWorkerUri}}';
+    </script>
+    <script>
+        window.__OMNI_PDFJS_READY__ = import('{{pdfJsScriptUri}}').then((module) => {
+            const pdfjsLib = module && module.default ? module.default : module;
+            if (window.__OMNI_PDFJS_WORKER__ && pdfjsLib && pdfjsLib.GlobalWorkerOptions) {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = window.__OMNI_PDFJS_WORKER__;
+            }
+            return pdfjsLib;
+        });
     </script>
     <script id="presentation-data" type="application/json">{{presentationData}}</script>
     <script src="js/pptViewer.js"></script>
