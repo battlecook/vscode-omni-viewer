@@ -3,6 +3,13 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 
 export class TemplateUtils {
+    public static escapeJsonForHtmlScriptTag(json: string): string {
+        return json
+            .replace(/</g, '\\u003C')
+            .replace(/>/g, '\\u003E')
+            .replace(/&/g, '\\u0026');
+    }
+
     public static async loadTemplate(
         context: vscode.ExtensionContext,
         templateName: string,

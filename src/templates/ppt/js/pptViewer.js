@@ -83,6 +83,17 @@
         }
     }
 
+    function setEmptyState(message) {
+        if (error) {
+            error.style.display = 'none';
+            error.textContent = '';
+        }
+        if (loading) {
+            loading.textContent = message;
+            loading.style.display = 'block';
+        }
+    }
+
     function updateZoomText() {
         if (zoomLevel) {
             zoomLevel.textContent = `${Math.round(currentScale * 100)}%`;
@@ -181,8 +192,7 @@
             else if (element.textStylePreset === 'cover-subtitle') p.style.fontWeight = '300';
             else p.style.fontWeight = '400';
             if (paragraph.italic) p.style.fontStyle = 'italic';
-            const inferredTitleColor = (element.isTitle && !paragraph.color) ? '#8e8f92' : undefined;
-            const paragraphColor = paragraph.color || inferredTitleColor || fallbackColor || '#111111';
+            const paragraphColor = paragraph.color || fallbackColor || '#111111';
             p.style.color = paragraphColor;
 
             const showBullet = !!paragraph.bullet || (isLikelyList && !!(paragraph.text || '').trim());
@@ -705,6 +715,16 @@
 
     async function renderSlides() {
         const token = ++renderToken;
+        const totalPages = presentation.mode === 'pdf'
+            ? Number(presentation.totalSlides || 0)
+            : (Array.isArray(presentation.slides) ? presentation.slides.length : 0);
+
+        if (totalPages === 0) {
+            slidesContainer.querySelectorAll('.slide').forEach((el) => el.remove());
+            setEmptyState('This PowerPoint file contains 0 pages. It appears to be a template or a master/layout-only file.');
+            return;
+        }
+
         const renderStartedAt = performance.now();
         if (loading) {
             loading.style.display = 'block';
@@ -726,6 +746,7 @@
     function populateSlideSelect(totalPages) {
         if (!slideSelect) return;
         slideSelect.innerHTML = '';
+        slideSelect.disabled = totalPages === 0;
 
         for (let i = 1; i <= totalPages; i++) {
             const option = document.createElement('option');
@@ -734,7 +755,16 @@
             slideSelect.appendChild(option);
         }
 
-        if (slideCount) slideCount.textContent = `${totalPages} slides`;
+        if (totalPages === 0) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = '0 pages';
+            slideSelect.appendChild(option);
+        }
+
+        if (slideCount) {
+            slideCount.textContent = totalPages === 0 ? '0 pages' : `${totalPages} slides`;
+        }
     }
 
     function jumpToSlide(pageNum) {

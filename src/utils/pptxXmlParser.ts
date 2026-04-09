@@ -101,6 +101,7 @@ interface ParsedElement {
     fillColor?: string;
     borderColor?: string;
     hasGeometry?: boolean;
+    hiddenPromptText?: boolean;
 }
 
 const ZERO_TX: Transform = {
@@ -226,7 +227,8 @@ export class PptxXmlParser {
             placeholders.set(element.placeholderKey, this.mergePlaceholderElement(prev, element));
         }
 
-        const merged = [...others, ...Array.from(placeholders.values())];
+        const merged = [...others, ...Array.from(placeholders.values())]
+            .filter((element) => !element.hiddenPromptText);
         merged.sort((a, b) => {
             if (a.sourcePriority !== b.sourcePriority) {
                 return a.sourcePriority - b.sourcePriority;
@@ -240,6 +242,10 @@ export class PptxXmlParser {
     private static mergePlaceholderElement(base: ParsedElement, incoming: ParsedElement): ParsedElement {
         const incomingHasGeometry = this.hasValidGeometry(incoming);
         const baseHasGeometry = this.hasValidGeometry(base);
+        const mergedParagraphs = incoming.paragraphs && incoming.paragraphs.length > 0
+            ? this.mergeParagraphStyles(base.paragraphs, incoming.paragraphs)
+            : base.paragraphs;
+        const incomingHasVisibleParagraphs = !!(incoming.paragraphs && incoming.paragraphs.length > 0 && !incoming.hiddenPromptText);
 
         return {
             ...base,
@@ -250,19 +256,71 @@ export class PptxXmlParser {
             height: incomingHasGeometry ? incoming.height : base.height,
             rotateDeg: incomingHasGeometry ? incoming.rotateDeg : base.rotateDeg,
             hasGeometry: incomingHasGeometry || baseHasGeometry || !!incoming.hasGeometry || !!base.hasGeometry,
-            paragraphs: incoming.paragraphs && incoming.paragraphs.length > 0 ? incoming.paragraphs : base.paragraphs,
+            paragraphs: mergedParagraphs,
             src: incoming.src || base.src,
             tableRows: incoming.tableRows && incoming.tableRows.length > 0 ? incoming.tableRows : base.tableRows,
             chartKind: incoming.chartKind || base.chartKind,
             chartTitle: incoming.chartTitle || base.chartTitle,
             fillColor: incoming.fillColor || base.fillColor,
             borderColor: incoming.borderColor || base.borderColor,
-            isTitle: incoming.isTitle || base.isTitle
+            isTitle: incoming.isTitle || base.isTitle,
+            hiddenPromptText: incomingHasVisibleParagraphs ? false : !!(incoming.hiddenPromptText ?? base.hiddenPromptText)
         };
     }
 
     private static hasValidGeometry(el: ParsedElement): boolean {
         return Number.isFinite(el.width) && Number.isFinite(el.height) && el.width > 0 && el.height > 0;
+    }
+
+    private static mergeParagraphStyles(
+        baseParagraphs: ParsedElement['paragraphs'],
+        incomingParagraphs: ParsedElement['paragraphs']
+    ): ParsedElement['paragraphs'] {
+        if (!incomingParagraphs || incomingParagraphs.length === 0) {
+            return baseParagraphs;
+        }
+        if (!baseParagraphs || baseParagraphs.length === 0) {
+            return incomingParagraphs;
+        }
+
+        return incomingParagraphs.map((paragraph, index) => {
+            const fallback = baseParagraphs[index]
+                || baseParagraphs.find((candidate) => candidate.level === paragraph.level)
+                || baseParagraphs[0];
+            if (!fallback) {
+                return paragraph;
+            }
+
+            const incomingRuns = Array.isArray(paragraph.runs) ? paragraph.runs : [];
+            const fallbackRuns = Array.isArray(fallback.runs) ? fallback.runs : [];
+            const mergedRuns = incomingRuns.length > 0
+                ? incomingRuns.map((run, runIndex) => {
+                    const fallbackRun = fallbackRuns[runIndex] || fallbackRuns[0];
+                    return {
+                        ...fallbackRun,
+                        ...run,
+                        fontSizePx: run.fontSizePx || fallbackRun?.fontSizePx,
+                        bold: run.bold ?? fallbackRun?.bold,
+                        italic: run.italic ?? fallbackRun?.italic,
+                        color: run.color || fallbackRun?.color
+                    };
+                })
+                : fallbackRuns;
+
+            return {
+                ...fallback,
+                ...paragraph,
+                text: paragraph.text,
+                level: Number.isFinite(paragraph.level) ? paragraph.level : fallback.level,
+                bullet: paragraph.bullet ?? fallback.bullet,
+                align: paragraph.align || fallback.align,
+                fontSizePx: paragraph.fontSizePx || fallback.fontSizePx,
+                bold: paragraph.bold ?? fallback.bold,
+                italic: paragraph.italic ?? fallback.italic,
+                color: paragraph.color || fallback.color,
+                runs: mergedRuns.length > 0 ? mergedRuns : undefined
+            };
+        });
     }
 
     private static async extractElementsFromPart(
@@ -323,7 +381,7 @@ export class PptxXmlParser {
 
             if (foundTag === 'p:grpSp') {
                 const grpTx = this.combineTransforms(parentTx, this.parseGroupTransform(block.content));
-                await this.collectBlocks(zip, block.content, rels, colors, sourcePriority, grpTx, out, zCounter);
+                await this.collectBlocks(zip, block.innerContent, rels, colors, sourcePriority, grpTx, out, zCounter);
             } else if (foundTag === 'p:sp' || foundTag === 'p:cxnSp') {
                 const element = this.parseShapeBlock(block.content, colors, sourcePriority, parentTx, zCounter.value);
                 if (element) {
@@ -380,7 +438,7 @@ export class PptxXmlParser {
             if (hasOnlyPromptText) {
                 if (placeholderKey && geom) {
                     return {
-                        type: 'shape',
+                        type: 'text',
                         x: geom.x,
                         y: geom.y,
                         width: geom.width,
@@ -389,7 +447,9 @@ export class PptxXmlParser {
                         zIndex,
                         sourcePriority,
                         placeholderKey,
-                        hasGeometry: true
+                        hasGeometry: true,
+                        paragraphs,
+                        hiddenPromptText: true
                     };
                 }
                 return null;
@@ -675,7 +735,10 @@ export class PptxXmlParser {
             }>;
         }> = [];
 
-        const pMatches = shapeXml.match(/<a:p\b[\s\S]*?<\/a:p>/g) || [];
+        const txBody = this.extractTagBlock(shapeXml, 'p:txBody') || shapeXml;
+        const lstStyle = this.extractTagBlock(txBody, 'a:lstStyle') || '';
+        const bodyPr = this.extractTagBlock(txBody, 'a:bodyPr') || '';
+        const pMatches = txBody.match(/<a:p\b[\s\S]*?<\/a:p>/g) || [];
         for (const pXml of pMatches) {
             const textParts: string[] = [];
             const runs: Array<{
@@ -700,8 +763,8 @@ export class PptxXmlParser {
                         runs.push({
                             text,
                             fontSizePx: runSz > 0 ? Math.round((runSz / 100) * 1.333) : undefined,
-                            bold: this.getAttr(runRPr, 'b') === '1',
-                            italic: this.getAttr(runRPr, 'i') === '1',
+                            bold: this.parseOptionalBoolAttr(runRPr, 'b'),
+                            italic: this.parseOptionalBoolAttr(runRPr, 'i'),
                             color: this.extractColorFromXml(runRPr + run, colors)
                         });
                     }
@@ -718,17 +781,27 @@ export class PptxXmlParser {
             const text = textParts.join('').trim();
             if (!text) continue;
 
-            const pPr = pXml.match(/<a:pPr[^>]*\/?>/)?.[0] || '';
+            const inlinePPr = pXml.match(/<a:pPr[^>]*\/?>/)?.[0] || '';
+            const inlineLevel = Number(this.getAttr(inlinePPr, 'lvl') || 0);
+            const level = Number.isFinite(inlineLevel) ? inlineLevel : 0;
+            const levelStyle = this.extractParagraphLevelStyle(lstStyle, level);
+            const levelPPr = levelStyle.match(/<a:lvl\d+pPr[^>]*>/)?.[0] || '';
+            const pPr = inlinePPr || levelPPr;
+            const levelRPr = levelStyle.match(/<a:defRPr[^>]*\/?>/)?.[0] || '';
+            const bodyDefaultRPr = txBody.match(/<a:defRPr[^>]*\/?>/)?.[0]
+                || bodyPr.match(/<a:defRPr[^>]*\/?>/)?.[0]
+                || '';
             const rPr = lastRun.match(/<a:rPr[^>]*\/?>/)?.[0]
                 || pXml.match(/<a:defRPr[^>]*\/?>/)?.[0]
+                || levelRPr
+                || bodyDefaultRPr
                 || '';
 
-            const level = Number(this.getAttr(pPr, 'lvl') || 0);
             const align = this.getAttr(pPr, 'algn') || undefined;
             const size = Number(this.getAttr(rPr, 'sz') || 0);
             const color = this.extractColorFromXml(rPr, colors);
-            const hasBullet = /<a:buChar\b|<a:buAutoNum\b|<a:buBlip\b/.test(pXml);
-            const hasBuNone = /<a:buNone\b/.test(pXml);
+            const hasBullet = /<a:buChar\b|<a:buAutoNum\b|<a:buBlip\b/.test(pXml) || /<a:buChar\b|<a:buAutoNum\b|<a:buBlip\b/.test(levelStyle);
+            const hasBuNone = /<a:buNone\b/.test(pXml) || /<a:buNone\b/.test(levelStyle);
 
             paragraphs.push({
                 text,
@@ -736,8 +809,8 @@ export class PptxXmlParser {
                 bullet: hasBullet && !hasBuNone,
                 align,
                 fontSizePx: size > 0 ? Math.round((size / 100) * 1.333) : undefined,
-                bold: this.getAttr(rPr, 'b') === '1',
-                italic: this.getAttr(rPr, 'i') === '1',
+                bold: this.parseOptionalBoolAttr(rPr, 'b'),
+                italic: this.parseOptionalBoolAttr(rPr, 'i'),
                 color,
                 runs: runs.length > 0 ? runs : undefined
             });
@@ -860,13 +933,36 @@ export class PptxXmlParser {
         if (!xml) return undefined;
         const bgPr = this.extractTagBlock(xml, 'p:bgPr') || '';
         if (!bgPr) return undefined;
-        return this.extractColorFromXml(bgPr, colors);
+        const solid = this.extractColorFromXml(bgPr, colors);
+        if (solid) return solid;
+
+        const gradFill = this.extractTagBlock(bgPr, 'a:gradFill') || '';
+        if (gradFill) {
+            const stops = gradFill.match(/<a:gs\b[\s\S]*?<\/a:gs>/g) || [];
+            const lastStop = stops[stops.length - 1] || gradFill;
+            return this.extractColorFromXml(lastStop, colors);
+        }
+
+        return undefined;
     }
 
     private static extractFillColor(xml: string, colors: ColorContext): string | undefined {
         const spPr = this.extractTagBlock(xml, 'p:spPr') || xml;
         const solid = this.extractTagBlock(spPr, 'a:solidFill') || '';
-        return this.extractColorFromXml(solid, colors);
+        const solidColor = this.extractColorFromXml(solid, colors);
+        if (solidColor) return solidColor;
+
+        const gradFill = this.extractTagBlock(spPr, 'a:gradFill') || '';
+        if (gradFill) {
+            const stops = gradFill.match(/<a:gs\b[\s\S]*?<\/a:gs>/g) || [];
+            const firstStop = stops[0] || gradFill;
+            const lastStop = stops[stops.length - 1] || gradFill;
+            return this.extractColorFromXml(firstStop, colors) || this.extractColorFromXml(lastStop, colors);
+        }
+
+        const style = this.extractTagBlock(xml, 'p:style') || '';
+        const fillRef = this.extractTagBlock(style, 'a:fillRef') || '';
+        return this.extractColorFromXml(fillRef, colors);
     }
 
     private static extractLineColor(xml: string, colors: ColorContext): string | undefined {
@@ -1031,8 +1127,11 @@ export class PptxXmlParser {
         return await file.async('text');
     }
 
-    private static extractBalancedTag(xml: string, tag: string, startAt: number): { content: string; end: number } | null {
-        const openToken = `<${tag}`;
+    private static extractBalancedTag(
+        xml: string,
+        tag: string,
+        startAt: number
+    ): { content: string; innerContent: string; end: number } | null {
         const closeToken = `</${tag}>`;
         let pos = startAt;
 
@@ -1047,6 +1146,7 @@ export class PptxXmlParser {
         if (/\/\s*>$/.test(beforeClose)) {
             return {
                 content: xml.slice(firstOpen, firstClose + 1),
+                innerContent: '',
                 end: firstClose + 1
             };
         }
@@ -1074,6 +1174,7 @@ export class PptxXmlParser {
 
         return {
             content: xml.slice(firstOpen, pos),
+            innerContent: xml.slice(firstClose + 1, pos - closeToken.length),
             end: pos
         };
     }
@@ -1091,6 +1192,12 @@ export class PptxXmlParser {
             || tag.match(new RegExp(`${escaped}=(?:"([^"]+)"|'([^']+)')`))?.[2];
     }
 
+    private static parseOptionalBoolAttr(tag: string, attr: string): boolean | undefined {
+        const raw = this.getAttr(tag, attr);
+        if (raw === undefined) return undefined;
+        return raw === '1' || raw.toLowerCase() === 'true';
+    }
+
     private static emuToPx(emu: number): number {
         return Math.round(emu / 9525);
     }
@@ -1105,6 +1212,12 @@ export class PptxXmlParser {
             .replace(/&#xD;/gi, '')
             .replace(/&#xA;/gi, ' ')
             .replace(/&#10;/g, ' ');
+    }
+
+    private static extractParagraphLevelStyle(lstStyle: string, level: number): string {
+        if (!lstStyle) return '';
+        const normalizedLevel = Math.max(0, Math.min(8, Number.isFinite(level) ? level : 0)) + 1;
+        return this.extractTagBlock(lstStyle, `a:lvl${normalizedLevel}pPr`) || '';
     }
 
     private static buildColorContext(
