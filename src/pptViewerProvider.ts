@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { FileUtils } from './utils/fileUtils';
 import { TemplateUtils } from './utils/templateUtils';
+import { escapeJsonForHtmlScriptTag } from './utils/htmlEscaping';
 import { MessageHandler } from './utils/messageHandler';
 import { configureWebview, createReadonlyDocument, renderErrorHtml, rerouteIfNeeded } from './viewerProviderUtils';
 
@@ -46,7 +47,7 @@ export class PptViewerProvider implements vscode.CustomReadonlyEditorProvider {
                 fileName: pptFileName,
                 fileSize: pptContent.fileSize,
                 totalSlides: String(pptContent.totalSlides),
-                presentationData: JSON.stringify(pptContent),
+                presentationData: escapeJsonForHtmlScriptTag(JSON.stringify(pptContent)),
                 pdfJsScriptUri: pdfJsScriptUri.toString(),
                 pdfJsWorkerUri: pdfJsWorkerUri.toString()
             });

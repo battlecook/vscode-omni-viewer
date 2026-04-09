@@ -55,6 +55,7 @@ interface ParsedElement {
     }>;
     src?: string;
     vectorFallback?: boolean;
+    trimBottomCredit?: boolean;
     tableRows?: string[][];
     chartKind?: string;
     chartTitle?: string;
@@ -511,6 +512,7 @@ export class PptxXmlParser {
         const geom = localGeom ? this.applyTransform(localGeom, parentTx) : null;
         const placeholderKey = this.getPlaceholderKey(picXml);
         const picName = picXml.match(/<p:cNvPr[^>]*name="([^"]+)"/)?.[1] || '';
+        const picDescr = picXml.match(/<p:cNvPr[^>]*descr="([^"]+)"/)?.[1] || '';
 
         if (sourcePriority < 3 && !placeholderKey && /placeholder/i.test(picName)) {
             return null;
@@ -564,6 +566,10 @@ export class PptxXmlParser {
         const vectorFallback = (sourceExt === '.emf' || sourceExt === '.wmf')
             && selectedTarget !== target
             && (selectedExt === '.png' || selectedExt === '.jpg' || selectedExt === '.jpeg' || selectedExt === '.webp' || selectedExt === '.gif');
+        const trimBottomCredit = /noun_/i.test(picName)
+            || /noun_/i.test(picDescr)
+            || /thenounproject/i.test(picName)
+            || /thenounproject/i.test(picDescr);
 
         return {
             type: 'image',
@@ -577,6 +583,7 @@ export class PptxXmlParser {
             placeholderKey,
             src: `data:${mime};base64,${base64}`,
             vectorFallback,
+            trimBottomCredit,
             hasGeometry: !!geom
         };
     }
@@ -1600,7 +1607,10 @@ export class PptxXmlParser {
             /^author$/i,
             /^department$/i,
             /^date$/i,
-            /^location$/i
+            /^location$/i,
+            /^마스터 .* 스타일 편집$/i,
+            /^마스터 텍스트 스타일을 편집합니다$/i,
+            /^(첫째|둘째|셋째|넷째|다섯째|여섯째|일곱째|여덟째|아홉째) 수준$/i
         ];
         return promptPatterns.some((re) => re.test(normalized));
     }
