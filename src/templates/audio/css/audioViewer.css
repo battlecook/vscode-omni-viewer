@@ -94,6 +94,21 @@ body {
     background: #c82333 !important;
 }
 
+.zoom-btn {
+    padding: 4px 10px;
+    font-size: 16px;
+    font-weight: bold;
+    min-width: 28px;
+    line-height: 1;
+}
+
+.zoom-label {
+    font-size: 11px;
+    min-width: 36px;
+    text-align: center;
+    color: var(--vscode-descriptionForeground);
+}
+
 .download-btn {
     background: var(--vscode-button-secondaryBackground);
     color: var(--vscode-button-secondaryForeground);
@@ -127,6 +142,15 @@ body {
     margin-bottom: 10px;
     border-radius: 4px;
     overflow: hidden;
+}
+
+#minimap {
+    width: 100%;
+    background: var(--vscode-editor-background);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 6px;
+    opacity: 0.85;
 }
 
 #waveform {

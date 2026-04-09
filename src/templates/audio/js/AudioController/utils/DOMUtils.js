@@ -21,7 +21,11 @@ export const DOMUtils = {
             bitDepthInfo: document.getElementById('bitDepthInfo'),
             fileSizeInfo: document.getElementById('fileSizeInfo'),
             formatInfo: document.getElementById('formatInfo'),
-            downloadBtn: document.getElementById('downloadBtn')
+            downloadBtn: document.getElementById('downloadBtn'),
+            zoomControls: document.getElementById('zoomControls'),
+            zoomIn: document.getElementById('zoomIn'),
+            zoomOut: document.getElementById('zoomOut'),
+            zoomLevel: document.getElementById('zoomLevel')
         };
     },
 
@@ -36,5 +40,30 @@ export const DOMUtils = {
             console.warn('Error parsing metadata:', error);
         }
         return {};
+    },
+
+    // Get precomputed data (WASM-generated peaks/spectrogram)
+    getPrecomputedData: () => {
+        try {
+            const script = document.getElementById('precomputed-data');
+            if (script && script.textContent) {
+                const raw = JSON.parse(script.textContent);
+                if (raw.mode === 'precomputed') {
+                    return {
+                        mode: raw.mode,
+                        peaks: raw.peaks ? JSON.parse(raw.peaks) : null,
+                        duration: raw.duration ? parseFloat(raw.duration) : null,
+                        spectrogram: raw.spectrogram ? JSON.parse(raw.spectrogram) : null,
+                        sampleRate: raw.sampleRate ? parseInt(raw.sampleRate, 10) : null
+                    };
+                }
+                if (raw.mode === 'streaming') {
+                    return { mode: 'streaming' };
+                }
+            }
+        } catch (error) {
+            console.warn('Error parsing precomputed data:', error);
+        }
+        return null;
     }
 };

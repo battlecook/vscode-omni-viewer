@@ -22,7 +22,8 @@ export class FileInfoManager {
 
     updateFileInfo() {
         try {
-            const decodedData = this.state.wavesurfer.getDecodedData();
+            let decodedData = null;
+            try { decodedData = this.state.wavesurfer.getDecodedData(); } catch (_) {}
             
             // Use server metadata if available, fallback to decoded data
             const sampleRate = this.audioMetadata.sampleRate || (decodedData?.sampleRate || CONSTANTS.WAVESURFER.SAMPLE_RATE);
@@ -30,7 +31,10 @@ export class FileInfoManager {
             const bitDepth = this.audioMetadata.bitDepth || (decodedData?.length > 0 ? (decodedData instanceof Float32Array ? 32 : 16) : '--');
             const format = this.audioMetadata.format || this.detectFormat();
             const fileSize = this.audioMetadata.fileSize || (decodedData ? this.estimateFileSize(decodedData) : '--');
-            const duration = this.audioMetadata.duration || (decodedData ? decodedData.length / sampleRate : '--');
+            // Prefer wavesurfer's actual duration (reliable in streaming mode) over metadata (unreliable for OGG)
+            const wsDuration = this.state.wavesurfer?.getDuration();
+            const duration = (wsDuration && wsDuration > 0 && isFinite(wsDuration)) ? wsDuration :
+                this.audioMetadata.duration || (decodedData ? decodedData.length / sampleRate : '--');
 
             // Update UI elements
             this.state.elements.sampleRateInfo.textContent = sampleRate ? `${sampleRate} Hz` : '--';

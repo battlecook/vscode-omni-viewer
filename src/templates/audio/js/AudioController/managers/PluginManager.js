@@ -42,6 +42,79 @@ export class PluginManager {
         }
     }
 
+    /**
+     * Setup spectrogram with precomputed frequency data (WASM large file mode).
+     * Uses wavesurfer's native Spectrogram plugin with frequenciesDataUrl.
+     */
+    async setupSpectrogramPrecomputed(spectrogramData, sampleRate) {
+        if (this.state.spectrogramPlugin) {
+            try {
+                this.state.wavesurfer.unregisterPlugin(this.state.spectrogramPlugin);
+                this.state.spectrogramPlugin = null;
+            } catch (error) {
+                console.warn('Error removing existing spectrogram plugin:', error);
+            }
+        }
+
+        const spectrogramContainer = document.getElementById('spectrogram');
+        if (spectrogramContainer) {
+            spectrogramContainer.innerHTML = '';
+        }
+
+        try {
+            // Store precomputed data for scale changes
+            this.state.precomputedSpectrogramData = spectrogramData;
+            this.state.precomputedSampleRate = sampleRate;
+
+            // Convert plain arrays to Uint8Arrays (wavesurfer expects Uint8Array per time slice)
+            const freqData = spectrogramData.map(slice => new Uint8Array(slice));
+            const channelData = [freqData];
+
+            // Create plugin — WASM data has mel filter bank applied
+            this.state.spectrogramPlugin = this.state.wavesurfer.registerPlugin(SpectrogramPlugin.create({
+                container: '#spectrogram',
+                labels: true,
+                scale: CONSTANTS.SPECTROGRAM.DEFAULT_SCALE,
+                splitChannels: false,
+                height: CONSTANTS.SPECTROGRAM.HEIGHT,
+                sampleRate: sampleRate,
+            }));
+
+            const plugin = this.state.spectrogramPlugin;
+
+            // Set frequencyMax so labels render correctly
+            // (normally set by getFrequencies() which we bypass)
+            plugin.frequencyMax = sampleRate / 2;
+
+            // Cache precomputed data for scroll/zoom re-renders (fastRender)
+            plugin.cachedFrequencies = channelData;
+
+            // Override render() to ALWAYS use our precomputed data.
+            // Without this, wavesurfer's decode events trigger the plugin's
+            // own FFT computation which overwrites our precomputed spectrogram.
+            plugin.render = async function() {
+                if (this.isRendering) return;
+                this.isRendering = true;
+                try {
+                    this.drawSpectrogram(this.cachedFrequencies);
+                    this.lastZoomLevel = this.wavesurfer?.options.minPxPerSec || 0;
+                } finally {
+                    this.isRendering = false;
+                }
+            };
+
+            // Trigger initial draw
+            setTimeout(() => {
+                if (plugin && !plugin.isDestroyed) {
+                    plugin.render();
+                    AudioUtils.log('Precomputed spectrogram drawn: ' + freqData.length + ' time slices, sampleRate=' + sampleRate);
+                }
+            }, 200);
+        } catch (error) {
+            console.warn('Failed to setup precomputed spectrogram:', error);
+        }
+    }
+
     async changeSpectrogramScale(newScale) {
         if (!this.state.spectrogramPlugin) {
             console.warn('Spectrogram plugin not available');
@@ -52,31 +125,64 @@ export class PluginManager {
             // Unregister the current spectrogram plugin
             this.state.wavesurfer.unregisterPlugin(this.state.spectrogramPlugin);
             this.state.spectrogramPlugin = null;
-            
+
             // Clear the spectrogram container
             const spectrogramContainer = document.getElementById('spectrogram');
             if (spectrogramContainer) {
                 spectrogramContainer.innerHTML = '';
             }
-            
-            // Create new spectrogram plugin with new scale
-            this.state.spectrogramPlugin = this.state.wavesurfer.registerPlugin(SpectrogramPlugin.create({
+
+            // Build plugin options based on mode
+            const opts = {
                 container: '#spectrogram',
                 labels: true,
                 scale: newScale,
                 splitChannels: false,
-                fftSize: CONSTANTS.SPECTROGRAM.FFT_SIZE,
-                noverlap: CONSTANTS.SPECTROGRAM.NOVERLAP,
                 height: CONSTANTS.SPECTROGRAM.HEIGHT,
-            }));
-            
+            };
+
+            if (this.state.precomputedSpectrogramData) {
+                // Precomputed mode — WASM data has mel filter bank applied
+                opts.sampleRate = this.state.precomputedSampleRate;
+            } else {
+                // Default mode — let plugin compute FFT
+                opts.fftSize = CONSTANTS.SPECTROGRAM.FFT_SIZE;
+                opts.noverlap = CONSTANTS.SPECTROGRAM.NOVERLAP;
+            }
+
+            // Create new spectrogram plugin with new scale
+            this.state.spectrogramPlugin = this.state.wavesurfer.registerPlugin(
+                SpectrogramPlugin.create(opts)
+            );
+
             // Force render
-            setTimeout(() => {
-                if (this.state.spectrogramPlugin) {
-                    this.state.spectrogramPlugin.render();
-                }
-            }, 100);
-            
+            if (this.state.precomputedSpectrogramData) {
+                const plugin = this.state.spectrogramPlugin;
+                const freqData = this.state.precomputedSpectrogramData.map(
+                    slice => new Uint8Array(slice)
+                );
+                const channelData = [freqData];
+                plugin.frequencyMax = this.state.precomputedSampleRate / 2;
+                plugin.cachedFrequencies = channelData;
+                plugin.render = async function() {
+                    if (this.isRendering) return;
+                    this.isRendering = true;
+                    try {
+                        this.drawSpectrogram(this.cachedFrequencies);
+                        this.lastZoomLevel = this.wavesurfer?.options.minPxPerSec || 0;
+                    } finally {
+                        this.isRendering = false;
+                    }
+                };
+                setTimeout(() => plugin.render(), 200);
+            } else {
+                setTimeout(() => {
+                    if (this.state.spectrogramPlugin) {
+                        this.state.spectrogramPlugin.render();
+                    }
+                }, 100);
+            }
+
             AudioUtils.log(`Spectrogram scale changed to: ${newScale}`);
         } catch (error) {
             console.warn('Failed to change spectrogram scale:', error);
@@ -308,4 +414,5 @@ export class PluginManager {
             contextMenu.style.display = 'none';
         }
     }
+
 }

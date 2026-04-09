@@ -59,6 +59,12 @@
                     <input type="checkbox" id="loopEnabled">
                 </div>
 
+                <div class="control-group" id="zoomControls" style="display: none;">
+                    <button id="zoomOut" class="btn zoom-btn" title="Zoom out (show more time)">−</button>
+                    <span id="zoomLevel" class="zoom-label">30s</span>
+                    <button id="zoomIn" class="btn zoom-btn" title="Zoom in (show less time)">+</button>
+                </div>
+
                 <div class="control-group">
                     <label>Spectrogram Scale:</label>
                     <select id="spectrogramScale" class="scale-selector">
@@ -78,6 +84,7 @@
                     </div>
                 </div>
                 <div id="error" class="error" style="display: none;"></div>
+                <div id="minimap" style="display: none;"></div>
                 <div id="timeline"></div>
                 <div id="waveform"></div>
                 <div id="spectrogram" style="display: none;"></div>
@@ -89,6 +96,13 @@
     <div id="contextMenu" class="context-menu"></div>
 
     <script id="metadata-script" type="application/json">{{metadata}}</script>
+    <script id="precomputed-data" type="application/json">{
+        "mode": "{{mode}}",
+        "peaks": "{{peaks}}",
+        "duration": "{{duration}}",
+        "spectrogram": "{{spectrogram}}",
+        "sampleRate": "{{sampleRate}}"
+    }</script>
     <script src="js/audioViewer.js"></script>
 </body>
 </html>
