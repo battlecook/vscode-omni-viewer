@@ -43,11 +43,26 @@ export class WaveSurferManager {
      * Uses MediaElement backend with pre-generated peaks.
      * Zoomed-in view with minimap for navigation.
      */
-    createPrecomputed({ url, peaks, duration }) {
+    async createPrecomputed({ url, peaks, duration }) {
         // Calculate zoom: target ~30 seconds visible at a time
         const containerWidth = document.getElementById('waveform')?.offsetWidth || 1000;
         const visibleSeconds = Math.min(30, duration);
         const minPxPerSec = containerWidth / visibleSeconds;
+
+        // Fetch as blob to guarantee seeking works without HTTP Range support
+        let audioSrc = url;
+        const audio = new Audio();
+        audio.preload = 'auto';
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            audioSrc = URL.createObjectURL(blob);
+            audio.src = audioSrc;
+            AudioUtils.log('Audio loaded as blob URL for reliable seeking');
+        } catch (e) {
+            console.warn('Blob fetch failed, using direct URL:', e);
+            audio.src = url;
+        }
 
         return WaveSurfer.create({
             container: '#waveform',
@@ -61,7 +76,7 @@ export class WaveSurferManager {
             responsive: true,
             normalize: true,
             backend: 'MediaElement',
-            url: url,
+            media: audio,
             peaks: peaks,
             duration: duration,
             minPxPerSec: minPxPerSec,
@@ -95,7 +110,19 @@ export class WaveSurferManager {
      * Uses MediaElement backend without pre-generated peaks.
      * WaveSurfer will decode audio progressively.
      */
-    createStreaming({ url }) {
+    async createStreaming({ url }) {
+        // Fetch as blob to guarantee seeking works without HTTP Range support
+        const audio = new Audio();
+        audio.preload = 'auto';
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            audio.src = URL.createObjectURL(blob);
+        } catch (e) {
+            console.warn('Blob fetch failed, using direct URL:', e);
+            audio.src = url;
+        }
+
         return WaveSurfer.create({
             container: '#waveform',
             waveColor: CONSTANTS.WAVESURFER.WAVE_COLOR,
@@ -108,7 +135,7 @@ export class WaveSurferManager {
             responsive: true,
             normalize: true,
             backend: 'MediaElement',
-            url: url,
+            media: audio,
             autoplay: false,
             mediaControls: false,
             hideScrollbar: false,

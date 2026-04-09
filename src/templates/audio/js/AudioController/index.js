@@ -91,7 +91,7 @@ export class AudioController {
         AudioUtils.log('Precomputed mode: peaks=' + (peaks ? peaks[0].length : 0) + ', duration=' + duration);
 
         // Create wavesurfer with precomputed peaks and MediaElement backend
-        this.state.wavesurfer = this.waveSurferManager.createPrecomputed({
+        this.state.wavesurfer = await this.waveSurferManager.createPrecomputed({
             url: this.audioSrc,
             peaks: peaks,
             duration: duration
@@ -148,7 +148,7 @@ export class AudioController {
     async initStreamingMode() {
         AudioUtils.log('Streaming mode (WASM fallback): ' + this.audioSrc);
 
-        this.state.wavesurfer = this.waveSurferManager.createStreaming({ url: this.audioSrc });
+        this.state.wavesurfer = await this.waveSurferManager.createStreaming({ url: this.audioSrc });
 
         this.eventManager.setupKeyboardEvents();
 
