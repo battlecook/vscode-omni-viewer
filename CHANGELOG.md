@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.19.0] - 2026-04-10
+
+### Added
+- **JSON Viewer**
+  - Added a dedicated read-only JSON viewer with formatted rendering and direct open support for `.json` files
+  - Added a JSON viewer command and custom editor registration so JSON files can be opened explicitly in Omni Viewer
+- **Archive Viewer**
+  - Expanded archive support to include `RAR`, `7Z`, `DMG`, `TBZ2`, `TAR.BZ2`, `TXZ`, and `TAR.XZ`
+  - Added inline archive entry preview support so text-like files inside supported archives can be inspected without extracting them first
+- **Audio Viewer**
+  - Added a bundled WASM audio analysis engine for large or long-running audio files
+  - Added precomputed waveform peaks and spectrogram generation for streamed audio playback paths
+- **Regression coverage**
+  - Added targeted tests for grouped-shape PPTX parsing, Korean master-placeholder suppression, template escaping, and updated file utility coverage
+
+### Changed
+- **CSV / Excel Viewer**
+  - Improved table layouts with automatic initial column width estimation based on headers and sampled cell content
+  - Added drag-resizable Excel columns with per-sheet persisted widths, matching the CSV viewer's adjustable table workflow
+- **PowerPoint Viewer**
+  - Expanded the PPT/PPTX renderer to preserve more image crop regions, line charts, preset shapes, and empty-deck states in the webview
+  - Improved XML slide parsing so placeholder inheritance, grouped layout content, and master/layout text behavior are merged more safely
+- **Extension packaging**
+  - Added a dedicated `build:wasm` script and bundled native decoder assets required for the packaged audio analysis runtime
+
+### Fixed
+- **Audio Viewer**
+  - Fixed large local audio files falling back to heavy in-memory data URLs by switching oversized tracks to streamed playback with optional WASM analysis
+  - Fixed unreliable duration handling for some compressed formats by using conservative size-based estimation before choosing the rendering path
+- **Archive Viewer**
+  - Fixed unsupported-open gaps for common compressed tar variants and additional archive families by routing them through the archive viewer and explorer actions
+- **PowerPoint Viewer**
+  - Fixed cropped images, title color inference, and shape/chart rendering gaps so more PPT/PPTX slides stay visually closer to the source deck
+  - Fixed presentations with zero rendered slides by showing a clearer empty-state message instead of leaving the viewer in a broken loading state
+
 ## [0.18.0] - 2026-04-07
 
 ### Added
