@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Viewer - {{fileName}}</title>
+    <link rel="stylesheet" href="css/jsonViewer.css">
+</head>
+<body>
+    <div class="viewer-shell">
+        <div class="viewer-header">
+            <div>
+                <div class="viewer-title">{{fileName}}</div>
+                <div class="viewer-subtitle">Inspect, validate, transform, and convert JSON</div>
+            </div>
+            <div id="statusBadge" class="status-badge">Ready</div>
+        </div>
+
+        <div class="toolbar">
+            <div class="toolbar-group">
+                <button type="button" class="toolbar-btn is-active" data-view-mode="text">Text View</button>
+                <button type="button" class="toolbar-btn" data-view-mode="tree">Tree View</button>
+            </div>
+            <div class="toolbar-group">
+                <button type="button" class="toolbar-btn" data-action="pretty">Pretty</button>
+                <button type="button" class="toolbar-btn" data-action="minify">Minify</button>
+                <button type="button" class="toolbar-btn" data-action="sort-keys">Sort Keys</button>
+                <button type="button" class="toolbar-btn" data-action="validate">Validate</button>
+            </div>
+            <div class="toolbar-group">
+                <button type="button" class="toolbar-btn" data-action="json-to-csv">JSON to CSV</button>
+                <button type="button" class="toolbar-btn" data-action="json-to-xml">JSON to XML</button>
+                <button type="button" class="toolbar-btn" data-action="json-to-yaml">JSON to YAML</button>
+            </div>
+            <div class="toolbar-group">
+                <button type="button" class="toolbar-btn" data-action="escape">Escape</button>
+                <button type="button" class="toolbar-btn" data-action="unescape">Unescape</button>
+                <button type="button" class="toolbar-btn" data-action="base64-encode">Base64 Encode</button>
+                <button type="button" class="toolbar-btn" data-action="base64-decode">Base64 Decode</button>
+            </div>
+        </div>
+
+        <section id="resultPanel" class="panel result-panel is-hidden">
+            <div class="panel-header">
+                <span id="resultTitle">Result</span>
+                <div class="result-actions">
+                    <button type="button" class="toolbar-btn small" id="copyResultBtn">Copy</button>
+                    <button type="button" class="toolbar-btn small" id="replaceEditorBtn">Replace Editor</button>
+                    <button type="button" class="toolbar-btn small" id="closeResultBtn">Close</button>
+                </div>
+            </div>
+            <textarea id="resultOutput" class="result-output" spellcheck="false" readonly></textarea>
+        </section>
+
+        <div class="workspace">
+            <section class="panel editor-panel">
+                <div class="panel-header">
+                    <span>Editor</span>
+                    <span class="panel-caption">Edit source text and apply actions</span>
+                </div>
+                <textarea id="jsonEditor" class="json-editor" spellcheck="false"></textarea>
+            </section>
+
+            <section class="panel preview-panel">
+                <div class="panel-header">
+                    <span>Preview</span>
+                    <span id="previewCaption" class="panel-caption">Syntax highlighted JSON</span>
+                </div>
+                <pre id="highlightedView" class="preview-surface highlighted-view"></pre>
+                <div id="treeView" class="preview-surface tree-view is-hidden"></div>
+            </section>
+        </div>
+    </div>
+
+    <script>
+        window.formattedJson = {{formattedJson}};
+    </script>
+    <script src="js/jsonViewer.js"></script>
+</body>
+</html>

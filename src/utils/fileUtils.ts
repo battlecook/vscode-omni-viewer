@@ -18,10 +18,11 @@ import {
     getDelimitedFileDelimiter as detectDelimitedFileDelimiter,
     readCsvFile as readDelimitedCsvFile,
     readExcelFile as readWorkbookFile,
+    readJsonFile as readStructuredJsonFile,
     readJsonlFile as readJsonlLines,
     readParquetFile as readParquetRows
 } from './fileUtils/tabular';
-import { readArchiveFile, ArchivePreviewData } from './fileUtils/archive';
+import { readArchiveFile, readArchiveEntryPreview, ArchivePreviewData, ArchiveEntryPreviewData } from './fileUtils/archive';
 import { readWordFile as readWordDocument } from './fileUtils/word';
 
 export type OmniViewerViewType =
@@ -30,6 +31,7 @@ export type OmniViewerViewType =
     | 'omni-viewer.imageViewer'
     | 'omni-viewer.archiveViewer'
     | 'omni-viewer.csvViewer'
+    | 'omni-viewer.jsonViewer'
     | 'omni-viewer.jsonlViewer'
     | 'omni-viewer.parquetViewer'
     | 'omni-viewer.hwpViewer'
@@ -286,6 +288,10 @@ export class FileUtils {
 
     public static async readArchiveFile(filePath: string): Promise<ArchivePreviewData> {
         return readArchiveFile(filePath);
+    }
+
+    public static async readArchiveEntryPreview(filePath: string, entryPath: string): Promise<ArchiveEntryPreviewData> {
+        return readArchiveEntryPreview(filePath, entryPath);
     }
 
     private static detectDelimiter(lines: string[]): string | null {
@@ -594,6 +600,14 @@ export class FileUtils {
             };
         }
 
+        if (ext === '.json' || this.looksLikeJsonDocument(sample)) {
+            return {
+                viewType: 'omni-viewer.jsonViewer',
+                reason: 'Matched JSON document content.',
+                matchedBySignature: false
+            };
+        }
+
         if (ext === '.csv' || ext === '.tsv') {
             return {
                 viewType: 'omni-viewer.csvViewer',
@@ -628,6 +642,20 @@ export class FileUtils {
                 return false;
             }
         });
+    }
+
+    private static looksLikeJsonDocument(sample: string): boolean {
+        const trimmed = sample.trim();
+        if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+            return false;
+        }
+
+        try {
+            const parsed = JSON.parse(trimmed);
+            return typeof parsed === 'object' && parsed !== null;
+        } catch (error) {
+            return false;
+        }
     }
 
     private static parseDelimitedLine(line: string, delimiter: string): string[] {
@@ -670,6 +698,14 @@ export class FileUtils {
         fileSize: string;
     }> {
         return readJsonlLines(filePath);
+    }
+
+    public static async readJsonFile(filePath: string): Promise<{
+        formattedJson: string;
+        parsedJson: any;
+        fileSize: string;
+    }> {
+        return readStructuredJsonFile(filePath);
     }
 
     public static async readParquetFile(filePath: string): Promise<{
@@ -750,12 +786,13 @@ export class FileUtils {
                 chartKind?: string;
                 chartTitle?: string;
                 chartData?: {
-                    kind: 'stackedColumn';
+                    kind: 'stackedColumn' | 'line';
                     categories: string[];
                     series: Array<{
                         name: string;
                         color: string;
                         values: number[];
+                        valueFormat?: string;
                         dataLabel?: {
                             showValue?: boolean;
                             numFmt?: string;
@@ -791,6 +828,7 @@ export class FileUtils {
                 };
                 fillColor?: string;
                 borderColor?: string;
+                customSvgPath?: string;
                 borderWidthPx?: number;
             }>;
         }>;

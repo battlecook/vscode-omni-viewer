@@ -262,6 +262,16 @@ describe('FileUtils delimited formats', () => {
         expect(result.matchedBySignature).toBe(false);
     });
 
+    it('detects JSON documents by extension and content', async () => {
+        const filePath = path.join(tempDir, 'sample.json');
+        fs.writeFileSync(filePath, '{"id":1,"name":"demo"}', 'utf8');
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.jsonViewer');
+        expect(result.matchedBySignature).toBe(false);
+    });
+
     it('keeps .doc files on the Word viewer even when embedded workbook metadata exists', async () => {
         const filePath = path.join(tempDir, 'embedded-chart.doc');
         const header = Buffer.from([0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]);

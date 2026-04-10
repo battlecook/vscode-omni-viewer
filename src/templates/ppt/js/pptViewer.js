@@ -258,7 +258,23 @@
         const img = document.createElement('img');
         img.className = 'slide-image';
         img.src = element.src || '';
-        img.alt = 'slide-image';
+        img.alt = '';
+        const srcRect = element.srcRect;
+        if (srcRect && (srcRect.l || srcRect.t || srcRect.r || srcRect.b)) {
+            const visibleW = Math.max(1, 100 - (srcRect.l || 0) - (srcRect.r || 0));
+            const visibleH = Math.max(1, 100 - (srcRect.t || 0) - (srcRect.b || 0));
+            const scaleW = 100 / visibleW;
+            const scaleH = 100 / visibleH;
+            img.style.position = 'absolute';
+            img.style.width = `${100 * scaleW}%`;
+            img.style.height = `${100 * scaleH}%`;
+            img.style.left = `${-(srcRect.l || 0) * scaleW}%`;
+            img.style.top = `${-(srcRect.t || 0) * scaleH}%`;
+            img.style.objectFit = 'fill';
+            img.style.maxWidth = 'none';
+            img.style.maxHeight = 'none';
+            box.style.overflow = 'hidden';
+        }
         if (element.vectorFallback) {
             img.addEventListener('load', () => {
                 try {
@@ -364,6 +380,14 @@
             canvas.style.width = '100%';
             canvas.style.height = '100%';
             drawStackedColumnChart(canvas, element.chartData);
+            box.appendChild(canvas);
+        } else if (element.chartData && element.chartData.kind === 'line') {
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(300, Math.floor(element.width));
+            canvas.height = Math.max(180, Math.floor(element.height));
+            canvas.style.width = '100%';
+            canvas.style.height = '100%';
+            drawLineChart(canvas, element.chartData);
             box.appendChild(canvas);
         } else {
             const title = document.createElement('div');
@@ -525,7 +549,7 @@
                 const dataLabel = s.dataLabel || {};
                 const showValue = dataLabel.showValue !== false;
                 if (showValue && Math.abs(raw) >= 0.1 && height > 12) {
-                    const labelFmt = dataLabel.numFmt || axisFormat;
+                    const labelFmt = dataLabel.numFmt || s.valueFormat || axisFormat;
                     const labelColor = dataLabel.color || '#ffffff';
                     const labelSize = Math.max(9, Number(dataLabel.fontSizePx || 11));
                     ctx.fillStyle = labelColor;
@@ -574,6 +598,189 @@
         });
     }
 
+    function drawLineChart(canvas, chartData) {
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const w = canvas.width;
+        const h = canvas.height;
+        const margin = { left: 74, right: 20, top: 20, bottom: 88 };
+        const plotW = w - margin.left - margin.right;
+        const plotH = h - margin.top - margin.bottom;
+        if (plotW <= 20 || plotH <= 20) return;
+
+        const categories = Array.isArray(chartData.categories) ? chartData.categories : [];
+        const series = Array.isArray(chartData.series) ? chartData.series : [];
+        if (categories.length === 0 || series.length === 0) return;
+
+        const valueAxis = chartData.valueAxis || {};
+        const categoryAxis = chartData.categoryAxis || {};
+        const legend = chartData.legend || {};
+        const axisFormat = valueAxis.numFmt || '0.0';
+        const axisTextColor = valueAxis.color || '#222222';
+        const axisFontSize = Math.max(10, Number(valueAxis.fontSizePx || 11));
+        const categoryTextColor = categoryAxis.color || '#222222';
+        const categoryFontSize = Math.max(10, Number(categoryAxis.fontSizePx || 11));
+        const numericValues = series.flatMap((s) => Array.isArray(s.values) ? s.values : []).filter((v) => Number.isFinite(v));
+        if (numericValues.length === 0) return;
+
+        const axisMin = Number(valueAxis.min);
+        const axisMax = Number(valueAxis.max);
+        let minValue = Number.isFinite(axisMin) ? axisMin : Math.min(0, ...numericValues);
+        let maxValue = Number.isFinite(axisMax) ? axisMax : Math.max(...numericValues);
+        if (minValue >= maxValue) {
+            const pad = Math.max(1, Math.abs(maxValue || 1) * 0.1);
+            minValue -= pad;
+            maxValue += pad;
+        }
+
+        const span = maxValue - minValue;
+        const yFor = (v) => margin.top + ((maxValue - v) / span) * plotH;
+        const zeroY = yFor(Number.isFinite(valueAxis.crossesAt) ? valueAxis.crossesAt : 0);
+        const yStep = Number.isFinite(valueAxis.majorUnit) && valueAxis.majorUnit > 0
+            ? valueAxis.majorUnit
+            : getNiceStep(span, 8);
+        const xForIndex = (idx) => (
+            categories.length === 1
+                ? margin.left + plotW / 2
+                : margin.left + (plotW / Math.max(1, categories.length - 1)) * idx
+        );
+
+        ctx.clearRect(0, 0, w, h);
+
+        ctx.strokeStyle = valueAxis.gridColor || 'rgba(0,0,0,0.18)';
+        ctx.lineWidth = 1;
+        let tick = Math.floor(minValue / yStep) * yStep;
+        let safeTickCount = 0;
+        while (tick <= maxValue + yStep * 0.5 && safeTickCount < 250) {
+            const y = yFor(tick);
+            ctx.beginPath();
+            ctx.moveTo(margin.left, y);
+            ctx.lineTo(margin.left + plotW, y);
+            ctx.stroke();
+
+            ctx.fillStyle = axisTextColor;
+            ctx.font = `400 ${axisFontSize}px Arial, sans-serif`;
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(formatChartValue(tick, axisFormat), margin.left - 12, y);
+
+            tick += yStep;
+            safeTickCount += 1;
+        }
+
+        ctx.strokeStyle = valueAxis.lineColor || '#111111';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(margin.left, zeroY);
+        ctx.lineTo(margin.left + plotW, zeroY);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(margin.left, margin.top);
+        ctx.lineTo(margin.left, margin.top + plotH);
+        ctx.lineTo(margin.left + plotW, margin.top + plotH);
+        ctx.stroke();
+
+        categories.forEach((cat, idx) => {
+            const x = xForIndex(idx);
+            ctx.fillStyle = categoryTextColor;
+            ctx.font = `400 ${categoryFontSize}px Arial, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'alphabetic';
+            const parts = String(cat).split(' ');
+            if (parts.length > 1) {
+                ctx.fillText(parts[0], x, h - 30);
+                ctx.fillText(parts.slice(1).join(' '), x, h - 14);
+            } else {
+                ctx.fillText(cat, x, h - 16);
+            }
+        });
+
+        series.forEach((s, seriesIndex) => {
+            const values = Array.isArray(s.values) ? s.values : [];
+            const points = values
+                .map((raw, idx) => ({ raw: Number(raw), idx }))
+                .filter((point) => Number.isFinite(point.raw));
+            if (points.length === 0) return;
+
+            ctx.strokeStyle = s.color || '#4472c4';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            points.forEach((point, idx) => {
+                const x = xForIndex(point.idx);
+                const y = yFor(point.raw);
+                if (idx === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+
+            points.forEach((point) => {
+                const x = xForIndex(point.idx);
+                const y = yFor(point.raw);
+
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = s.color || '#4472c4';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+                ctx.stroke();
+
+                const dataLabel = s.dataLabel || {};
+                const showValue = dataLabel.showValue !== false;
+                if (!showValue) return;
+
+                const labelFmt = dataLabel.numFmt || s.valueFormat || axisFormat;
+                const labelColor = dataLabel.color || s.color || '#222222';
+                const labelSize = Math.max(9, Number(dataLabel.fontSizePx || 11));
+                const labelY = y < margin.top + 20 ? y + 18 + (seriesIndex * 2) : y - 10 - (seriesIndex * 2);
+                ctx.fillStyle = labelColor;
+                ctx.font = `600 ${labelSize}px Arial, sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = y < margin.top + 20 ? 'top' : 'bottom';
+                ctx.fillText(formatChartValue(point.raw, labelFmt), x, labelY);
+            });
+        });
+
+        const legendFontSize = Math.max(10, Number(legend.fontSizePx || 12));
+        const legendTextColor = legend.color || '#222222';
+        const legendItems = series.map((s, i) => ({
+            color: s.color || '#999999',
+            label: s.name || `Series ${i + 1}`
+        }));
+        const legendY = h - 6;
+        const itemGap = 22;
+        const swatchW = 18;
+        const contentWidth = legendItems.reduce((acc, item) => acc + swatchW + 6 + item.label.length * (legendFontSize * 0.55) + itemGap, 0);
+        let cursorX = Math.max(8, (w - contentWidth) / 2);
+
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+        ctx.font = `400 ${legendFontSize}px Arial, sans-serif`;
+        legendItems.forEach((item) => {
+            ctx.strokeStyle = item.color;
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(cursorX, legendY - 5);
+            ctx.lineTo(cursorX + swatchW, legendY - 5);
+            ctx.stroke();
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(cursorX + swatchW / 2, legendY - 5, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = item.color;
+            ctx.stroke();
+
+            cursorX += swatchW + 6;
+            ctx.fillStyle = legendTextColor;
+            ctx.fillText(item.label, cursorX, legendY - 1);
+            cursorX += item.label.length * (legendFontSize * 0.55) + itemGap;
+        });
+    }
+
     function createGenericShape(element) {
         const box = document.createElement('div');
         box.className = 'shape-box generic-shape';
@@ -586,9 +793,165 @@
             box.style.transform = `rotate(${element.rotateDeg}deg)`;
             box.style.transformOrigin = 'top left';
         }
+
+        const preset = element.presetGeom;
+        // Render line connectors as SVG with optional arrowheads/circles.
+        if (preset === 'line' || preset === 'straightConnector1') {
+            const w = element.width || 0;
+            const h = element.height || 0;
+            const svgW = Math.max(1, Math.abs(w));
+            const svgH = Math.max(1, Math.abs(h));
+            const svgNS = 'http://www.w3.org/2000/svg';
+            const svg = document.createElementNS(svgNS, 'svg');
+            svg.setAttribute('width', String(svgW));
+            svg.setAttribute('height', String(svgH));
+            svg.setAttribute('viewBox', `0 0 ${svgW} ${svgH}`);
+            svg.style.display = 'block';
+            svg.style.overflow = 'visible';
+            svg.style.position = 'absolute';
+            svg.style.left = '0';
+            svg.style.top = '0';
+
+            const defs = document.createElementNS(svgNS, 'defs');
+            const strokeColor = element.borderColor || '#000000';
+            const strokeW = Math.max(1, Number(element.borderWidthPx || 1));
+
+            // Arrow marker
+            const arrowMarker = document.createElementNS(svgNS, 'marker');
+            arrowMarker.setAttribute('id', `arrow-${element.zIndex}`);
+            arrowMarker.setAttribute('markerWidth', '8');
+            arrowMarker.setAttribute('markerHeight', '6');
+            arrowMarker.setAttribute('refX', '8');
+            arrowMarker.setAttribute('refY', '3');
+            arrowMarker.setAttribute('orient', 'auto');
+            arrowMarker.setAttribute('markerUnits', 'strokeWidth');
+            const arrowPath = document.createElementNS(svgNS, 'path');
+            arrowPath.setAttribute('d', 'M 0 0 L 8 3 L 0 6 Z');
+            arrowPath.setAttribute('fill', strokeColor);
+            arrowMarker.appendChild(arrowPath);
+            defs.appendChild(arrowMarker);
+
+            // Circle marker
+            const circleMarker = document.createElementNS(svgNS, 'marker');
+            circleMarker.setAttribute('id', `circle-${element.zIndex}`);
+            circleMarker.setAttribute('markerWidth', '6');
+            circleMarker.setAttribute('markerHeight', '6');
+            circleMarker.setAttribute('refX', '3');
+            circleMarker.setAttribute('refY', '3');
+            circleMarker.setAttribute('orient', 'auto');
+            circleMarker.setAttribute('markerUnits', 'strokeWidth');
+            const circle = document.createElementNS(svgNS, 'circle');
+            circle.setAttribute('cx', '3');
+            circle.setAttribute('cy', '3');
+            circle.setAttribute('r', '2.5');
+            circle.setAttribute('fill', strokeColor);
+            circleMarker.appendChild(circle);
+            defs.appendChild(circleMarker);
+
+            svg.appendChild(defs);
+
+            const line = document.createElementNS(svgNS, 'line');
+            // flipH/flipV reverse the line direction within its bounding box.
+            const fH = !!element.flipH;
+            const fV = !!element.flipV;
+            line.setAttribute('x1', String(fH ? svgW : 0));
+            line.setAttribute('y1', String(fV ? svgH : 0));
+            line.setAttribute('x2', String(fH ? 0 : svgW));
+            line.setAttribute('y2', String(fV ? 0 : svgH));
+            line.setAttribute('stroke', strokeColor);
+            line.setAttribute('stroke-width', String(strokeW));
+
+            function markerUrl(type, prefix) {
+                if (type === 'arrow' || type === 'triangle' || type === 'stealth') return `url(#arrow-${element.zIndex})`;
+                if (type === 'oval' || type === 'diamond') return `url(#circle-${element.zIndex})`;
+                return '';
+            }
+            if (element.headEnd) {
+                const url = markerUrl(element.headEnd);
+                if (url) line.setAttribute('marker-start', url);
+            }
+            if (element.tailEnd) {
+                const url = markerUrl(element.tailEnd);
+                if (url) line.setAttribute('marker-end', url);
+            }
+            // If no explicit markers, default to arrow at tail end for non-decoration lines.
+            if (!element.headEnd && !element.tailEnd && svgW + svgH > 20) {
+                line.setAttribute('marker-end', `url(#arrow-${element.zIndex})`);
+            }
+
+            svg.appendChild(line);
+            box.appendChild(svg);
+            box.style.overflow = 'visible';
+            return box;
+        }
+
+        // Render known preset shapes as SVG.
+        const svgPath = preset ? presetGeomToSvgPath(preset, element.width, element.height) : null;
+        const resolvedPath = element.customSvgPath || svgPath;
+        if (resolvedPath) {
+            const svgNS = 'http://www.w3.org/2000/svg';
+            const svg = document.createElementNS(svgNS, 'svg');
+            svg.setAttribute('width', String(element.width));
+            svg.setAttribute('height', String(element.height));
+            svg.setAttribute('viewBox', `0 0 ${element.width} ${element.height}`);
+            svg.style.display = 'block';
+            svg.style.overflow = 'visible';
+            const path = document.createElementNS(svgNS, 'path');
+            path.setAttribute('d', resolvedPath);
+            path.setAttribute('fill', element.fillColor || 'none');
+            path.setAttribute('stroke', element.borderColor || 'none');
+            path.setAttribute('stroke-width', String(Math.max(1, Number(element.borderWidthPx || 1))));
+            svg.appendChild(path);
+            box.appendChild(svg);
+            return box;
+        }
+
         if (element.fillColor) box.style.backgroundColor = element.fillColor;
         if (element.borderColor) box.style.border = `${Math.max(1, Number(element.borderWidthPx || 1))}px solid ${element.borderColor}`;
         return box;
+    }
+
+    function presetGeomToSvgPath(preset, w, h) {
+        if (!w || w < 0 || !h || h < 0) return null;
+        switch (preset) {
+            case 'rightArrow': {
+                const bodyH = h * 0.6;
+                const bodyTop = (h - bodyH) / 2;
+                const headW = Math.min(w * 0.35, h * 0.9);
+                const bodyRight = w - headW;
+                return `M 0 ${bodyTop} L ${bodyRight} ${bodyTop} L ${bodyRight} 0 L ${w} ${h / 2} L ${bodyRight} ${h} L ${bodyRight} ${bodyTop + bodyH} L 0 ${bodyTop + bodyH} Z`;
+            }
+            case 'leftArrow': {
+                const bodyH = h * 0.6;
+                const bodyTop = (h - bodyH) / 2;
+                const headW = Math.min(w * 0.35, h * 0.9);
+                return `M ${w} ${bodyTop} L ${headW} ${bodyTop} L ${headW} 0 L 0 ${h / 2} L ${headW} ${h} L ${headW} ${bodyTop + bodyH} L ${w} ${bodyTop + bodyH} Z`;
+            }
+            case 'upArrow': {
+                const bodyW = w * 0.6;
+                const bodyLeft = (w - bodyW) / 2;
+                const headH = Math.min(h * 0.35, w * 0.9);
+                return `M ${bodyLeft} ${h} L ${bodyLeft} ${headH} L 0 ${headH} L ${w / 2} 0 L ${w} ${headH} L ${bodyLeft + bodyW} ${headH} L ${bodyLeft + bodyW} ${h} Z`;
+            }
+            case 'downArrow': {
+                const bodyW = w * 0.6;
+                const bodyLeft = (w - bodyW) / 2;
+                const headH = Math.min(h * 0.35, w * 0.9);
+                const bodyBottom = h - headH;
+                return `M ${bodyLeft} 0 L ${bodyLeft + bodyW} 0 L ${bodyLeft + bodyW} ${bodyBottom} L ${w} ${bodyBottom} L ${w / 2} ${h} L 0 ${bodyBottom} L ${bodyLeft} ${bodyBottom} Z`;
+            }
+            case 'roundRect': {
+                const r = Math.min(w, h) * 0.12;
+                return `M ${r} 0 L ${w - r} 0 Q ${w} 0 ${w} ${r} L ${w} ${h - r} Q ${w} ${h} ${w - r} ${h} L ${r} ${h} Q 0 ${h} 0 ${h - r} L 0 ${r} Q 0 0 ${r} 0 Z`;
+            }
+            case 'ellipse':
+            case 'oval':
+                return `M ${w / 2} 0 A ${w / 2} ${h / 2} 0 1 0 ${w / 2} ${h} A ${w / 2} ${h / 2} 0 1 0 ${w / 2} 0 Z`;
+            case 'triangle':
+                return `M ${w / 2} 0 L ${w} ${h} L 0 ${h} Z`;
+            default:
+                return null;
+        }
     }
 
     function createXmlSlideElement(slide, index) {

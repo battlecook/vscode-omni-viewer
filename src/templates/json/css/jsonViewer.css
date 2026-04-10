@@ -1,0 +1,305 @@
+body {
+    margin: 0;
+    background: var(--vscode-editor-background);
+    color: var(--vscode-editor-foreground);
+    font-family: var(--vscode-editor-font-family, 'Consolas', 'Monaco', 'Courier New', monospace);
+    font-size: var(--vscode-editor-font-size, 13px);
+}
+
+.viewer-shell {
+    min-height: 100vh;
+    box-sizing: border-box;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.viewer-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.viewer-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.viewer-subtitle {
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.status-badge {
+    padding: 7px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--vscode-panel-border);
+    background: var(--vscode-editorInfo-background, rgba(79, 193, 255, 0.16));
+    color: var(--vscode-editorInfo-foreground, var(--vscode-editor-foreground));
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.status-badge.is-valid {
+    border-color: color-mix(in srgb, var(--vscode-testing-iconPassed, #2ea043) 70%, white 30%);
+    background: rgba(46, 160, 67, 0.16);
+    color: color-mix(in srgb, var(--vscode-testing-iconPassed, #2ea043) 78%, white 22%);
+}
+
+.status-badge.is-invalid {
+    border-color: color-mix(in srgb, var(--vscode-errorForeground) 70%, white 30%);
+    background: rgba(244, 71, 71, 0.14);
+    color: color-mix(in srgb, var(--vscode-errorForeground) 78%, white 22%);
+}
+
+.toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.toolbar-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px;
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 10px;
+    background: var(--vscode-sideBar-background, rgba(127, 127, 127, 0.04));
+}
+
+.toolbar-btn {
+    border: 1px solid var(--vscode-button-border, var(--vscode-panel-border));
+    background: var(--vscode-button-secondaryBackground, rgba(127, 127, 127, 0.16));
+    color: var(--vscode-button-secondaryForeground, var(--vscode-editor-foreground));
+    border-radius: 8px;
+    padding: 8px 10px;
+    cursor: pointer;
+    font: inherit;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.toolbar-btn:hover {
+    background: var(--vscode-button-secondaryHoverBackground, rgba(127, 127, 127, 0.24));
+}
+
+.toolbar-btn:active {
+    transform: translateY(1px);
+}
+
+.toolbar-btn.is-active {
+    border-color: var(--vscode-focusBorder);
+    background: color-mix(in srgb, var(--vscode-focusBorder) 22%, transparent);
+}
+
+.toolbar-btn.small {
+    padding: 6px 9px;
+}
+
+.workspace {
+    display: grid;
+    grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr);
+    gap: 14px;
+    min-height: 56vh;
+}
+
+.panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 12px;
+    background: var(--vscode-editorWidget-background, rgba(127, 127, 127, 0.05));
+    overflow: hidden;
+}
+
+.panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--vscode-panel-border);
+    background: color-mix(in srgb, var(--vscode-editor-background) 84%, var(--vscode-sideBar-background) 16%);
+}
+
+.panel-caption {
+    color: var(--vscode-descriptionForeground);
+    font-size: 12px;
+}
+
+.json-editor,
+.result-output,
+.preview-surface {
+    flex: 1;
+    min-height: 0;
+}
+
+.json-editor,
+.result-output {
+    width: 100%;
+    resize: none;
+    border: none;
+    outline: none;
+    padding: 16px;
+    box-sizing: border-box;
+    background: transparent;
+    color: var(--vscode-editor-foreground);
+    font: inherit;
+    line-height: 1.6;
+    tab-size: 2;
+}
+
+.json-editor {
+    min-height: 56vh;
+}
+
+.result-output {
+    min-height: 220px;
+}
+
+.preview-surface {
+    margin: 0;
+    padding: 16px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow: auto;
+    line-height: 1.6;
+}
+
+.is-hidden {
+    display: none;
+}
+
+.highlighted-view .json-key {
+    color: #4fc1ff;
+    font-weight: 600;
+}
+
+.highlighted-view .json-string {
+    color: #ce9178;
+}
+
+.highlighted-view .json-number {
+    color: #b5cea8;
+}
+
+.highlighted-view .json-boolean {
+    color: #569cd6;
+    font-weight: 600;
+}
+
+.highlighted-view .json-null {
+    color: #c586c0;
+    font-style: italic;
+}
+
+.highlighted-view .json-punctuation {
+    color: #d4d4d4;
+}
+
+.highlighted-view .json-error {
+    color: #f44747;
+}
+
+.highlighted-view span {
+    opacity: 1;
+}
+
+.tree-view {
+    font-family: var(--vscode-editor-font-family, 'Consolas', 'Monaco', 'Courier New', monospace);
+}
+
+.tree-node {
+    margin-left: 14px;
+    border-left: 1px dashed color-mix(in srgb, var(--vscode-panel-border) 70%, transparent);
+    padding-left: 10px;
+}
+
+.tree-node.root {
+    margin-left: 0;
+    border-left: none;
+    padding-left: 0;
+}
+
+.tree-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 24px;
+    line-height: 1.5;
+}
+
+.tree-toggle {
+    width: 18px;
+    height: 18px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    background: transparent;
+    color: var(--vscode-descriptionForeground);
+    padding: 0;
+}
+
+.tree-toggle:hover {
+    background: rgba(127, 127, 127, 0.12);
+}
+
+.tree-spacer {
+    width: 18px;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+.tree-key {
+    color: #4fc1ff;
+    font-weight: 600;
+}
+
+.tree-meta {
+    color: #8a8f98;
+}
+
+.tree-value.string {
+    color: #ce9178;
+}
+
+.tree-value.number {
+    color: #b5cea8;
+}
+
+.tree-value.boolean {
+    color: #569cd6;
+    font-weight: 600;
+}
+
+.tree-value.null {
+    color: #c586c0;
+    font-style: italic;
+}
+
+.tree-value.object,
+.tree-value.array {
+    color: #d7ba7d;
+    font-weight: 600;
+}
+
+.result-panel {
+    min-height: 260px;
+}
+
+.result-actions {
+    display: flex;
+    gap: 8px;
+}
+
+@media (max-width: 980px) {
+    .workspace {
+        grid-template-columns: 1fr;
+    }
+}

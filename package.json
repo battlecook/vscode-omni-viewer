@@ -215,6 +215,16 @@
         "priority": "option"
       },
       {
+        "viewType": "omni-viewer.jsonViewer",
+        "displayName": "JSON Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.json"
+          }
+        ],
+        "priority": "option"
+      },
+      {
         "viewType": "omni-viewer.jsonlViewer",
         "displayName": "JSONL Viewer",
         "selector": [
@@ -341,6 +351,11 @@
           "group": "navigation"
         },
         {
+          "command": "omni-viewer.openJsonViewer",
+          "when": "resourceExtname == '.json'",
+          "group": "navigation"
+        },
+        {
           "command": "omni-viewer.openJsonlViewer",
           "when": "resourceExtname == '.jsonl' || resourceExtname == '.ndjson' || resourceExtname == '.jsonlines'",
           "group": "navigation"
@@ -401,6 +416,11 @@
       {
         "command": "omni-viewer.openCsvViewer",
         "title": "Open with CSV Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openJsonViewer",
+        "title": "Open with Json Viewer",
         "category": "Omni Viewer"
       },
       {

@@ -89,6 +89,21 @@ export async function readJsonlFile(filePath: string): Promise<{
     };
 }
 
+export async function readJsonFile(filePath: string): Promise<{
+    formattedJson: string;
+    parsedJson: any;
+    fileSize: string;
+}> {
+    const content = await fs.promises.readFile(filePath, 'utf-8');
+    const parsedJson = JSON.parse(content);
+
+    return {
+        formattedJson: JSON.stringify(parsedJson, null, 2),
+        parsedJson,
+        fileSize: await getFileSize(filePath)
+    };
+}
+
 export async function readParquetFile(filePath: string): Promise<{
     headers: string[];
     rows: any[][];

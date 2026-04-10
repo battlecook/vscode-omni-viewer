@@ -31,20 +31,34 @@
 
         <section class="stats" id="statsGrid"></section>
 
-        <section class="table-wrap">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Path</th>
-                        <th>Type</th>
-                        <th>Compressed Size</th>
-                        <th>Original Size</th>
-                        <th>Modified</th>
-                    </tr>
-                </thead>
-                <tbody id="entryTableBody"></tbody>
-            </table>
-            <div class="empty" id="emptyState" hidden>No matching entries found.</div>
+        <section class="workspace">
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Path</th>
+                            <th>Type</th>
+                            <th>Compressed Size</th>
+                            <th>Original Size</th>
+                            <th>Modified</th>
+                        </tr>
+                    </thead>
+                    <tbody id="entryTableBody"></tbody>
+                </table>
+                <div class="empty" id="emptyState" hidden>No matching entries found.</div>
+            </div>
+
+            <aside class="preview-panel">
+                <div class="preview-header">
+                    <div>
+                        <div class="preview-kicker">Entry Preview</div>
+                        <h2 id="previewTitle">Choose a file</h2>
+                    </div>
+                    <span class="preview-badge" id="previewStatus">Idle</span>
+                </div>
+                <p class="preview-meta" id="previewMeta">Select an archive entry to inspect its text content here.</p>
+                <pre class="preview-content" id="previewContent">No file selected.</pre>
+            </aside>
         </section>
     </div>
 

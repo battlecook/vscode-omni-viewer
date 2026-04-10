@@ -40,6 +40,38 @@ export class ArchiveViewerProvider implements vscode.CustomReadonlyEditorProvide
             });
 
             webviewPanel.webview.html = html;
+            webviewPanel.webview.onDidReceiveMessage(async (message) => {
+                if (!message || message.type !== 'requestEntryPreview' || typeof message.path !== 'string') {
+                    return;
+                }
+
+                const selectedEntry = archiveContent.entries.find((entry) => entry.path === message.path);
+                if (!selectedEntry) {
+                    await webviewPanel.webview.postMessage({
+                        type: 'entryPreview',
+                        path: message.path,
+                        status: 'error',
+                        message: 'The selected entry is no longer available in the preview list.'
+                    });
+                    return;
+                }
+
+                if (selectedEntry.kind === 'directory') {
+                    await webviewPanel.webview.postMessage({
+                        type: 'entryPreview',
+                        path: selectedEntry.path,
+                        status: 'unsupported',
+                        message: 'Directory entries do not have inline content to preview.'
+                    });
+                    return;
+                }
+
+                const preview = await FileUtils.readArchiveEntryPreview(archivePath, selectedEntry.path);
+                await webviewPanel.webview.postMessage({
+                    type: 'entryPreview',
+                    ...preview
+                });
+            });
         } catch (error) {
             console.error('Error setting up archive viewer:', error);
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';

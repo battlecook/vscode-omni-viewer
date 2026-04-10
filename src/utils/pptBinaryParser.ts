@@ -2035,9 +2035,6 @@ export class PptBinaryParser {
             const current = textElements[index];
             for (let nextIndex = index + 1; nextIndex < textElements.length; nextIndex++) {
                 const next = textElements[nextIndex];
-                if (fixedElements?.has(next)) {
-                    continue;
-                }
                 if (!this.boundsIntersect(current, next)) {
                     continue;
                 }
@@ -2046,8 +2043,31 @@ export class PptBinaryParser {
                     continue;
                 }
 
-                const nextBottom = slideHeight - next.height - 24;
-                next.y = Math.min(nextBottom, current.y + current.height + 12);
+                // Determine which element should move.
+                // Title elements have priority — body text moves out of the way.
+                if (!current.isTitle && next.isTitle) {
+                    // Body overlaps with a title below it → push body below title
+                    const newY = next.y + next.height + 12;
+                    current.y = newY;
+                    const maxHeight = slideHeight - newY - 24;
+                    if (maxHeight > 0 && current.height > maxHeight) {
+                        current.height = maxHeight;
+                    }
+                    continue;
+                }
+
+                // Skip pushing fixed elements unless current is title
+                if (fixedElements?.has(next) && !current.isTitle) {
+                    continue;
+                }
+
+                const newY = current.y + current.height + 12;
+                next.y = newY;
+                // Shrink height so the element stays within the slide
+                const maxHeight = slideHeight - newY - 24;
+                if (maxHeight > 0 && next.height > maxHeight) {
+                    next.height = maxHeight;
+                }
             }
         }
     }

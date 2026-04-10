@@ -5,6 +5,7 @@ import { CsvViewerProvider } from './csvViewerProvider';
 import { ExcelViewerProvider } from './excelViewerProvider';
 import { HwpViewerProvider } from './hwpViewerProvider';
 import { ImageViewerProvider } from './imageViewerProvider';
+import { JsonViewerProvider } from './jsonViewerProvider';
 import { JsonlViewerProvider } from './jsonlViewerProvider';
 import { ParquetViewerProvider } from './parquetViewerProvider';
 import { PdfViewerProvider } from './pdfViewerProvider';
@@ -57,6 +58,13 @@ export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
         missingMessage: 'No CSV file selected',
         retainContextWhenHidden: true,
         createProvider: (context) => new CsvViewerProvider(context)
+    },
+    {
+        viewType: JsonViewerProvider.viewType,
+        command: 'omni-viewer.openJsonViewer',
+        missingMessage: 'No JSON file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new JsonViewerProvider(context)
     },
     {
         viewType: JsonlViewerProvider.viewType,

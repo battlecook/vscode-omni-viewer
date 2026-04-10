@@ -29,6 +29,17 @@ export interface ArchivePreviewData {
     note?: string;
 }
 
+export interface ArchiveEntryPreviewData {
+    path: string;
+    status: 'success' | 'unsupported' | 'error';
+    content?: string;
+    truncated?: boolean;
+    message?: string;
+}
+
+const MAX_PREVIEW_TEXT_BYTES = 64 * 1024;
+const MAX_PREVIEW_ENTRY_BYTES = 512 * 1024;
+
 export async function readArchiveFile(filePath: string): Promise<ArchivePreviewData> {
     const stats = await fs.promises.stat(filePath);
     const lowerPath = filePath.toLowerCase();
@@ -72,6 +83,53 @@ export async function readArchiveFile(filePath: string): Promise<ArchivePreviewD
     throw new Error('Unsupported archive format. Currently supported: ZIP, APK, JAR, RAR, 7Z, DMG, TAR, TAR.GZ, TAR.BZ2, TAR.XZ, TGZ, TBZ2, TXZ, and GZ.');
 }
 
+export async function readArchiveEntryPreview(filePath: string, entryPath: string): Promise<ArchiveEntryPreviewData> {
+    const lowerPath = filePath.toLowerCase();
+
+    try {
+        if (lowerPath.endsWith('.zip') || lowerPath.endsWith('.jar') || lowerPath.endsWith('.apk')) {
+            return readZipArchiveEntryPreview(filePath, entryPath);
+        }
+
+        if (lowerPath.endsWith('.rar') || lowerPath.endsWith('.7z') || lowerPath.endsWith('.dmg')) {
+            return readSevenZipArchiveEntryPreview(filePath, entryPath);
+        }
+
+        if (lowerPath.endsWith('.tar')) {
+            return readTarArchiveEntryPreview(filePath, entryPath, 'plain');
+        }
+
+        if (lowerPath.endsWith('.tgz') || lowerPath.endsWith('.tar.gz')) {
+            return readTarArchiveEntryPreview(filePath, entryPath, 'gzip');
+        }
+
+        if (lowerPath.endsWith('.tbz2') || lowerPath.endsWith('.tar.bz2')) {
+            return readTarArchiveEntryPreview(filePath, entryPath, 'bzip2');
+        }
+
+        if (lowerPath.endsWith('.txz') || lowerPath.endsWith('.tar.xz')) {
+            return readTarArchiveEntryPreview(filePath, entryPath, 'xz');
+        }
+
+        if (lowerPath.endsWith('.gz')) {
+            return readGzipArchiveEntryPreview(filePath, entryPath);
+        }
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+            path: entryPath,
+            status: 'error',
+            message
+        };
+    }
+
+    return {
+        path: entryPath,
+        status: 'unsupported',
+        message: 'Preview is not available for this archive format.'
+    };
+}
+
 async function readZipArchive(filePath: string, fileSizeBytes: number): Promise<ArchivePreviewData> {
     const buffer = await fs.promises.readFile(filePath);
     const zip = await JSZip.loadAsync(buffer);
@@ -96,6 +154,35 @@ async function readZipArchive(filePath: string, fileSizeBytes: number): Promise<
     return finalizeArchiveData('ZIP', filePath, fileSizeBytes, allEntries);
 }
 
+async function readZipArchiveEntryPreview(filePath: string, entryPath: string): Promise<ArchiveEntryPreviewData> {
+    const buffer = await fs.promises.readFile(filePath);
+    const zip = await JSZip.loadAsync(buffer);
+    const entry = zip.file(entryPath);
+
+    if (!entry) {
+        return {
+            path: entryPath,
+            status: 'error',
+            message: 'The selected entry could not be found in the archive.'
+        };
+    }
+
+    const internalEntry = entry as typeof entry & {
+        _data?: { uncompressedSize?: number };
+    };
+    const knownSize = internalEntry._data?.uncompressedSize;
+    if (typeof knownSize === 'number' && knownSize > MAX_PREVIEW_ENTRY_BYTES) {
+        return {
+            path: entryPath,
+            status: 'unsupported',
+            message: `Preview is limited to files up to ${formatFileSize(MAX_PREVIEW_ENTRY_BYTES)}.`
+        };
+    }
+
+    const entryBuffer = await entry.async('nodebuffer');
+    return buildArchiveEntryPreview(entryPath, entryBuffer);
+}
+
 async function readSevenZipArchive(filePath: string, fileSizeBytes: number, format: string): Promise<ArchivePreviewData> {
     try {
         const { stdout } = await execFileAsync('7z', ['l', '-slt', filePath], { maxBuffer: 16 * 1024 * 1024 });
@@ -111,6 +198,28 @@ async function readSevenZipArchive(filePath: string, fileSizeBytes: number, form
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         throw new Error(`Failed to inspect ${format} archive with the system 7z command. ${message}`);
+    }
+}
+
+async function readSevenZipArchiveEntryPreview(filePath: string, entryPath: string): Promise<ArchiveEntryPreviewData> {
+    try {
+        const { stdout } = await execFileAsync('7z', ['x', '-so', filePath, entryPath], {
+            encoding: 'buffer',
+            maxBuffer: MAX_PREVIEW_ENTRY_BYTES
+        });
+        const outputBuffer = asBuffer(stdout);
+        return buildArchiveEntryPreview(entryPath, outputBuffer);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (message.includes('stdout maxBuffer length exceeded')) {
+            return {
+                path: entryPath,
+                status: 'unsupported',
+                message: `Preview is limited to files up to ${formatFileSize(MAX_PREVIEW_ENTRY_BYTES)}.`
+            };
+        }
+
+        throw new Error(`Failed to extract the selected entry with the system 7z command. ${message}`);
     }
 }
 
@@ -139,6 +248,33 @@ async function readTarArchive(
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         throw new Error(`Failed to inspect TAR archive with the system tar command. ${message}`);
+    }
+}
+
+async function readTarArchiveEntryPreview(
+    filePath: string,
+    entryPath: string,
+    compression: 'plain' | 'gzip' | 'bzip2' | 'xz'
+): Promise<ArchiveEntryPreviewData> {
+    try {
+        const args = getTarExtractArgs(filePath, entryPath, compression);
+        const { stdout } = await execFileAsync('tar', args, {
+            encoding: 'buffer',
+            maxBuffer: MAX_PREVIEW_ENTRY_BYTES
+        });
+        const outputBuffer = asBuffer(stdout);
+        return buildArchiveEntryPreview(entryPath, outputBuffer);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (message.includes('stdout maxBuffer length exceeded')) {
+            return {
+                path: entryPath,
+                status: 'unsupported',
+                message: `Preview is limited to files up to ${formatFileSize(MAX_PREVIEW_ENTRY_BYTES)}.`
+            };
+        }
+
+        throw new Error(`Failed to extract the selected TAR entry. ${message}`);
     }
 }
 
@@ -176,6 +312,35 @@ async function readGzipArchive(filePath: string, fileSizeBytes: number): Promise
     ]);
 }
 
+async function readGzipArchiveEntryPreview(filePath: string, entryPath: string): Promise<ArchiveEntryPreviewData> {
+    const buffer = await fs.promises.readFile(filePath);
+    const derivedName = deriveGzipEntryName(filePath, buffer);
+
+    if (entryPath !== derivedName) {
+        return {
+            path: entryPath,
+            status: 'error',
+            message: 'The selected entry could not be found in the archive.'
+        };
+    }
+
+    if (buffer.length > MAX_PREVIEW_ENTRY_BYTES) {
+        return {
+            path: entryPath,
+            status: 'unsupported',
+            message: `Preview is limited to files up to ${formatFileSize(MAX_PREVIEW_ENTRY_BYTES)}.`
+        };
+    }
+
+    try {
+        const uncompressed = gunzipSync(buffer);
+        return buildArchiveEntryPreview(entryPath, uncompressed);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to extract the selected GZIP entry. ${message}`);
+    }
+}
+
 function finalizeArchiveData(
     format: string,
     filePath: string,
@@ -211,6 +376,24 @@ function getTarListArgs(filePath: string, compression: 'plain' | 'gzip' | 'bzip2
     case 'plain':
     default:
         return ['-tf', filePath];
+    }
+}
+
+function getTarExtractArgs(
+    filePath: string,
+    entryPath: string,
+    compression: 'plain' | 'gzip' | 'bzip2' | 'xz'
+): string[] {
+    switch (compression) {
+    case 'gzip':
+        return ['-xOzf', filePath, entryPath];
+    case 'bzip2':
+        return ['-xOjf', filePath, entryPath];
+    case 'xz':
+        return ['-xOJf', filePath, entryPath];
+    case 'plain':
+    default:
+        return ['-xOf', filePath, entryPath];
     }
 }
 
@@ -325,6 +508,64 @@ function deriveGzipEntryName(filePath: string, buffer: Buffer): string {
     }
 
     return baseName;
+}
+
+function buildArchiveEntryPreview(entryPath: string, buffer: Buffer): ArchiveEntryPreviewData {
+    if (buffer.length === 0) {
+        return {
+            path: entryPath,
+            status: 'success',
+            content: '',
+            truncated: false
+        };
+    }
+
+    if (buffer.length > MAX_PREVIEW_ENTRY_BYTES) {
+        return {
+            path: entryPath,
+            status: 'unsupported',
+            message: `Preview is limited to files up to ${formatFileSize(MAX_PREVIEW_ENTRY_BYTES)}.`
+        };
+    }
+
+    if (isProbablyBinary(buffer)) {
+        return {
+            path: entryPath,
+            status: 'unsupported',
+            message: 'Binary files are not rendered in the inline preview yet.'
+        };
+    }
+
+    const previewBuffer = buffer.subarray(0, MAX_PREVIEW_TEXT_BYTES);
+    return {
+        path: entryPath,
+        status: 'success',
+        content: previewBuffer.toString('utf8'),
+        truncated: buffer.length > MAX_PREVIEW_TEXT_BYTES
+    };
+}
+
+function isProbablyBinary(buffer: Buffer): boolean {
+    const sampleSize = Math.min(buffer.length, 8192);
+    let suspiciousCount = 0;
+
+    for (let index = 0; index < sampleSize; index += 1) {
+        const byte = buffer[index];
+        if (byte === 0) {
+            return true;
+        }
+
+        const isControl = byte < 32 && byte !== 9 && byte !== 10 && byte !== 13 && byte !== 12;
+        if (isControl) {
+            suspiciousCount += 1;
+        }
+    }
+
+    return suspiciousCount / sampleSize > 0.02;
+}
+
+function asBuffer(value: string | Buffer): Buffer {
+    return Buffer.isBuffer(value) ? value : Buffer.from(value);
 }
 
 function readGzipOriginalName(buffer: Buffer): string | null {
