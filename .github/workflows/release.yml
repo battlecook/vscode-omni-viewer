@@ -59,6 +59,12 @@ jobs:
         echo "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
         
+    - name: Upload VSIX artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: vsix
+        path: '*.vsix'
+
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
@@ -69,3 +75,39 @@ jobs:
         prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-marketplace:
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    environment: marketplace
+    steps:
+    - name: Download VSIX artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: vsix
+
+    - name: Install vsce
+      run: npm install -g @vscode/vsce
+
+    - name: Publish to VS Code Marketplace
+      run: vsce publish --packagePath *.vsix
+      env:
+        VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+  deploy-openvsx:
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    environment: openvsx
+    steps:
+    - name: Download VSIX artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: vsix
+
+    - name: Install ovsx
+      run: npm install -g ovsx
+
+    - name: Publish to Open VSX Registry
+      run: ovsx publish *.vsix
+      env:
+        OVSX_PAT: ${{ secrets.OVSX_PAT }}

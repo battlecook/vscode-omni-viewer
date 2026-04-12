@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YAML Viewer - {{fileName}}</title>
+    <link rel="stylesheet" href="css/yamlViewer.css">
+</head>
+<body>
+    <div class="viewer-shell">
+        <header class="viewer-header">
+            <div>
+                <div class="viewer-title">{{fileName}}</div>
+                <div id="summaryText" class="viewer-subtitle">Ready</div>
+            </div>
+            <div id="statusBadge" class="status-badge">YAML</div>
+        </header>
+
+        <section class="toolbar">
+            <label class="document-picker">
+                <span>Document</span>
+                <select id="documentSelect"></select>
+            </label>
+            <div class="toolbar-group">
+                <button type="button" class="toolbar-btn is-active" data-view-mode="tree">Tree</button>
+                <button type="button" class="toolbar-btn" data-view-mode="flatten">Flatten</button>
+                <button type="button" class="toolbar-btn" data-view-mode="json">JSON</button>
+            </div>
+            <div class="search-box">
+                <select id="searchMode">
+                    <option value="all">All</option>
+                    <option value="key">Key</option>
+                    <option value="path">Path</option>
+                    <option value="value">Value</option>
+                </select>
+                <input id="searchInput" type="search" placeholder="Search key, path, value" spellcheck="false">
+            </div>
+        </section>
+
+        <section class="path-bar">
+            <div>
+                <div class="path-label">Current path</div>
+                <div id="currentPath" class="path-value">root</div>
+            </div>
+            <div class="path-actions">
+                <button type="button" class="toolbar-btn small" id="copyPathBtn">Copy path</button>
+                <button type="button" class="toolbar-btn small" id="copyJsonPathBtn">Copy JSONPath</button>
+            </div>
+        </section>
+
+        <main class="workspace">
+            <section class="panel source-panel">
+                <div class="panel-header">
+                    <span>Source</span>
+                    <span id="sourceCursor" class="panel-caption">Line 1, Column 1</span>
+                </div>
+                <textarea id="sourceEditor" class="source-editor" spellcheck="false"></textarea>
+            </section>
+
+            <section class="panel structure-panel">
+                <div class="panel-header">
+                    <span id="viewTitle">Structure tree</span>
+                    <div class="panel-actions">
+                        <span id="matchCount" class="panel-caption">0 matches</span>
+                        <button type="button" class="toolbar-btn small" id="copyJsonBtn">Copy JSON</button>
+                    </div>
+                </div>
+                <div id="treeView" class="surface tree-view"></div>
+                <div id="flattenView" class="surface flatten-view is-hidden"></div>
+                <pre id="jsonView" class="surface json-view is-hidden"></pre>
+            </section>
+        </main>
+
+        <section id="diagnosticsPanel" class="diagnostics-panel is-hidden">
+            <div class="panel-header">
+                <span>Validation</span>
+                <span id="diagnosticCount" class="panel-caption">0 items</span>
+            </div>
+            <div id="diagnosticList" class="diagnostic-list"></div>
+        </section>
+    </div>
+
+    <script>
+        window.yamlModel = {{yamlModel}};
+    </script>
+    <script src="js/yamlViewer.js"></script>
+</body>
+</html>

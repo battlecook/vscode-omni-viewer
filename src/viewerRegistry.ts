@@ -11,8 +11,10 @@ import { ParquetViewerProvider } from './parquetViewerProvider';
 import { PdfViewerProvider } from './pdfViewerProvider';
 import { PptViewerProvider } from './pptViewerProvider';
 import { PsdViewerProvider } from './psdViewerProvider';
+import { TomlViewerProvider } from './tomlViewerProvider';
 import { VideoViewerProvider } from './videoViewerProvider';
 import { WordViewerProvider } from './wordViewerProvider';
+import { YamlViewerProvider } from './yamlViewerProvider';
 import { OmniViewerViewType } from './utils/fileUtils';
 
 export interface ViewerRegistration {
@@ -67,11 +69,25 @@ export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
         createProvider: (context) => new JsonViewerProvider(context)
     },
     {
+        viewType: YamlViewerProvider.viewType,
+        command: 'omni-viewer.openYamlViewer',
+        missingMessage: 'No YAML file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new YamlViewerProvider(context)
+    },
+    {
         viewType: JsonlViewerProvider.viewType,
         command: 'omni-viewer.openJsonlViewer',
         missingMessage: 'No JSONL file selected',
         retainContextWhenHidden: true,
         createProvider: (context) => new JsonlViewerProvider(context)
+    },
+    {
+        viewType: TomlViewerProvider.viewType,
+        command: 'omni-viewer.openTomlViewer',
+        missingMessage: 'No TOML file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new TomlViewerProvider(context)
     },
     {
         viewType: ParquetViewerProvider.viewType,

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TOML Viewer - {{fileName}}</title>
+    <link rel="stylesheet" href="css/tomlViewer.css">
+</head>
+<body>
+    <div class="viewer-shell">
+        <header class="viewer-header">
+            <div>
+                <div class="viewer-title">{{fileName}}</div>
+                <div class="viewer-subtitle">Read-only TOML structure explorer</div>
+            </div>
+            <div id="statusBadge" class="status-badge">Ready</div>
+        </header>
+
+        <section class="path-bar">
+            <div class="path-label">Path</div>
+            <div id="currentPath" class="current-path">root</div>
+            <button type="button" id="copyPathBtn" class="toolbar-btn">Copy Path</button>
+            <button type="button" id="copyFlattenBtn" class="toolbar-btn">Copy Flatten Key</button>
+        </section>
+
+        <section class="toolbar">
+            <input id="searchInput" class="search-input" type="search" placeholder="Search key, path, or value" spellcheck="false">
+            <label class="search-scope">
+                <span>Search in</span>
+                <select id="searchMode" class="search-mode" aria-label="Search scope">
+                    <option value="all">All fields</option>
+                    <option value="key">Keys</option>
+                    <option value="path">Paths</option>
+                    <option value="value">Values</option>
+                </select>
+            </label>
+            <button type="button" id="expandAllBtn" class="toolbar-btn">Expand All</button>
+            <button type="button" id="collapseAllBtn" class="toolbar-btn">Collapse All</button>
+            <button type="button" class="toolbar-btn" data-panel="tree">Tree</button>
+            <button type="button" class="toolbar-btn" data-panel="flatten">Flatten</button>
+            <button type="button" class="toolbar-btn" data-panel="json">JSON</button>
+        </section>
+
+        <main class="workspace">
+            <section class="source-panel">
+                <div class="panel-header">
+                    <span>Source</span>
+                    <span id="sourceCaption" class="panel-caption">Cursor sync enabled</span>
+                </div>
+                <textarea id="sourceView" class="source-view" spellcheck="false" readonly></textarea>
+            </section>
+
+            <section class="structure-panel">
+                <div class="panel-header">
+                    <span id="panelTitle">Tree</span>
+                    <div class="panel-actions">
+                        <span id="panelCaption" class="panel-caption">Structured TOML nodes</span>
+                        <button type="button" id="copyJsonBtn" class="toolbar-btn small is-hidden">Copy JSON</button>
+                    </div>
+                </div>
+                <div id="treeView" class="tree-view"></div>
+                <div id="flattenView" class="flat-view is-hidden"></div>
+                <pre id="jsonView" class="json-view is-hidden"></pre>
+            </section>
+        </main>
+
+        <section id="warningPanel" class="warning-panel is-hidden"></section>
+    </div>
+
+    <script>
+        window.tomlSource = {{tomlSource}};
+        window.tomlModel = {{tomlModel}};
+    </script>
+    <script src="js/tomlViewer.js"></script>
+</body>
+</html>

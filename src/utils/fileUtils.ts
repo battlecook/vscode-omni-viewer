@@ -32,7 +32,9 @@ export type OmniViewerViewType =
     | 'omni-viewer.archiveViewer'
     | 'omni-viewer.csvViewer'
     | 'omni-viewer.jsonViewer'
+    | 'omni-viewer.yamlViewer'
     | 'omni-viewer.jsonlViewer'
+    | 'omni-viewer.tomlViewer'
     | 'omni-viewer.parquetViewer'
     | 'omni-viewer.hwpViewer'
     | 'omni-viewer.psdViewer'
@@ -608,6 +610,22 @@ export class FileUtils {
             };
         }
 
+        if (ext === '.yaml' || ext === '.yml') {
+            return {
+                viewType: 'omni-viewer.yamlViewer',
+                reason: 'Used the YAML extension fallback.',
+                matchedBySignature: false
+            };
+        }
+
+        if (ext === '.toml' || this.looksLikeToml(lines)) {
+            return {
+                viewType: 'omni-viewer.tomlViewer',
+                reason: ext === '.toml' ? 'Used the TOML extension fallback.' : 'Matched TOML table or key/value content.',
+                matchedBySignature: false
+            };
+        }
+
         if (ext === '.csv' || ext === '.tsv') {
             return {
                 viewType: 'omni-viewer.csvViewer',
@@ -656,6 +674,25 @@ export class FileUtils {
         } catch (error) {
             return false;
         }
+    }
+
+    private static looksLikeToml(lines: string[]): boolean {
+        const sampleLines = lines.slice(0, 20);
+        let tableCount = 0;
+        let assignmentCount = 0;
+
+        for (const line of sampleLines) {
+            if (/^\[\[?[A-Za-z0-9_.\-"'\s]+\]?\]$/.test(line)) {
+                tableCount++;
+                continue;
+            }
+
+            if (/^[A-Za-z0-9_.\-"']+\s*=/.test(line)) {
+                assignmentCount++;
+            }
+        }
+
+        return tableCount > 0 && assignmentCount > 0 || assignmentCount >= 3;
     }
 
     private static parseDelimitedLine(line: string, delimiter: string): string[] {

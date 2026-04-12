@@ -2,7 +2,7 @@
   "name": "omni-viewer",
   "displayName": "omni-viewer",
   "publisher": "battlecook",
-  "description": "A VSCode extension for viewing audio, image, video, archive, csv, excel, word, powerpoint, parquet, jsonl, hwp, PSD and PDF files",
+  "description": "A VSCode extension for viewing audio, image, video, archive, csv, excel, word, powerpoint, parquet, jsonl, yaml, toml, hwp, PSD and PDF files",
   "version": "0.19.0",
   "repository": {
     "type": "git",
@@ -35,6 +35,8 @@
     "pptx",
     "JSONL",
     "JSON",
+    "YAML",
+    "TOML",
     "Parquet",
     "HWP",
     "PSD",
@@ -225,6 +227,19 @@
         "priority": "option"
       },
       {
+        "viewType": "omni-viewer.yamlViewer",
+        "displayName": "YAML Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.yaml"
+          },
+          {
+            "filenamePattern": "*.yml"
+          }
+        ],
+        "priority": "option"
+      },
+      {
         "viewType": "omni-viewer.jsonlViewer",
         "displayName": "JSONL Viewer",
         "selector": [
@@ -236,6 +251,16 @@
           },
           {
             "filenamePattern": "*.jsonlines"
+          }
+        ],
+        "priority": "option"
+      },
+      {
+        "viewType": "omni-viewer.tomlViewer",
+        "displayName": "TOML Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.toml"
           }
         ],
         "priority": "option"
@@ -356,8 +381,18 @@
           "group": "navigation"
         },
         {
+          "command": "omni-viewer.openYamlViewer",
+          "when": "resourceExtname == '.yaml' || resourceExtname == '.yml'",
+          "group": "navigation"
+        },
+        {
           "command": "omni-viewer.openJsonlViewer",
           "when": "resourceExtname == '.jsonl' || resourceExtname == '.ndjson' || resourceExtname == '.jsonlines'",
+          "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openTomlViewer",
+          "when": "resourceExtname == '.toml'",
           "group": "navigation"
         },
         {
@@ -424,8 +459,18 @@
         "category": "Omni Viewer"
       },
       {
+        "command": "omni-viewer.openYamlViewer",
+        "title": "Open with YAML Viewer",
+        "category": "Omni Viewer"
+      },
+      {
         "command": "omni-viewer.openJsonlViewer",
         "title": "Open with JSONL Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openTomlViewer",
+        "title": "Open with TOML Viewer",
         "category": "Omni Viewer"
       },
       {
@@ -502,6 +547,7 @@
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.10.38",
     "wavesurfer.js": "^7.12.3",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "yaml": "^2.8.3"
   }
 }
