@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.20.0] - 2026-04-12
+
+### Added
+- **YAML Viewer**
+  - Added a dedicated YAML viewer for `.yaml` and `.yml` files with tree, flattened, and JSON-converted views
+  - Added multi-document YAML handling, diagnostics, source cursor synchronization, path/JSON path copying, and source reveal support
+  - Added YAML structure modeling for mappings, sequences, scalars, anchors, aliases, merge keys, overrides, ambiguous scalar values, and domain tags
+- **TOML Viewer**
+  - Added a dedicated TOML viewer for `.toml` files with tree, flattened key/value, and JSON-converted views
+  - Added a TOML parser that preserves table structure, arrays, arrays of tables, inline tables, comments, duplicate-key warnings, and source ranges
+  - Added TOML search, expand/collapse controls, path copying, flattened key copying, JSON copying, and source selection synchronization
+
+### Changed
+- **Viewer registration**
+  - Registered YAML and TOML custom editors, explorer context menu actions, and `Open with` commands
+  - Expanded file routing so YAML uses extension-based detection and TOML can be detected by extension or TOML-like table/key-value content
+- **Extension metadata**
+  - Updated the extension description and keywords to advertise YAML and TOML support
+  - Added the `yaml` runtime dependency used by the YAML parser/model builder
+- **Release workflow**
+  - Updated the GitHub release workflow to upload the packaged VSIX artifact
+  - Added marketplace deployment jobs for publishing the generated VSIX to the VS Code Marketplace and Open VSX Registry
+
 ## [0.19.0] - 2026-04-10
 
 ### Added
