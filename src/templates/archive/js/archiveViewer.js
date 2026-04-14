@@ -181,7 +181,7 @@
             if (message.status === 'success') {
                 const meta = message.truncated
                     ? 'Showing the beginning of the file because preview length is capped.'
-                    : 'Rendered as plain text from the selected archive entry.';
+                    : (message.description || 'Rendered as plain text from the selected archive entry.');
                 setPreviewState(message.path, 'Ready', meta, message.content || '');
                 return;
             }

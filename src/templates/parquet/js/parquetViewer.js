@@ -8,6 +8,7 @@ class ParquetViewer {
         this.currentPage = 1;
         this.rowsPerPage = 100;
         this.searchTerm = '';
+        this.sortState = { columnIndex: null, direction: null };
         this.isTableView = true; // true for table view, false for raw view
         
         this.init();
@@ -45,7 +46,7 @@ class ParquetViewer {
                     return;
                 }
                 
-                this.filteredData = [...this.parquetData.rows];
+                this.rebuildFilteredData();
                 this.updateFileInfo();
                 this.showLimitWarning();
                 this.renderTable();
@@ -108,10 +109,36 @@ class ParquetViewer {
         // Render headers
         headerEl.innerHTML = '';
         const headerRow = document.createElement('tr');
-        this.parquetData.headers.forEach((header) => {
+        this.parquetData.headers.forEach((header, index) => {
             const th = document.createElement('th');
-            th.textContent = header || '';
             th.title = header || ''; // Tooltip for truncated content
+
+            const headerContent = document.createElement('div');
+            headerContent.className = 'header-content';
+
+            const headerLabel = document.createElement('span');
+            headerLabel.className = 'header-label';
+            headerLabel.textContent = header || '';
+            headerLabel.title = header || '';
+
+            const sortButton = document.createElement('button');
+            sortButton.type = 'button';
+            sortButton.className = 'sort-button';
+            sortButton.setAttribute('data-sort-direction', this.getSortDirection(index) || 'none');
+            sortButton.setAttribute('aria-label', `Sort by ${header || `column ${index + 1}`}`);
+            sortButton.title = this.getSortButtonTitle(index, header);
+            sortButton.innerHTML = `
+                <span class="sort-icon sort-icon-asc">▲</span>
+                <span class="sort-icon sort-icon-desc">▼</span>
+            `;
+            sortButton.addEventListener('click', (event) => {
+                event.stopPropagation();
+                this.toggleSort(index);
+            });
+
+            headerContent.appendChild(headerLabel);
+            headerContent.appendChild(sortButton);
+            th.appendChild(headerContent);
             headerRow.appendChild(th);
         });
         headerEl.appendChild(headerRow);
@@ -166,14 +193,7 @@ class ParquetViewer {
     searchTable(term) {
         this.searchTerm = term.toLowerCase();
         this.currentPage = 1;
-
-        if (!term) {
-            this.filteredData = [...this.parquetData.rows];
-        } else {
-            this.filteredData = this.parquetData.rows.filter(row => 
-                this.rowMatchesSearch(row)
-            );
-        }
+        this.rebuildFilteredData();
 
         if (this.isTableView) {
             this.renderDataRows();
@@ -191,6 +211,163 @@ class ParquetViewer {
                     : String(cell);
             return cellStr.toLowerCase().includes(this.searchTerm);
         });
+    }
+
+    rebuildFilteredData() {
+        if (!this.parquetData?.rows) {
+            this.filteredData = [];
+            return;
+        }
+
+        const matchingRows = this.parquetData.rows.filter((row) => (
+            !this.searchTerm || this.rowMatchesSearch(row)
+        ));
+
+        this.filteredData = this.applySorting(matchingRows);
+
+        const totalPages = Math.max(1, Math.ceil(this.filteredData.length / this.rowsPerPage));
+        if (this.currentPage > totalPages) {
+            this.currentPage = totalPages;
+        }
+    }
+
+    getSortDirection(columnIndex) {
+        return this.sortState.columnIndex === columnIndex ? this.sortState.direction : null;
+    }
+
+    getSortButtonTitle(columnIndex, header) {
+        const currentDirection = this.getSortDirection(columnIndex);
+        const columnLabel = header || `column ${columnIndex + 1}`;
+
+        if (currentDirection === 'asc') {
+            return `Sorted ascending. Click to sort ${columnLabel} descending.`;
+        }
+
+        if (currentDirection === 'desc') {
+            return `Sorted descending. Click to clear sorting for ${columnLabel}.`;
+        }
+
+        return `Click to sort ${columnLabel} ascending.`;
+    }
+
+    toggleSort(columnIndex) {
+        const currentDirection = this.getSortDirection(columnIndex);
+        let nextDirection = 'asc';
+
+        if (currentDirection === 'asc') {
+            nextDirection = 'desc';
+        } else if (currentDirection === 'desc') {
+            nextDirection = null;
+        }
+
+        this.sortState = {
+            columnIndex: nextDirection ? columnIndex : null,
+            direction: nextDirection
+        };
+
+        this.currentPage = 1;
+        this.rebuildFilteredData();
+
+        if (this.isTableView) {
+            this.renderTable();
+        } else {
+            this.renderRawData();
+        }
+    }
+
+    applySorting(rows) {
+        if (this.sortState.columnIndex === null || !this.sortState.direction) {
+            return [...rows];
+        }
+
+        const { columnIndex, direction } = this.sortState;
+        const directionMultiplier = direction === 'asc' ? 1 : -1;
+
+        return rows
+            .map((row, index) => ({ row, index }))
+            .sort((left, right) => {
+                const leftValue = left.row?.[columnIndex];
+                const rightValue = right.row?.[columnIndex];
+                const comparison = this.compareValues(leftValue, rightValue);
+
+                if (comparison !== 0) {
+                    return comparison * directionMultiplier;
+                }
+
+                return left.index - right.index;
+            })
+            .map(({ row }) => row);
+    }
+
+    compareValues(leftValue, rightValue) {
+        const left = this.normalizeSortValue(leftValue);
+        const right = this.normalizeSortValue(rightValue);
+
+        if (left.type === 'empty' || right.type === 'empty') {
+            if (left.type === right.type) {
+                return 0;
+            }
+
+            return left.type === 'empty' ? 1 : -1;
+        }
+
+        if (left.type === right.type) {
+            if (left.value < right.value) {
+                return -1;
+            }
+
+            if (left.value > right.value) {
+                return 1;
+            }
+
+            return 0;
+        }
+
+        if (left.type === 'number') {
+            return -1;
+        }
+
+        if (right.type === 'number') {
+            return 1;
+        }
+
+        return left.value.localeCompare(right.value, undefined, {
+            numeric: true,
+            sensitivity: 'base'
+        });
+    }
+
+    normalizeSortValue(value) {
+        if (value === null || value === undefined) {
+            return { type: 'empty', value: '' };
+        }
+
+        if (typeof value === 'number' && !Number.isNaN(value)) {
+            return { type: 'number', value };
+        }
+
+        if (typeof value === 'boolean') {
+            return { type: 'number', value: value ? 1 : 0 };
+        }
+
+        const stringValue = typeof value === 'object'
+            ? JSON.stringify(value)
+            : String(value);
+        const trimmedValue = stringValue.trim();
+
+        if (!trimmedValue) {
+            return { type: 'empty', value: '' };
+        }
+
+        const numericValue = Number(trimmedValue);
+        if (!Number.isNaN(numericValue) && trimmedValue !== '') {
+            return { type: 'number', value: numericValue };
+        }
+
+        return {
+            type: 'string',
+            value: trimmedValue.toLocaleLowerCase()
+        };
     }
 
     updatePagination() {
@@ -254,6 +431,8 @@ class ParquetViewer {
                 columns: this.parquetData.totalColumns,
                 fileSize: this.parquetData.fileSize,
                 searchActive: this.searchTerm !== '',
+                sortColumn: this.sortState.columnIndex,
+                sortDirection: this.sortState.direction,
                 exportDate: new Date().toISOString()
             }
         };
@@ -320,7 +499,9 @@ class ParquetViewer {
                 totalRows: this.parquetData.totalRows,
                 filteredRows: this.filteredData.length,
                 columns: this.parquetData.totalColumns,
-                fileSize: this.parquetData.fileSize
+                fileSize: this.parquetData.fileSize,
+                sortColumn: this.sortState.columnIndex,
+                sortDirection: this.sortState.direction
             }
         };
         
@@ -428,4 +609,3 @@ class ParquetViewer {
 document.addEventListener('DOMContentLoaded', () => {
     new ParquetViewer();
 });
-

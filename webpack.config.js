@@ -32,7 +32,8 @@ module.exports = [
       extensions: ['.ts', '.js'],
       alias: {
         'music-metadata': path.resolve(__dirname, 'node_modules/music-metadata/lib/index.js'),
-        'hyparquet': path.resolve(__dirname, 'node_modules/hyparquet/src/node.js')
+        'hyparquet': path.resolve(__dirname, 'node_modules/hyparquet/src/node.js'),
+        'yaml': path.resolve(__dirname, 'node_modules/yaml/dist/index.js')
       },
       extensionAlias: {
         '.js': ['.js', '.ts']

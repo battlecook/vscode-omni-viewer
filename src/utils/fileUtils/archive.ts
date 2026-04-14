@@ -4,6 +4,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { gunzipSync } from 'zlib';
 import JSZip from 'jszip';
+import { tryDecodeArchiveEntryPreview } from './archivePreviewDecoder';
 
 const execFileAsync = promisify(execFile);
 const MAX_VISIBLE_ENTRIES = 1000;
@@ -35,6 +36,7 @@ export interface ArchiveEntryPreviewData {
     content?: string;
     truncated?: boolean;
     message?: string;
+    description?: string;
 }
 
 const MAX_PREVIEW_TEXT_BYTES = 64 * 1024;
@@ -516,7 +518,8 @@ function buildArchiveEntryPreview(entryPath: string, buffer: Buffer): ArchiveEnt
             path: entryPath,
             status: 'success',
             content: '',
-            truncated: false
+            truncated: false,
+            description: 'Rendered as plain text from the selected archive entry.'
         };
     }
 
@@ -525,6 +528,18 @@ function buildArchiveEntryPreview(entryPath: string, buffer: Buffer): ArchiveEnt
             path: entryPath,
             status: 'unsupported',
             message: `Preview is limited to files up to ${formatFileSize(MAX_PREVIEW_ENTRY_BYTES)}.`
+        };
+    }
+
+    const decodedPreview = tryDecodeArchiveEntryPreview(entryPath, buffer);
+    if (decodedPreview) {
+        const previewText = limitPreviewText(decodedPreview.content);
+        return {
+            path: entryPath,
+            status: 'success',
+            content: previewText.content,
+            truncated: previewText.truncated,
+            description: decodedPreview.description
         };
     }
 
@@ -541,7 +556,20 @@ function buildArchiveEntryPreview(entryPath: string, buffer: Buffer): ArchiveEnt
         path: entryPath,
         status: 'success',
         content: previewBuffer.toString('utf8'),
-        truncated: buffer.length > MAX_PREVIEW_TEXT_BYTES
+        truncated: buffer.length > MAX_PREVIEW_TEXT_BYTES,
+        description: 'Rendered as plain text from the selected archive entry.'
+    };
+}
+
+function limitPreviewText(content: string): { content: string; truncated: boolean } {
+    const textBuffer = Buffer.from(content, 'utf8');
+    if (textBuffer.length <= MAX_PREVIEW_TEXT_BYTES) {
+        return { content, truncated: false };
+    }
+
+    return {
+        content: textBuffer.subarray(0, MAX_PREVIEW_TEXT_BYTES).toString('utf8'),
+        truncated: true
     };
 }
 
