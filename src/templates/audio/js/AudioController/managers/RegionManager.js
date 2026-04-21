@@ -26,20 +26,28 @@ export class RegionManager {
         
         // Start input overlay
         this.state.regionStartOverlay = document.createElement('div');
-        this.state.regionStartOverlay.className = 'region-input-overlay';
+        this.state.regionStartOverlay.className = 'region-input-overlay region-start-overlay';
         this.state.regionStartOverlay.innerHTML = `
             <input type="number" value="${region.start.toFixed(3)}" class="region-start-input" title="Start time">
         `;
         
         // End input overlay
         this.state.regionEndOverlay = document.createElement('div');
-        this.state.regionEndOverlay.className = 'region-input-overlay';
+        this.state.regionEndOverlay.className = 'region-input-overlay region-end-overlay';
         this.state.regionEndOverlay.innerHTML = `
             <input type="number" value="${region.end.toFixed(3)}" class="region-end-input" title="End time">
+        `;
+
+        // Duration input overlay
+        this.state.regionDurationOverlay = document.createElement('div');
+        this.state.regionDurationOverlay.className = 'region-input-overlay region-duration-overlay';
+        this.state.regionDurationOverlay.innerHTML = `
+            <input type="number" value="${this.getRegionDuration(region).toFixed(3)}" class="region-duration-input" title="Duration">
         `;
         
         waveformContainer.appendChild(this.state.regionStartOverlay);
         waveformContainer.appendChild(this.state.regionEndOverlay);
+        waveformContainer.appendChild(this.state.regionDurationOverlay);
         
         this.attachRegionOverlaySync(region);
         this.positionOverlays(region);
@@ -74,7 +82,7 @@ export class RegionManager {
     }
 
     positionOverlays(region) {
-        if (!this.state.regionStartOverlay || !this.state.regionEndOverlay) {
+        if (!this.state.regionStartOverlay || !this.state.regionEndOverlay || !this.state.regionDurationOverlay) {
             return;
         }
 
@@ -92,17 +100,22 @@ export class RegionManager {
         const regionRect = regionElement.getBoundingClientRect();
         const startLeft = regionRect.left - parentRect.left - 10;
         const endLeft = regionRect.right - parentRect.left + 10;
+        const durationLeft = regionRect.left - parentRect.left + (regionRect.width / 2);
         const top = regionRect.top - parentRect.top + 10;
+        const bottom = regionRect.bottom - parentRect.top + 10;
 
         this.state.regionStartOverlay.style.left = startLeft + 'px';
-        this.state.regionStartOverlay.style.top = top + 'px';
+        this.state.regionStartOverlay.style.top = bottom + 'px';
         this.state.regionEndOverlay.style.left = endLeft + 'px';
-        this.state.regionEndOverlay.style.top = top + 'px';
+        this.state.regionEndOverlay.style.top = bottom + 'px';
+        this.state.regionDurationOverlay.style.left = durationLeft + 'px';
+        this.state.regionDurationOverlay.style.top = top + 'px';
     }
 
     setupOverlayEvents(region) {
         const startInput = this.state.regionStartOverlay.querySelector('.region-start-input');
         const endInput = this.state.regionEndOverlay.querySelector('.region-end-input');
+        const durationInput = this.state.regionDurationOverlay.querySelector('.region-duration-input');
         
         const applyRegionInput = (startTimeInput, endTimeInput) => {
             console.log('applyRegionInput called with:', { startTimeInput, endTimeInput, region });
@@ -111,8 +124,6 @@ export class RegionManager {
                 return;
             }
             
-            const duration = this.state.wavesurfer.getDuration() || 0;
-
             let startSec = region.start;
             let endSec = region.end;
 
@@ -122,54 +133,24 @@ export class RegionManager {
             if (!isNaN(parsedStart)) startSec = parsedStart;
             if (!isNaN(parsedEnd)) endSec = parsedEnd;
 
-            if (startSec > endSec) {
-                const temp = startSec;
-                startSec = endSec;
-                endSec = temp;
+            this.updateRegionBounds(startSec, endSec);
+        };
+
+        const applyDurationInput = (durationInputValue) => {
+            console.log('applyDurationInput called with:', { durationInputValue, region });
+
+            if (!region || !this.state.wavesurfer) {
+                return;
             }
 
-            if (startSec > duration) {
-                startSec = Math.max(0, duration - CONSTANTS.REGION.MIN_DURATION);
-            }
-            
-            if (endSec > duration) {
-                endSec = duration;
+            const parsedDuration = parseFloat(durationInputValue);
+            if (isNaN(parsedDuration)) {
+                this.updateOverlays(region);
+                return;
             }
 
-            startSec = Math.max(0, startSec);
-            endSec = Math.min(duration, endSec);
-
-            if (startSec + CONSTANTS.REGION.MIN_DURATION > endSec) {
-                endSec = Math.min(duration, startSec + CONSTANTS.REGION.MIN_DURATION);
-            }
-
-            try {
-                if (this.state.regionsPlugin && this.state.regionsPlugin.getRegions) {
-                    const regions = this.state.regionsPlugin.getRegions();
-                    Object.values(regions).forEach(existingRegion => {
-                        existingRegion.remove();
-                    });
-                }
-                
-                // 새 리전 생성
-                if (this.state.regionsPlugin && this.state.regionsPlugin.addRegion) {
-                    const newRegion = this.state.regionsPlugin.addRegion({
-                        start: startSec,
-                        end: endSec,
-                        color: 'rgba(255, 0, 0, 0.1)'
-                    });
-                    
-                    this.state.selectedRegionId = newRegion.id;
-                    
-                    // 오버레이 업데이트
-                    setTimeout(() => {
-                        this.createOverlays(newRegion);
-                    }, 100);
-                }
-            } catch (err) {
-                console.error('Failed to update region: ', err);
-                AudioUtils.showStatus('Failed to update region: ' + err.message, this.state.elements.status);
-            }
+            const durationSec = Math.max(CONSTANTS.REGION.MIN_DURATION, parsedDuration);
+            this.updateRegionBounds(region.start, region.start + durationSec, { preserveStart: true });
         };
         
         const handleStartInput = (e) => {
@@ -182,6 +163,10 @@ export class RegionManager {
             const startValue = startInput.value;
             const endValue = e.target.value;
             applyRegionInput(startValue, endValue);
+        };
+
+        const handleDurationInput = (e) => {
+            applyDurationInput(e.target.value);
         };
         
         startInput.addEventListener('change', handleStartInput);
@@ -199,15 +184,96 @@ export class RegionManager {
                 handleEndInput(e);
             }
         });
+
+        durationInput.addEventListener('change', handleDurationInput);
+        durationInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.target.blur();
+                handleDurationInput(e);
+            }
+        });
     }
 
     updateOverlays(region) {
-        if (this.state.regionStartOverlay && this.state.regionEndOverlay) {
+        if (this.state.regionStartOverlay && this.state.regionEndOverlay && this.state.regionDurationOverlay) {
             const startInput = this.state.regionStartOverlay.querySelector('.region-start-input');
             const endInput = this.state.regionEndOverlay.querySelector('.region-end-input');
+            const durationInput = this.state.regionDurationOverlay.querySelector('.region-duration-input');
             startInput.value = region.start.toFixed(3);
             endInput.value = region.end.toFixed(3);
+            durationInput.value = this.getRegionDuration(region).toFixed(3);
             this.positionOverlays(region);
+        }
+    }
+
+    getRegionDuration(region) {
+        return Math.max(0, region.end - region.start);
+    }
+
+    normalizeRegionBounds(startSec, endSec, options = {}) {
+        const duration = this.state.wavesurfer.getDuration() || 0;
+        const minDuration = Math.min(CONSTANTS.REGION.MIN_DURATION, duration);
+
+        if (duration <= 0) {
+            return { start: 0, end: 0 };
+        }
+
+        startSec = Number.isFinite(startSec) ? startSec : 0;
+        endSec = Number.isFinite(endSec) ? endSec : startSec + minDuration;
+
+        if (!options.preserveStart && startSec > endSec) {
+            const temp = startSec;
+            startSec = endSec;
+            endSec = temp;
+        }
+
+        startSec = Math.max(0, Math.min(duration, startSec));
+        endSec = Math.max(0, Math.min(duration, endSec));
+
+        if (options.preserveStart) {
+            endSec = Math.min(duration, Math.max(startSec + minDuration, endSec));
+            if (startSec + minDuration > endSec) {
+                startSec = Math.max(0, endSec - minDuration);
+            }
+        } else if (startSec + minDuration > endSec) {
+            endSec = Math.min(duration, startSec + minDuration);
+            if (startSec + minDuration > endSec) {
+                startSec = Math.max(0, endSec - minDuration);
+            }
+        }
+
+        return { start: startSec, end: endSec };
+    }
+
+    updateRegionBounds(startSec, endSec, options = {}) {
+        const normalized = this.normalizeRegionBounds(startSec, endSec, options);
+
+        try {
+            if (this.state.regionsPlugin && this.state.regionsPlugin.getRegions) {
+                const regions = this.state.regionsPlugin.getRegions();
+                Object.values(regions).forEach(existingRegion => {
+                    existingRegion.remove();
+                });
+            }
+            
+            // 새 리전 생성
+            if (this.state.regionsPlugin && this.state.regionsPlugin.addRegion) {
+                const newRegion = this.state.regionsPlugin.addRegion({
+                    start: normalized.start,
+                    end: normalized.end,
+                    color: 'rgba(255, 0, 0, 0.1)'
+                });
+                
+                this.state.selectedRegionId = newRegion.id;
+                
+                // 오버레이 업데이트
+                setTimeout(() => {
+                    this.createOverlays(newRegion);
+                }, 100);
+            }
+        } catch (err) {
+            console.error('Failed to update region: ', err);
+            AudioUtils.showStatus('Failed to update region: ' + err.message, this.state.elements.status);
         }
     }
 
@@ -233,6 +299,10 @@ export class RegionManager {
         if (this.state.regionEndOverlay) {
             this.state.regionEndOverlay.remove();
             this.state.regionEndOverlay = null;
+        }
+        if (this.state.regionDurationOverlay) {
+            this.state.regionDurationOverlay.remove();
+            this.state.regionDurationOverlay = null;
         }
     }
 

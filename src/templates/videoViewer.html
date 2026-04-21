@@ -138,8 +138,8 @@
 
         .video-wrapper {
             position: relative;
-            max-width: 100%;
-            max-height: 100%;
+            transition: transform 0.2s ease;
+            transform-origin: center center;
         }
 
         #video {
@@ -147,6 +147,74 @@
             max-height: 100%;
             border-radius: 8px;
             background: #000;
+        }
+
+        .progress-container {
+            width: 100%;
+            padding: 0 5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+        }
+
+        .progress-bar-wrapper {
+            flex: 1;
+            height: 8px;
+            background: var(--vscode-input-background);
+            border-radius: 4px;
+            cursor: pointer;
+            position: relative;
+            overflow: visible;
+        }
+
+        .progress-bar-wrapper:hover {
+            height: 12px;
+        }
+
+        .progress-bar-wrapper:hover .progress-bar-handle {
+            opacity: 1;
+        }
+
+        .progress-bar-filled {
+            height: 100%;
+            background: var(--vscode-button-background);
+            border-radius: 4px;
+            pointer-events: none;
+            position: relative;
+        }
+
+        .progress-bar-handle {
+            width: 14px;
+            height: 14px;
+            background: var(--vscode-button-foreground);
+            border: 2px solid var(--vscode-button-background);
+            border-radius: 50%;
+            position: absolute;
+            right: -7px;
+            top: 50%;
+            transform: translateY(-50%);
+            opacity: 0;
+            transition: opacity 0.15s;
+            pointer-events: none;
+        }
+
+        .progress-bar-wrapper.dragging .progress-bar-handle {
+            opacity: 1;
+        }
+
+        .zoom-controls {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .zoom-label {
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            min-width: 40px;
+            text-align: center;
+            color: var(--vscode-descriptionForeground);
         }
 
         .loading {
@@ -259,12 +327,30 @@
                         <option value="4">4x</option>
                     </select>
                 </div>
+                <div class="zoom-controls">
+                    <label>Zoom:</label>
+                    <button id="zoomOut" class="btn">−</button>
+                    <span id="zoomLabel" class="zoom-label">100%</span>
+                    <button id="zoomIn" class="btn">+</button>
+                    <button id="zoomFit" class="btn">Fit</button>
+                </div>
             </div>
-            <div class="video-container">
+            <div class="controls">
+                <span class="time-display" id="currentTime">0:00</span>
+                <div class="progress-container">
+                    <div class="progress-bar-wrapper" id="progressBar">
+                        <div class="progress-bar-filled" id="progressFilled" style="width: 0%;">
+                            <div class="progress-bar-handle"></div>
+                        </div>
+                    </div>
+                </div>
+                <span class="time-display" id="totalTime">0:00</span>
+            </div>
+            <div class="video-container" id="videoContainer">
                 <div id="loading" class="loading">Loading video...</div>
                 <div id="error" class="error" style="display: none;"></div>
                 <div id="videoWrapper" class="video-wrapper" style="display: none;">
-                    <video id="video" controls>
+                    <video id="video">
                         <source src="{{videoSrc}}" type="{{mimeType}}">
                         Your browser does not support the video tag.
                     </video>
@@ -283,10 +369,16 @@
         let originalDuration = 0;
         let videoFormat = '';
         let fileSize = '';
-        
+        let zoomLevel = 1;
+        const ZOOM_STEP = 0.25;
+        const ZOOM_MIN = 0.25;
+        const ZOOM_MAX = 4;
+        let isDragging = false;
+
         // DOM elements
         const video = document.getElementById('video');
         const videoWrapper = document.getElementById('videoWrapper');
+        const videoContainer = document.getElementById('videoContainer');
         const loadingDiv = document.getElementById('loading');
         const errorDiv = document.getElementById('error');
 
@@ -300,6 +392,14 @@
         const skipBackwardBtn = document.getElementById('skipBackward');
         const skipForwardBtn = document.getElementById('skipForward');
         const playbackSpeedSelect = document.getElementById('playbackSpeed');
+        const progressBar = document.getElementById('progressBar');
+        const progressFilled = document.getElementById('progressFilled');
+        const currentTimeDisplay = document.getElementById('currentTime');
+        const totalTimeDisplay = document.getElementById('totalTime');
+        const zoomInBtn = document.getElementById('zoomIn');
+        const zoomOutBtn = document.getElementById('zoomOut');
+        const zoomFitBtn = document.getElementById('zoomFit');
+        const zoomLabel = document.getElementById('zoomLabel');
 
         // Initialize the video viewer
         function initVideoViewer() {
@@ -368,7 +468,47 @@
                 video.playbackRate = speed;
             });
 
+            // Progress bar - click to seek
+            progressBar.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                progressBar.classList.add('dragging');
+                seekToPosition(e);
+            });
 
+            document.addEventListener('mousemove', (e) => {
+                if (isDragging) {
+                    seekToPosition(e);
+                }
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (isDragging) {
+                    isDragging = false;
+                    progressBar.classList.remove('dragging');
+                }
+            });
+
+            // Zoom controls
+            zoomInBtn.addEventListener('click', () => {
+                setZoom(Math.min(ZOOM_MAX, zoomLevel + ZOOM_STEP));
+            });
+
+            zoomOutBtn.addEventListener('click', () => {
+                setZoom(Math.max(ZOOM_MIN, zoomLevel - ZOOM_STEP));
+            });
+
+            zoomFitBtn.addEventListener('click', () => {
+                setZoom(1);
+            });
+
+            // Mouse wheel zoom on video container
+            videoContainer.addEventListener('wheel', (e) => {
+                if (e.ctrlKey || e.metaKey) {
+                    e.preventDefault();
+                    const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
+                    setZoom(Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoomLevel + delta)));
+                }
+            }, { passive: false });
 
             // Video events
             video.addEventListener('play', () => {
@@ -387,11 +527,14 @@
             });
 
             video.addEventListener('timeupdate', () => {
-                // Time update event
+                if (!isDragging) {
+                    updateProgress();
+                }
+                currentTimeDisplay.textContent = formatTime(video.currentTime);
             });
 
             video.addEventListener('loadeddata', () => {
-                updateVideoInfo();
+                totalTimeDisplay.textContent = formatTime(video.duration);
             });
 
             // Keyboard shortcuts
@@ -417,8 +560,55 @@
                         e.preventDefault();
                         video.currentTime = video.duration;
                         break;
+                    case '+':
+                    case '=':
+                        e.preventDefault();
+                        zoomInBtn.click();
+                        break;
+                    case '-':
+                        e.preventDefault();
+                        zoomOutBtn.click();
+                        break;
+                    case '0':
+                        e.preventDefault();
+                        zoomFitBtn.click();
+                        break;
                 }
             });
+        }
+
+        function formatTime(seconds) {
+            if (!seconds || isNaN(seconds)) return '0:00';
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function updateProgress() {
+            if (video.duration) {
+                const percent = (video.currentTime / video.duration) * 100;
+                progressFilled.style.width = percent + '%';
+            }
+        }
+
+        function seekToPosition(e) {
+            const rect = progressBar.getBoundingClientRect();
+            const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+            const percent = x / rect.width;
+            video.currentTime = percent * video.duration;
+            progressFilled.style.width = (percent * 100) + '%';
+        }
+
+        function setZoom(level) {
+            zoomLevel = level;
+            videoWrapper.style.transform = `scale(${zoomLevel})`;
+            zoomLabel.textContent = Math.round(zoomLevel * 100) + '%';
+            // Allow scrolling when zoomed in
+            if (zoomLevel > 1) {
+                videoContainer.style.overflow = 'auto';
+            } else {
+                videoContainer.style.overflow = 'hidden';
+            }
         }
 
         function updateFileInfo() {

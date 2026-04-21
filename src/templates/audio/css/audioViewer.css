@@ -269,6 +269,10 @@ body {
     white-space: nowrap;
 }
 
+.region-duration-overlay {
+    transform: translateX(-50%);
+}
+
 .region-input-overlay label {
     color: var(--vscode-descriptionForeground);
     white-space: nowrap;

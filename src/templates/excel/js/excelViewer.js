@@ -9,6 +9,7 @@ class ExcelViewer {
         this.currentPage = 1;
         this.rowsPerPage = 100;
         this.searchTerm = '';
+        this.sortState = { columnIndex: null, direction: null };
         this.isTableView = true;
         this.sheetColumnWidths = {};
         this.resizeState = null;
@@ -40,9 +41,10 @@ class ExcelViewer {
                 this.populateSheetSelect();
                 this.currentSheetIndex = 0;
                 const sheet = this.currentSheet;
-                this.filteredData = sheet ? [...sheet.rows] : [];
                 this.currentPage = 1;
                 this.searchTerm = '';
+                this.sortState = { columnIndex: null, direction: null };
+                this.rebuildFilteredData();
                 this.updateFileInfo();
                 this.renderTable();
                 this.hideLoading();
@@ -73,12 +75,12 @@ class ExcelViewer {
     switchSheet(index) {
         if (index < 0 || index >= (this.excelData.sheets || []).length) return;
         this.currentSheetIndex = index;
-        const sheet = this.currentSheet;
-        this.filteredData = sheet ? [...sheet.rows] : [];
         this.currentPage = 1;
         const searchInput = document.getElementById('searchInput');
         if (searchInput) searchInput.value = '';
         this.searchTerm = '';
+        this.sortState = { columnIndex: null, direction: null };
+        this.rebuildFilteredData();
         this.updateFileInfo();
         this.renderTable();
         if (this.isTableView) {
@@ -117,8 +119,35 @@ class ExcelViewer {
         const headerRow = document.createElement('tr');
         (sheet.headers || []).forEach((header, index) => {
             const th = document.createElement('th');
-            th.textContent = header || '';
             th.title = header || '';
+
+            const headerContent = document.createElement('div');
+            headerContent.className = 'header-content';
+
+            const headerLabel = document.createElement('span');
+            headerLabel.className = 'header-label';
+            headerLabel.textContent = header || '';
+            headerLabel.title = header || '';
+
+            const sortButton = document.createElement('button');
+            sortButton.type = 'button';
+            sortButton.className = 'sort-button';
+            sortButton.setAttribute('data-sort-direction', this.getSortDirection(index) || 'none');
+            sortButton.setAttribute('aria-label', `Sort by ${header || `column ${index + 1}`}`);
+            sortButton.title = this.getSortButtonTitle(index, header);
+            sortButton.innerHTML = `
+                <span class="sort-icon sort-icon-asc">▲</span>
+                <span class="sort-icon sort-icon-desc">▼</span>
+            `;
+            sortButton.addEventListener('click', (event) => {
+                event.stopPropagation();
+                this.toggleSort(index);
+            });
+
+            headerContent.appendChild(headerLabel);
+            headerContent.appendChild(sortButton);
+            th.appendChild(headerContent);
+
             const resizeHandle = document.createElement('div');
             resizeHandle.className = 'column-resize-handle';
             resizeHandle.setAttribute('data-col', index);
@@ -171,13 +200,7 @@ class ExcelViewer {
     searchTable(term) {
         this.searchTerm = term.toLowerCase();
         this.currentPage = 1;
-        const sheet = this.currentSheet;
-        if (!sheet) return;
-        if (!term) {
-            this.filteredData = [...sheet.rows];
-        } else {
-            this.filteredData = sheet.rows.filter((row) => this.rowMatchesSearch(row));
-        }
+        this.rebuildFilteredData();
         if (this.isTableView) {
             this.renderDataRows();
         } else {
@@ -190,6 +213,160 @@ class ExcelViewer {
             const cellStr = cell === null || cell === undefined ? '' : typeof cell === 'object' ? JSON.stringify(cell) : String(cell);
             return cellStr.toLowerCase().includes(this.searchTerm);
         });
+    }
+
+    rebuildFilteredData() {
+        const sheet = this.currentSheet;
+        if (!sheet?.rows) {
+            this.filteredData = [];
+            return;
+        }
+
+        const matchingRows = !this.searchTerm
+            ? [...sheet.rows]
+            : sheet.rows.filter((row) => this.rowMatchesSearch(row));
+
+        this.filteredData = this.applySorting(matchingRows);
+
+        const totalPages = Math.max(1, Math.ceil(this.filteredData.length / this.rowsPerPage));
+        if (this.currentPage > totalPages) {
+            this.currentPage = totalPages;
+        }
+    }
+
+    getSortDirection(columnIndex) {
+        return this.sortState.columnIndex === columnIndex ? this.sortState.direction : null;
+    }
+
+    getSortButtonTitle(columnIndex, header) {
+        const currentDirection = this.getSortDirection(columnIndex);
+        const columnLabel = header || `column ${columnIndex + 1}`;
+
+        if (currentDirection === 'asc') {
+            return `Sorted ascending. Click to sort ${columnLabel} descending.`;
+        }
+
+        if (currentDirection === 'desc') {
+            return `Sorted descending. Click to clear sorting for ${columnLabel}.`;
+        }
+
+        return `Click to sort ${columnLabel} ascending.`;
+    }
+
+    toggleSort(columnIndex) {
+        const currentDirection = this.getSortDirection(columnIndex);
+        let nextDirection = 'asc';
+
+        if (currentDirection === 'asc') {
+            nextDirection = 'desc';
+        } else if (currentDirection === 'desc') {
+            nextDirection = null;
+        }
+
+        this.sortState = {
+            columnIndex: nextDirection ? columnIndex : null,
+            direction: nextDirection
+        };
+
+        this.currentPage = 1;
+        this.rebuildFilteredData();
+
+        if (this.isTableView) {
+            this.renderTable();
+        } else {
+            this.renderRawData();
+        }
+    }
+
+    applySorting(rows) {
+        if (this.sortState.columnIndex === null || !this.sortState.direction) {
+            return [...rows];
+        }
+
+        const { columnIndex, direction } = this.sortState;
+        const directionMultiplier = direction === 'asc' ? 1 : -1;
+
+        return [...rows]
+            .map((row, index) => ({ row, index }))
+            .sort((left, right) => {
+                const leftValue = left.row?.[columnIndex];
+                const rightValue = right.row?.[columnIndex];
+                const comparison = this.compareValues(leftValue, rightValue);
+
+                if (comparison !== 0) {
+                    return comparison * directionMultiplier;
+                }
+
+                return left.index - right.index;
+            })
+            .map(({ row }) => row);
+    }
+
+    compareValues(leftValue, rightValue) {
+        const left = this.normalizeSortValue(leftValue);
+        const right = this.normalizeSortValue(rightValue);
+
+        if (left.type === 'empty' || right.type === 'empty') {
+            if (left.type === right.type) {
+                return 0;
+            }
+            return left.type === 'empty' ? 1 : -1;
+        }
+
+        if (left.type === right.type) {
+            if (left.value < right.value) {
+                return -1;
+            }
+            if (left.value > right.value) {
+                return 1;
+            }
+            return 0;
+        }
+
+        if (left.type === 'number') {
+            return -1;
+        }
+
+        if (right.type === 'number') {
+            return 1;
+        }
+
+        return left.value.localeCompare(right.value, undefined, {
+            numeric: true,
+            sensitivity: 'base'
+        });
+    }
+
+    normalizeSortValue(value) {
+        if (value === null || value === undefined) {
+            return { type: 'empty', value: '' };
+        }
+
+        if (typeof value === 'number') {
+            return Number.isNaN(value)
+                ? { type: 'empty', value: '' }
+                : { type: 'number', value };
+        }
+
+        if (typeof value === 'boolean') {
+            return { type: 'string', value: String(value).toLocaleLowerCase() };
+        }
+
+        const stringValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
+        const trimmedValue = stringValue.trim();
+        if (!trimmedValue) {
+            return { type: 'empty', value: '' };
+        }
+
+        const numericValue = Number(trimmedValue);
+        if (!Number.isNaN(numericValue) && trimmedValue !== '') {
+            return { type: 'number', value: numericValue };
+        }
+
+        return {
+            type: 'string',
+            value: trimmedValue.toLocaleLowerCase()
+        };
     }
 
     updatePagination() {

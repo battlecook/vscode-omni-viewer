@@ -310,7 +310,8 @@ export class PluginManager {
             const isInputOverlay = clickedElement.closest('.region-input-overlay') ||
                                    clickedElement.classList.contains('region-input-overlay') ||
                                    clickedElement.classList.contains('region-start-input') ||
-                                   clickedElement.classList.contains('region-end-input');
+                                   clickedElement.classList.contains('region-end-input') ||
+                                   clickedElement.classList.contains('region-duration-input');
             
             if (isInputOverlay) {
                 // Don't show menu on input overlays
@@ -332,7 +333,8 @@ export class PluginManager {
                                    clickedElement.closest('.region-input-overlay') ||
                                    clickedElement.classList.contains('region-input-overlay') ||
                                    clickedElement.classList.contains('region-start-input') ||
-                                   clickedElement.classList.contains('region-end-input');
+                                   clickedElement.classList.contains('region-end-input') ||
+                                   clickedElement.classList.contains('region-duration-input');
             
             if (!isRegionElement) {
                 removeAllRegions();

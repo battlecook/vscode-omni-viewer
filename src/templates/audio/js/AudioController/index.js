@@ -26,6 +26,7 @@ export class AudioController {
             selectedRegionId: null,
             regionStartOverlay: null,
             regionEndOverlay: null,
+            regionDurationOverlay: null,
             loadTimeoutId: null,
             elements: DOMUtils.getElements()
         };
