@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.21.0] - 2026-04-21
+
+### Added
+- **Archive Viewer**
+  - Added Android binary XML preview decoding for archived `.xml` entries so APK- and Android-package-style resources can be inspected as readable XML
+  - Added regression coverage for the new archive preview decoder to keep binary XML previews reliable
+- **Video Viewer**
+  - Added a custom playback progress bar with current/total time displays and drag-to-seek support
+  - Added zoom controls for video preview, including zoom in/out, fit-to-view, and keyboard shortcuts
+- **Audio Viewer**
+  - Added editable duration overlays for waveform regions so selected clips can be adjusted by start, end, and duration values
+
+### Changed
+- **Parquet Viewer**
+  - Added clickable per-column sorting with ascending, descending, and clear-sort states, matching the richer table workflow used in other data viewers
+  - Refined Parquet table header styling with clearer sort affordances and improved column-label layout
+- **Excel Viewer**
+  - Added the same per-column sorting workflow to Excel tables, with visual sort indicators and stable filtered-data rebuilding
+- **Audio Viewer**
+  - Repositioned selected region overlays and updated region editing flows so overlay inputs stay aligned more naturally while regions are adjusted
+- **Release workflow**
+  - Updated the release pipeline to extract the matching version section from `CHANGELOG.md` and use it as the generated GitHub release notes body
+
 ## [0.20.0] - 2026-04-12
 
 ### Added
