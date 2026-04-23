@@ -53,6 +53,7 @@ export class FileUtils {
     private static readonly MAX_FILE_SIZE = 50 * 1024 * 1024;
     private static readonly DEFAULT_DELIMITER = ',';
     private static readonly SIGNATURE_READ_SIZE = 64 * 1024;
+    private static readonly RAW_AUDIO_EXTENSIONS = new Set(['.pcm']);
 
     public static async detectViewerType(filePath: string, fallbackViewType?: OmniViewerViewType): Promise<FileViewerDetectionResult> {
         const buffer = await this.readSignatureBuffer(filePath);
@@ -214,6 +215,14 @@ export class FileUtils {
 
         if (this.isTarArchive(buffer)) {
             return this.signatureMatch('omni-viewer.archiveViewer', 'Matched the TAR archive signature.');
+        }
+
+        if (this.RAW_AUDIO_EXTENSIONS.has(ext)) {
+            return {
+                viewType: 'omni-viewer.audioViewer',
+                reason: 'Used the raw audio extension fallback.',
+                matchedBySignature: false
+            };
         }
 
         const textType = this.detectTextBasedViewType(buffer, ext);

@@ -77,69 +77,82 @@ export class AudioViewerProvider implements vscode.CustomReadonlyEditorProvider 
             let templateVars: Record<string, string>;
 
             if (isLargeFile) {
-                // Large file: add the audio file's directory to localResourceRoots
-                // so the webview can stream the file via MediaElement
-                const fileDir = vscode.Uri.file(path.dirname(audioPath));
-                const defaultOptions = TemplateUtils.getWebviewOptions(this.context);
-                webviewPanel.webview.options = {
-                    ...defaultOptions,
-                    localResourceRoots: [
-                        ...(defaultOptions.localResourceRoots || []),
-                        fileDir
-                    ]
-                };
-
-                const audioWebviewUri = webviewPanel.webview.asWebviewUri(audioUri);
-
-                // Try WASM engine for peaks/spectrogram
-                try {
-                    if (!this.audioEngine) {
-                        this.audioEngine = new AudioEngine();
-                        await this.audioEngine.init();
-                    }
-
-                    const analysis = await this.audioEngine.analyze(audioPath);
-
-                    // Sanity check: verify WASM decoded duration is reasonable
-                    // Use file-size estimate as ground truth (metadata may be unreliable for OGG)
-                    const expectedDuration = estDuration;
-                    if (expectedDuration > 60 && analysis.duration < expectedDuration * 0.5) {
-                        console.warn(`[AudioViewer] WASM decoded ${analysis.duration.toFixed(1)}s but expected ~${expectedDuration.toFixed(1)}s. Falling back to streaming.`);
-                        throw new Error(`Decode duration mismatch: got ${analysis.duration.toFixed(1)}s, expected ~${expectedDuration.toFixed(1)}s`);
-                    }
-
+                if (ext === '.pcm') {
+                    const audioSource = await FileUtils.getAudioWebviewSource(audioPath);
                     templateVars = {
                         fileName: audioFileName,
-                        audioSrc: audioWebviewUri.toString(),
-                        metadata: JSON.stringify(metadata),
-                        peaks: JSON.stringify(analysis.peaks),
-                        duration: String(analysis.duration),
-                        spectrogram: JSON.stringify(analysis.spectrogram),
-                        sampleRate: String(analysis.sampleRate),
-                        mode: 'precomputed'
-                    };
-                } catch (wasmError) {
-                    // Fallback: stream via MediaElement without precomputed data
-                    console.warn(`[AudioViewer] WASM analysis failed, falling back to streaming mode: ${wasmError}`);
-                    templateVars = {
-                        fileName: audioFileName,
-                        audioSrc: audioWebviewUri.toString(),
+                        audioSrc: audioSource.dataUrl,
                         metadata: JSON.stringify(metadata),
                         peaks: '',
                         duration: '',
                         spectrogram: '',
                         sampleRate: '',
-                        mode: 'streaming'
+                        mode: 'default'
                     };
+                } else {
+                    // Large file: add the audio file's directory to localResourceRoots
+                    // so the webview can stream the file via MediaElement
+                    const fileDir = vscode.Uri.file(path.dirname(audioPath));
+                    const defaultOptions = TemplateUtils.getWebviewOptions(this.context);
+                    webviewPanel.webview.options = {
+                        ...defaultOptions,
+                        localResourceRoots: [
+                            ...(defaultOptions.localResourceRoots || []),
+                            fileDir
+                        ]
+                    };
+
+                    const audioWebviewUri = webviewPanel.webview.asWebviewUri(audioUri);
+
+                    // Try WASM engine for peaks/spectrogram
+                    try {
+                        if (!this.audioEngine) {
+                            this.audioEngine = new AudioEngine();
+                            await this.audioEngine.init();
+                        }
+
+                        const analysis = await this.audioEngine.analyze(audioPath);
+
+                        // Sanity check: verify WASM decoded duration is reasonable
+                        // Use file-size estimate as ground truth (metadata may be unreliable for OGG)
+                        const expectedDuration = estDuration;
+                        if (expectedDuration > 60 && analysis.duration < expectedDuration * 0.5) {
+                            console.warn(`[AudioViewer] WASM decoded ${analysis.duration.toFixed(1)}s but expected ~${expectedDuration.toFixed(1)}s. Falling back to streaming.`);
+                            throw new Error(`Decode duration mismatch: got ${analysis.duration.toFixed(1)}s, expected ~${expectedDuration.toFixed(1)}s`);
+                        }
+
+                        templateVars = {
+                            fileName: audioFileName,
+                            audioSrc: audioWebviewUri.toString(),
+                            metadata: JSON.stringify(metadata),
+                            peaks: JSON.stringify(analysis.peaks),
+                            duration: String(analysis.duration),
+                            spectrogram: JSON.stringify(analysis.spectrogram),
+                            sampleRate: String(analysis.sampleRate),
+                            mode: 'precomputed'
+                        };
+                    } catch (wasmError) {
+                        // Fallback: stream via MediaElement without precomputed data
+                        console.warn(`[AudioViewer] WASM analysis failed, falling back to streaming mode: ${wasmError}`);
+                        templateVars = {
+                            fileName: audioFileName,
+                            audioSrc: audioWebviewUri.toString(),
+                            metadata: JSON.stringify(metadata),
+                            peaks: '',
+                            duration: '',
+                            spectrogram: '',
+                            sampleRate: '',
+                            mode: 'streaming'
+                        };
+                    }
                 }
             } else {
-                // Small file: existing base64 data URL approach
-                const mimeType = FileUtils.getAudioMimeType(audioPath);
-                const audioData = await FileUtils.fileToDataUrl(audioPath, mimeType);
+                // Small file: use an embeddable source so unsupported browser codecs can be wrapped/transcoded.
+                const audioSource = await FileUtils.getAudioWebviewSource(audioPath);
 
                 templateVars = {
                     fileName: audioFileName,
-                    audioSrc: audioData,
+                    audioSrc: audioSource.dataUrl,
                     metadata: JSON.stringify(metadata),
                     peaks: '',
                     duration: '',

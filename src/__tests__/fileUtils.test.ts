@@ -113,6 +113,7 @@ describe('FileUtils delimited formats', () => {
         expect(FileUtils.getAudioMimeType(path.join(tempDir, 'track.aif'))).toBe('audio/aiff');
         expect(FileUtils.getAudioMimeType(path.join(tempDir, 'track.aifc'))).toBe('audio/aiff');
         expect(FileUtils.getAudioMimeType(path.join(tempDir, 'track.ac3'))).toBe('audio/ac3');
+        expect(FileUtils.getAudioMimeType(path.join(tempDir, 'voice.pcm'))).toBe('audio/wav');
     });
 
     it('detects AMR files by header signature', async () => {
@@ -148,6 +149,34 @@ describe('FileUtils delimited formats', () => {
         expect(FileUtils.getVideoMimeType(path.join(tempDir, 'clip.ts'))).toBe('video/mp2t');
         expect(FileUtils.getVideoMimeType(path.join(tempDir, 'clip.mts'))).toBe('video/mp2t');
         expect(FileUtils.getVideoMimeType(path.join(tempDir, 'clip.m2ts'))).toBe('video/mp2t');
+    });
+
+    it('reports default metadata for raw PCM files', async () => {
+        const filePath = path.join(tempDir, 'voice.pcm');
+        fs.writeFileSync(filePath, Buffer.alloc(32000));
+
+        const metadata = await FileUtils.getAudioMetadata(filePath);
+
+        expect(metadata.sampleRate).toBe(16000);
+        expect(metadata.channels).toBe(1);
+        expect(metadata.bitDepth).toBe(16);
+        expect(metadata.duration).toBe(1);
+        expect(metadata.format).toBe('PCM (s16le)');
+    });
+
+    it('keeps raw PCM files on the audio viewer instead of text sniffing', async () => {
+        const filePath = path.join(tempDir, 'sample.pcm');
+        fs.writeFileSync(filePath, Buffer.from([
+            0x78, 0xff, 0x9b, 0xfe, 0x29, 0xfe, 0x9e, 0xff,
+            0xc7, 0xff, 0x92, 0x00, 0x8c, 0x01, 0x48, 0x01,
+            0x48, 0x01, 0x2a, 0x00, 0xee, 0x00, 0xea, 0xff
+        ]));
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.audioViewer');
+        expect(result.reason).toContain('raw audio extension fallback');
+        expect(result.matchedBySignature).toBe(false);
     });
 
     it('detects ZIP files as archive previews when they are not Office documents', async () => {

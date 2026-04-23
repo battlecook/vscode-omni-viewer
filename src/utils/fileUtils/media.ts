@@ -5,12 +5,17 @@ import { spawn } from 'child_process';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const WEBVIEW_TRANSCODE_EXTENSIONS = new Set(['.aiff', '.aif', '.aifc', '.ac3', '.amr', '.awb']);
+const RAW_PCM_EXTENSION = '.pcm';
+const RAW_PCM_SAMPLE_RATE = 16000;
+const RAW_PCM_CHANNELS = 1;
+const RAW_PCM_BIT_DEPTH = 16;
 
 export function getAudioMimeType(filePath: string): string {
     const ext = path.extname(filePath).toLowerCase();
     const mimeTypes: { [key: string]: string } = {
         '.mp3': 'audio/mpeg',
         '.wav': 'audio/wav',
+        '.pcm': 'audio/wav',
         '.aiff': 'audio/aiff',
         '.aif': 'audio/aiff',
         '.aifc': 'audio/aiff',
@@ -70,6 +75,20 @@ export async function fileToDataUrl(filePath: string, mimeType: string): Promise
 export async function getAudioWebviewSource(filePath: string): Promise<{ dataUrl: string; mimeType: string; transcoded: boolean }> {
     const ext = path.extname(filePath).toLowerCase();
     const mimeType = getAudioMimeType(filePath);
+
+    if (ext === RAW_PCM_EXTENSION) {
+        const pcmBuffer = await fs.promises.readFile(filePath);
+        if (pcmBuffer.length > MAX_FILE_SIZE) {
+            throw new Error(`PCM file too large (${(pcmBuffer.length / 1024 / 1024).toFixed(1)}MB). Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB.`);
+        }
+
+        const wavBuffer = wrapRawPcmAsWav(pcmBuffer);
+        return {
+            dataUrl: `data:audio/wav;base64,${wavBuffer.toString('base64')}`,
+            mimeType: 'audio/wav',
+            transcoded: true
+        };
+    }
 
     if (!WEBVIEW_TRANSCODE_EXTENSIONS.has(ext)) {
         return {
@@ -182,6 +201,25 @@ export async function getAudioMetadata(filePath: string): Promise<{
     format?: string;
     fileSize?: string;
 }> {
+    const ext = path.extname(filePath).toLowerCase();
+
+    if (ext === RAW_PCM_EXTENSION) {
+        const stats = await fs.promises.stat(filePath);
+        const bytesPerFrame = RAW_PCM_CHANNELS * (RAW_PCM_BIT_DEPTH / 8);
+        const duration = bytesPerFrame > 0
+            ? stats.size / (RAW_PCM_SAMPLE_RATE * bytesPerFrame)
+            : undefined;
+
+        return {
+            sampleRate: RAW_PCM_SAMPLE_RATE,
+            channels: RAW_PCM_CHANNELS,
+            bitDepth: RAW_PCM_BIT_DEPTH,
+            duration,
+            format: 'PCM (s16le)',
+            fileSize: await getFileSize(filePath)
+        };
+    }
+
     try {
         const metadata = await mm.parseFile(filePath);
         const format = metadata.format;
@@ -196,8 +234,33 @@ export async function getAudioMetadata(filePath: string): Promise<{
         };
     } catch {
         return {
-            format: path.extname(filePath).toUpperCase().slice(1),
+            format: ext.toUpperCase().slice(1),
             fileSize: await getFileSize(filePath)
         };
     }
+}
+
+function wrapRawPcmAsWav(pcmBuffer: Buffer): Buffer {
+    const bytesPerSample = RAW_PCM_BIT_DEPTH / 8;
+    const blockAlign = RAW_PCM_CHANNELS * bytesPerSample;
+    const byteRate = RAW_PCM_SAMPLE_RATE * blockAlign;
+    const dataSize = pcmBuffer.length;
+    const wavBuffer = Buffer.alloc(44 + dataSize);
+
+    wavBuffer.write('RIFF', 0, 'ascii');
+    wavBuffer.writeUInt32LE(36 + dataSize, 4);
+    wavBuffer.write('WAVE', 8, 'ascii');
+    wavBuffer.write('fmt ', 12, 'ascii');
+    wavBuffer.writeUInt32LE(16, 16);
+    wavBuffer.writeUInt16LE(1, 20);
+    wavBuffer.writeUInt16LE(RAW_PCM_CHANNELS, 22);
+    wavBuffer.writeUInt32LE(RAW_PCM_SAMPLE_RATE, 24);
+    wavBuffer.writeUInt32LE(byteRate, 28);
+    wavBuffer.writeUInt16LE(blockAlign, 32);
+    wavBuffer.writeUInt16LE(RAW_PCM_BIT_DEPTH, 34);
+    wavBuffer.write('data', 36, 'ascii');
+    wavBuffer.writeUInt32LE(dataSize, 40);
+    pcmBuffer.copy(wavBuffer, 44);
+
+    return wavBuffer;
 }
