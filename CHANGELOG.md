@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.22.0] - 2026-04-23
+
+### Added
+- **Audio Viewer**
+  - Added raw `.pcm` file detection and direct viewer support so uncontainerized PCM audio can be opened and played inside Omni Viewer
+  - Added regression coverage for PCM format detection to keep routing and playback support stable
+
+### Changed
+- **HWP / HWPX Viewer**
+  - Replaced the previous bundled HWP webview runtime with the `rhwp`-based viewer integration to simplify asset management and align rendering with the newer HWP engine
+  - Added asset-sync build hooks so required `rhwp` viewer resources are prepared automatically during install and compile flows
+- **Repository hygiene**
+  - Stopped tracking generated HWP viewer assets directly in git and updated ignore rules so synced runtime assets do not create noisy release diffs
+
 ## [0.21.0] - 2026-04-21
 
 ### Added
