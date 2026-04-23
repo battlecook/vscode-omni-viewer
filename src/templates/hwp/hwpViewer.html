@@ -12,6 +12,8 @@
             <div class="title">📄 {{fileName}}</div>
             <div class="file-info" id="fileInfo">
                 <span id="fileSize">{{fileSize}}</span>
+                <span class="separator">•</span>
+                <span id="pageCount">로드 중...</span>
             </div>
         </div>
 
@@ -26,11 +28,11 @@
 
         <div class="document-container" id="documentContainer">
             <div id="loading" class="loading">
-                <div>HWP/HWPX 파일을 불러오는 중...</div>
+                <div>rhwp로 HWP/HWPX 파일을 불러오는 중...</div>
             </div>
-            
+
             <div id="error" class="error" style="display: none;"></div>
-            
+
             <div id="hwpContent" class="hwp-content">
                 <div id="hwpViewport" class="hwp-viewport"></div>
             </div>

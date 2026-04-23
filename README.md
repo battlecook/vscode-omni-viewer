@@ -18,7 +18,7 @@ A comprehensive audio, image, PSD, video, CSV, Excel, Word, PowerPoint, PDF, Par
 - **Audio Information**: Duration, sample rate, channels, bit depth, file size, format display
 
 ### Supported Audio Formats
-- MP3, WAV, AIFF/AIF/AIFC, AMR/AWB, OGG, FLAC, AC3, AAC, M4A
+- MP3, WAV, PCM (raw s16le mono 16kHz), AIFF/AIF/AIFC, AMR/AWB, OGG, FLAC, AC3, AAC, M4A
 
 Note: playback still depends on the VS Code webview browser engine supporting the underlying codec.
 
@@ -159,11 +159,13 @@ Note: `.ts` files share an extension with TypeScript source files, so automatic 
 ## 🇰🇷 HWP Viewer Features
 
 ### Hangul Word Processor (HWP) Viewer
-- **Document View**: Opens `.hwp` files directly inside Omni Viewer
+- **Document View**: Opens `.hwp` and `.hwpx` files directly inside Omni Viewer
 - **Integrated Routing**: Works with the same signature-based viewer detection flow used across the extension
+- **Powered by**: [rhwp](https://github.com/edwardkim/rhwp) (`@rhwp/core`) for upstream parsing and rendering
+- **Upstream-Friendly Integration**: Runtime assets are synced from `node_modules/@rhwp/core` via `npm run sync:rhwp`, so future rhwp updates can be adopted without forking its renderer
 
 ### Supported HWP Formats
-- HWP
+- HWP, HWPX
 
 ## 📄 JSONL Viewer Features
 

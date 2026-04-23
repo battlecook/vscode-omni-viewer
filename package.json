@@ -109,6 +109,9 @@
             "filenamePattern": "*.wav"
           },
           {
+            "filenamePattern": "*.pcm"
+          },
+          {
             "filenamePattern": "*.aiff"
           },
           {
@@ -357,7 +360,7 @@
         },
         {
           "command": "omni-viewer.openAudioViewer",
-          "when": "resourceExtname == '.mp3' || resourceExtname == '.wav' || resourceExtname == '.aiff' || resourceExtname == '.aif' || resourceExtname == '.aifc' || resourceExtname == '.amr' || resourceExtname == '.awb' || resourceExtname == '.ogg' || resourceExtname == '.flac' || resourceExtname == '.ac3' || resourceExtname == '.aac' || resourceExtname == '.m4a'",
+          "when": "resourceExtname == '.mp3' || resourceExtname == '.wav' || resourceExtname == '.pcm' || resourceExtname == '.aiff' || resourceExtname == '.aif' || resourceExtname == '.aifc' || resourceExtname == '.amr' || resourceExtname == '.awb' || resourceExtname == '.ogg' || resourceExtname == '.flac' || resourceExtname == '.ac3' || resourceExtname == '.aac' || resourceExtname == '.m4a'",
           "group": "navigation"
         },
         {
@@ -508,8 +511,9 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "build:wasm": "cd src/wasm && bash build.sh",
-    "compile": "webpack --mode production",
-    "watch": "webpack --mode development --watch",
+    "sync:rhwp": "node scripts/sync-rhwp-assets.js",
+    "compile": "npm run sync:rhwp && webpack --mode production",
+    "watch": "npm run sync:rhwp && webpack --mode development --watch",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src --ext ts",
     "test": "jest",
@@ -517,7 +521,8 @@
     "test:coverage": "jest --coverage",
     "package": "vsce package",
     "publish": "vsce publish",
-    "publish:ovsx": "ovsx publish"
+    "publish:ovsx": "ovsx publish",
+    "postinstall": "npm run sync:rhwp"
   },
   "devDependencies": {
     "@babel/core": "^7.23.0",
@@ -538,6 +543,7 @@
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {
+    "@rhwp/core": "^0.7.3",
     "ag-psd": "^30.1.0",
     "docx-preview": "^0.3.7",
     "hwp.js": "^0.0.3",

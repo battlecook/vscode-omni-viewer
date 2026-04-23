@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { HwpDocumentParser } from './utils/hwpDocumentParser';
+import * as fs from 'fs';
 import { TemplateUtils } from './utils/templateUtils';
 import { MessageHandler } from './utils/messageHandler';
-import { configureWebview, createReadonlyDocument, renderErrorHtml, rerouteIfNeeded } from './viewerProviderUtils';
+import { createReadonlyDocument, renderErrorHtml, rerouteIfNeeded } from './viewerProviderUtils';
 
 export class HwpViewerProvider implements vscode.CustomReadonlyEditorProvider {
     public static readonly viewType = 'omni-viewer.hwpViewer';
@@ -23,8 +23,6 @@ export class HwpViewerProvider implements vscode.CustomReadonlyEditorProvider {
         webviewPanel: vscode.WebviewPanel,
         _token: vscode.CancellationToken
     ): Promise<void> {
-        configureWebview(this.context, webviewPanel);
-
         const hwpUri = document.uri;
         const hwpPath = hwpUri.fsPath;
         const hwpFileName = path.basename(hwpPath);
@@ -34,25 +32,36 @@ export class HwpViewerProvider implements vscode.CustomReadonlyEditorProvider {
                 return;
             }
 
-            console.log('[HWP Viewer] Loading file:', hwpPath);
-            const hwpDocument = await HwpDocumentParser.parseFile(hwpPath);
-            console.log('[HWP Viewer] Document parsed, pages:', hwpDocument.pages.length);
-            console.log('[HWP Viewer] Source format:', hwpDocument.format);
+            const baseWebviewOptions = TemplateUtils.getWebviewOptions(this.context);
+            webviewPanel.webview.options = {
+                ...baseWebviewOptions,
+                localResourceRoots: [
+                    ...(baseWebviewOptions.localResourceRoots ?? []),
+                    vscode.Uri.file(path.dirname(hwpPath))
+                ]
+            };
+
+            const stats = await fs.promises.stat(hwpPath);
+            const payload = TemplateUtils.escapeJsonForHtmlScriptTag(JSON.stringify({
+                fileName: hwpFileName,
+                fileSize: formatFileSize(stats.size),
+                documentUri: webviewPanel.webview.asWebviewUri(hwpUri).toString(),
+                rhwpModuleUri: webviewPanel.webview.asWebviewUri(
+                    vscode.Uri.joinPath(this.context.extensionUri, 'src', 'templates', 'hwp', 'vendor', 'rhwp', 'rhwp.js')
+                ).toString(),
+                rhwpWasmUri: webviewPanel.webview.asWebviewUri(
+                    vscode.Uri.joinPath(this.context.extensionUri, 'src', 'templates', 'hwp', 'vendor', 'rhwp', 'rhwp_bg.wasm')
+                ).toString()
+            }));
 
             const html = await TemplateUtils.loadTemplate(this.context, 'hwp/hwpViewer.html', {
                 fileName: hwpFileName,
-                hwpPayload: JSON.stringify({
-                    document: hwpDocument
-                }),
-                fileSize: hwpDocument.fileSize || ''
+                hwpPayload: payload,
+                fileSize: formatFileSize(stats.size)
             });
 
-            console.log('[HWP Viewer] Template loaded, length:', html?.length);
             webviewPanel.webview.html = html;
-
-            // Setup message listener
             MessageHandler.setupMessageListener(webviewPanel.webview, document.uri);
-
         } catch (error) {
             console.error('[HWP Viewer] Error setting up HWP viewer:', error);
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -64,4 +73,22 @@ export class HwpViewerProvider implements vscode.CustomReadonlyEditorProvider {
             });
         }
     }
+}
+
+function formatFileSize(bytes: number): string {
+    if (!Number.isFinite(bytes) || bytes < 0) {
+        return '';
+    }
+
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let size = bytes;
+    let unitIndex = 0;
+
+    while (size >= 1024 && unitIndex < units.length - 1) {
+        size /= 1024;
+        unitIndex += 1;
+    }
+
+    const precision = size >= 100 || unitIndex === 0 ? 0 : 1;
+    return `${size.toFixed(precision)} ${units[unitIndex]}`;
 }
