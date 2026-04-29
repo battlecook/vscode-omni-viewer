@@ -54,15 +54,22 @@ export class MediaMessageHandlers {
         }
     }
 
-    public static async handleSaveRegionFile(message: WebviewMessage): Promise<void> {
+    public static async handleSaveRegionFile(message: WebviewMessage, documentUri?: vscode.Uri): Promise<void> {
         try {
             if (!message.fileName || !message.blob) {
                 throw new Error('No filename or blob data provided');
             }
 
             const defaultFileName = this.sanitizeFileName(message.fileName);
+            const defaultDir = documentUri?.scheme === 'file'
+                ? path.dirname(documentUri.fsPath)
+                : undefined;
             const saveUri = await vscode.window.showSaveDialog({
-                defaultUri: vscode.Uri.file(defaultFileName),
+                defaultUri: vscode.Uri.file(
+                    defaultDir
+                        ? path.join(defaultDir, defaultFileName)
+                        : defaultFileName
+                ),
                 filters: {
                     'Audio files': ['wav', 'mp3', 'flac', 'aac', 'ogg', 'm4a'],
                     'All files': ['*']

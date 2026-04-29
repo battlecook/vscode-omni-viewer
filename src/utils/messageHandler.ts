@@ -31,7 +31,7 @@ export class MessageHandler {
                 await MediaMessageHandlers.handleSaveFilteredImage(message);
                 break;
             case 'saveRegionFile':
-                await MediaMessageHandlers.handleSaveRegionFile(message);
+                await MediaMessageHandlers.handleSaveRegionFile(message, documentUri);
                 break;
             case 'saveChanges':
                 await TextMessageHandlers.handleSaveChanges(message, documentUri);
