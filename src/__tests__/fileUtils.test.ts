@@ -3,7 +3,16 @@ import * as os from 'os';
 import * as path from 'path';
 
 jest.mock('music-metadata', () => ({}), { virtual: true });
-jest.mock('hyparquet', () => ({}), { virtual: true });
+const mockParquetMetadataAsync = jest.fn();
+const mockParquetReadObjects = jest.fn();
+const mockParquetSchema = jest.fn();
+const mockAsyncBufferFromFile = jest.fn();
+jest.mock('hyparquet', () => ({
+    asyncBufferFromFile: mockAsyncBufferFromFile,
+    parquetMetadataAsync: mockParquetMetadataAsync,
+    parquetReadObjects: mockParquetReadObjects,
+    parquetSchema: mockParquetSchema
+}), { virtual: true });
 jest.mock('hwp.js', () => ({}), { virtual: true });
 jest.mock('xlsx', () => ({}), { virtual: true });
 jest.mock('jszip', () => ({}), { virtual: true });
@@ -15,6 +24,10 @@ describe('FileUtils delimited formats', () => {
 
     beforeEach(() => {
         tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'omni-viewer-'));
+        mockAsyncBufferFromFile.mockReset();
+        mockParquetMetadataAsync.mockReset();
+        mockParquetReadObjects.mockReset();
+        mockParquetSchema.mockReset();
     });
 
     afterEach(() => {
@@ -59,6 +72,82 @@ describe('FileUtils delimited formats', () => {
         expect(result.rows).toEqual([
             ['laura@example.com', '2070', 'Laura', 'Grey'],
             ['craig@example.com', '4081', 'Craig', 'Johnson']
+        ]);
+    });
+
+    it('reads large parquet files through asyncBufferFromFile and limits the first chunk', async () => {
+        const filePath = path.join(tempDir, 'sample.parquet');
+        fs.writeFileSync(filePath, '');
+        fs.truncateSync(filePath, 60 * 1024 * 1024);
+
+        const asyncBuffer = { byteLength: 60 * 1024 * 1024, slice: jest.fn() };
+        mockAsyncBufferFromFile.mockResolvedValue(asyncBuffer);
+        mockParquetMetadataAsync.mockResolvedValue({ num_rows: 25000 });
+        mockParquetSchema.mockReturnValue({
+            children: [
+                { element: { name: 'id' }, path: ['id'] },
+                { element: { name: 'name' }, path: ['name'] }
+            ]
+        });
+        mockParquetReadObjects.mockResolvedValue([
+            { id: 1, name: 'Alice' },
+            { id: 2, name: 'Bob' }
+        ]);
+
+        const result = await FileUtils.readParquetFile(filePath);
+
+        expect(mockAsyncBufferFromFile).toHaveBeenCalledWith(filePath);
+        expect(mockParquetMetadataAsync).toHaveBeenCalledWith(asyncBuffer);
+        expect(mockParquetReadObjects).toHaveBeenCalledWith(expect.objectContaining({
+            file: asyncBuffer,
+            metadata: { num_rows: 25000 },
+            rowStart: 0,
+            rowEnd: 10000
+        }));
+        expect(result.isLimited).toBe(true);
+        expect(result.hasMoreRows).toBe(true);
+        expect(result.nextRowStart).toBe(2);
+        expect(result.previewRowCount).toBe(10000);
+        expect(result.actualTotalRows).toBe(25000);
+        expect(result.headers).toEqual(['id', 'name']);
+        expect(result.rows).toEqual([
+            [1, 'Alice'],
+            [2, 'Bob']
+        ]);
+    });
+
+    it('reads additional parquet chunks from the requested row range', async () => {
+        const filePath = path.join(tempDir, 'sample.parquet');
+        fs.writeFileSync(filePath, '');
+        fs.truncateSync(filePath, 60 * 1024 * 1024);
+
+        const asyncBuffer = { byteLength: 60 * 1024 * 1024, slice: jest.fn() };
+        mockAsyncBufferFromFile.mockResolvedValue(asyncBuffer);
+        mockParquetMetadataAsync.mockResolvedValue({ num_rows: 25000 });
+        mockParquetSchema.mockReturnValue({
+            children: [
+                { element: { name: 'id' }, path: ['id'] }
+            ]
+        });
+        mockParquetReadObjects.mockResolvedValue([
+            { id: 10001 },
+            { id: 10002 }
+        ]);
+
+        const result = await FileUtils.readParquetFile(filePath, { rowStart: 10000, rowEnd: 20000 });
+
+        expect(mockParquetReadObjects).toHaveBeenCalledWith(expect.objectContaining({
+            file: asyncBuffer,
+            metadata: { num_rows: 25000 },
+            rowStart: 10000,
+            rowEnd: 20000
+        }));
+        expect(result.totalRows).toBe(2);
+        expect(result.hasMoreRows).toBe(true);
+        expect(result.nextRowStart).toBe(10002);
+        expect(result.rows).toEqual([
+            [10001],
+            [10002]
         ]);
     });
 

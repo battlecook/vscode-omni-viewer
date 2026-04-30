@@ -21,7 +21,9 @@ import {
     readJsonFile as readStructuredJsonFile,
     readJsonlFile as readJsonlLines,
     readJsonlFilePreview as readJsonlPreview,
-    readParquetFile as readParquetRows
+    readParquetFile as readParquetRows,
+    ParquetFileData,
+    ParquetReadOptions
 } from './fileUtils/tabular';
 import { readArchiveFile, readArchiveEntryPreview, ArchivePreviewData, ArchiveEntryPreviewData } from './fileUtils/archive';
 import { readWordFile as readWordDocument } from './fileUtils/word';
@@ -770,18 +772,8 @@ export class FileUtils {
         return readStructuredJsonFile(filePath);
     }
 
-    public static async readParquetFile(filePath: string): Promise<{
-        headers: string[];
-        rows: any[][];
-        totalRows: number;
-        totalColumns: number;
-        fileSize: string;
-        schema: any;
-        isLimited?: boolean;
-        limitMessage?: string;
-        actualTotalRows?: number;
-    }> {
-        return readParquetRows(filePath);
+    public static async readParquetFile(filePath: string, options: ParquetReadOptions = {}): Promise<ParquetFileData> {
+        return readParquetRows(filePath, options);
     }
 
     public static async readExcelFile(filePath: string): Promise<{

@@ -10,6 +10,7 @@ class ParquetViewer {
         this.searchTerm = '';
         this.sortState = { columnIndex: null, direction: null };
         this.isTableView = true; // true for table view, false for raw view
+        this.isLoadingMore = false;
         
         this.init();
     }
@@ -76,9 +77,19 @@ class ParquetViewer {
         if (fileSizeEl) fileSizeEl.textContent = this.parquetData.fileSize;
     }
 
+    getLoadedRowsText() {
+        if (this.parquetData.actualTotalRows) {
+            return `${this.parquetData.totalRows.toLocaleString()} / ${this.parquetData.actualTotalRows.toLocaleString()} loaded`;
+        }
+
+        return `${this.parquetData.totalRows.toLocaleString()} loaded`;
+    }
+
     showLimitWarning() {
         const limitWarningEl = document.getElementById('limitWarning');
         const limitMessageEl = document.getElementById('limitMessage');
+        const loadMoreButtonEl = document.getElementById('loadMoreRowsButton');
+        const loadProgressEl = document.getElementById('loadProgress');
         
         if (this.parquetData.isLimited && this.parquetData.limitMessage) {
             if (limitWarningEl) {
@@ -87,10 +98,56 @@ class ParquetViewer {
             if (limitMessageEl) {
                 limitMessageEl.textContent = this.parquetData.limitMessage;
             }
+            if (loadProgressEl) {
+                loadProgressEl.textContent = this.getLoadedRowsText();
+            }
+            if (loadMoreButtonEl) {
+                loadMoreButtonEl.style.display = this.parquetData.hasMoreRows ? 'inline-flex' : 'none';
+                loadMoreButtonEl.disabled = this.isLoadingMore || !this.parquetData.hasMoreRows;
+                loadMoreButtonEl.textContent = this.isLoadingMore ? 'Loading...' : 'Load Next 10,000 Rows';
+            }
         } else {
             if (limitWarningEl) {
                 limitWarningEl.style.display = 'none';
             }
+        }
+    }
+
+    loadMoreRows() {
+        if (!this.parquetData?.isLimited || !this.parquetData?.hasMoreRows || this.isLoadingMore) {
+            return;
+        }
+
+        this.isLoadingMore = true;
+        this.showLimitWarning();
+        vscode.postMessage({
+            command: 'loadMoreParquet'
+        });
+    }
+
+    appendData(data) {
+        if (!this.parquetData || !data) {
+            return;
+        }
+
+        this.parquetData.rows.push(...(Array.isArray(data.rows) ? data.rows : []));
+        this.parquetData.totalRows += data.totalRows || 0;
+        this.parquetData.actualTotalRows = data.actualTotalRows ?? this.parquetData.actualTotalRows;
+        this.parquetData.isLimited = data.isLimited ?? this.parquetData.isLimited;
+        this.parquetData.limitMessage = data.limitMessage ?? this.parquetData.limitMessage;
+        this.parquetData.hasMoreRows = Boolean(data.hasMoreRows);
+        this.parquetData.nextRowStart = data.nextRowStart ?? this.parquetData.nextRowStart;
+        this.parquetData.previewRowCount = data.previewRowCount ?? this.parquetData.previewRowCount;
+        this.isLoadingMore = false;
+
+        this.rebuildFilteredData();
+        this.updateFileInfo();
+        this.showLimitWarning();
+
+        if (this.isTableView) {
+            this.renderDataRows();
+        } else {
+            this.renderRawData();
         }
     }
 
@@ -501,7 +558,9 @@ class ParquetViewer {
                 columns: this.parquetData.totalColumns,
                 fileSize: this.parquetData.fileSize,
                 sortColumn: this.sortState.columnIndex,
-                sortDirection: this.sortState.direction
+                sortDirection: this.sortState.direction,
+                actualTotalRows: this.parquetData.actualTotalRows,
+                hasMoreRows: this.parquetData.hasMoreRows
             }
         };
         
@@ -540,6 +599,11 @@ class ParquetViewer {
             exportJsonBtn.addEventListener('click', () => this.exportToJson());
         }
 
+        const loadMoreRowsBtn = document.getElementById('loadMoreRowsButton');
+        if (loadMoreRowsBtn) {
+            loadMoreRowsBtn.addEventListener('click', () => this.loadMoreRows());
+        }
+
         // Toggle view button
         const toggleViewBtn = document.getElementById('toggleView');
         if (toggleViewBtn) {
@@ -574,6 +638,13 @@ class ParquetViewer {
                         this.exportToJson();
                         break;
                 }
+            }
+        });
+
+        window.addEventListener('message', (event) => {
+            const message = event.data;
+            if (message.type === 'appendData') {
+                this.appendData(message.data);
             }
         });
     }

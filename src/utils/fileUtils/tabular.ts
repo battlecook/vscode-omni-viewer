@@ -4,6 +4,29 @@ import * as XLSX from 'xlsx';
 import { getFileSize } from './media';
 
 const DEFAULT_DELIMITER = ',';
+const PARQUET_PREVIEW_FILE_SIZE_MB = 50;
+const PARQUET_MAX_ALLOWED_SIZE_MB = 150;
+const PARQUET_PREVIEW_ROW_COUNT = 10000;
+
+export interface ParquetReadOptions {
+    rowStart?: number;
+    rowEnd?: number;
+}
+
+export interface ParquetFileData {
+    headers: string[];
+    rows: any[][];
+    totalRows: number;
+    totalColumns: number;
+    fileSize: string;
+    schema: any;
+    isLimited?: boolean;
+    limitMessage?: string;
+    actualTotalRows?: number;
+    hasMoreRows?: boolean;
+    nextRowStart?: number;
+    previewRowCount?: number;
+}
 
 export async function readCsvFile(filePath: string): Promise<{
     headers: string[];
@@ -124,46 +147,30 @@ export async function readJsonFile(filePath: string): Promise<{
     };
 }
 
-export async function readParquetFile(filePath: string): Promise<{
-    headers: string[];
-    rows: any[][];
-    totalRows: number;
-    totalColumns: number;
-    fileSize: string;
-    schema: any;
-    isLimited?: boolean;
-    limitMessage?: string;
-    actualTotalRows?: number;
-}> {
+export async function readParquetFile(filePath: string, options: ParquetReadOptions = {}): Promise<ParquetFileData> {
     const stats = await fs.promises.stat(filePath);
     const fileSizeBytes = stats.size;
     const fileSizeMB = fileSizeBytes / (1024 * 1024);
-    const maxFileSizeMB = 50;
-    const maxAllowedSizeMB = 150;
-    const maxRowsLimit = 10000;
 
-    if (fileSizeMB >= maxAllowedSizeMB) {
-        throw new Error(`File size (${fileSizeMB.toFixed(1)}MB) exceeds the maximum allowed size of ${maxAllowedSizeMB}MB. Cannot open this file.`);
+    if (fileSizeMB >= PARQUET_MAX_ALLOWED_SIZE_MB) {
+        throw new Error(`File size (${fileSizeMB.toFixed(1)}MB) exceeds the maximum allowed size of ${PARQUET_MAX_ALLOWED_SIZE_MB}MB. Cannot open this file.`);
     }
 
-    const buffer = await fs.promises.readFile(filePath);
-    const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
-    const asyncBuffer = {
-        async slice(start: number, end: number): Promise<ArrayBuffer> {
-            const sliced = arrayBuffer.slice(start, end);
-            return sliced instanceof ArrayBuffer ? sliced : new ArrayBuffer(0);
-        },
-        byteLength: arrayBuffer.byteLength
+    const hyparquet = await import('hyparquet') as unknown as typeof import('hyparquet') & {
+        asyncBufferFromFile: (filename: string) => Promise<{
+            byteLength: number;
+            slice(start: number, end?: number): Promise<ArrayBuffer>;
+        }>;
     };
-
-    const { parquetMetadataAsync, parquetReadObjects, parquetSchema } = await import('hyparquet');
+    const { asyncBufferFromFile, parquetMetadataAsync, parquetReadObjects, parquetSchema } = hyparquet;
+    const asyncBuffer = await asyncBufferFromFile(filePath);
 
     let schema: any = null;
     let metadata: any = null;
     let actualTotalRows: number | undefined;
     try {
-        schema = await parquetSchema(asyncBuffer as any);
         metadata = await parquetMetadataAsync(asyncBuffer as any);
+        schema = parquetSchema(metadata);
         if (metadata && metadata.num_rows) {
             actualTotalRows = Number(metadata.num_rows);
         }
@@ -171,11 +178,21 @@ export async function readParquetFile(filePath: string): Promise<{
         schema = null;
     }
 
-    const isLimited = fileSizeMB >= maxFileSizeMB && fileSizeMB < maxAllowedSizeMB;
-    const readOptions: any = { file: asyncBuffer as any };
+    const isLimited = fileSizeMB >= PARQUET_PREVIEW_FILE_SIZE_MB && fileSizeMB < PARQUET_MAX_ALLOWED_SIZE_MB;
+    const rowStart = Math.max(0, options.rowStart ?? 0);
+    const defaultRowEnd = rowStart + PARQUET_PREVIEW_ROW_COUNT;
+    const rowEnd = options.rowEnd ?? defaultRowEnd;
+    const readOptions: any = {
+        file: asyncBuffer as any
+    };
+
+    if (metadata) {
+        readOptions.metadata = metadata;
+    }
+
     if (isLimited) {
-        readOptions.rowStart = 0;
-        readOptions.rowEnd = maxRowsLimit;
+        readOptions.rowStart = rowStart;
+        readOptions.rowEnd = rowEnd;
     }
 
     const result = await parquetReadObjects(readOptions);
@@ -206,6 +223,14 @@ export async function readParquetFile(filePath: string): Promise<{
             return headers.map((header) => convertedRow[header] !== undefined ? convertedRow[header] : null);
         });
 
+    const loadedRowsEnd = rowStart + rows.length;
+    const hasMoreRows = isLimited && actualTotalRows !== undefined
+        ? loadedRowsEnd < actualTotalRows
+        : false;
+    const loadedRowsLabel = actualTotalRows !== undefined
+        ? `${loadedRowsEnd.toLocaleString()} / ${actualTotalRows.toLocaleString()} rows loaded`
+        : `${loadedRowsEnd.toLocaleString()} rows loaded`;
+
     return {
         headers,
         rows,
@@ -215,9 +240,12 @@ export async function readParquetFile(filePath: string): Promise<{
         schema: serializableSchema,
         isLimited,
         limitMessage: isLimited
-            ? `File size (${fileSizeMB.toFixed(1)}MB) exceeds 50MB limit. Showing only the first 10,000 rows. (Total rows: ${(actualTotalRows ?? 'all').toString()})`
+            ? `Large file (${fileSizeMB.toFixed(1)}MB). Showing ${loadedRowsLabel}. Use "Load Next 10,000 Rows" to continue.`
             : undefined,
-        actualTotalRows
+        actualTotalRows,
+        hasMoreRows,
+        nextRowStart: isLimited ? loadedRowsEnd : undefined,
+        previewRowCount: isLimited ? PARQUET_PREVIEW_ROW_COUNT : undefined
     };
 }
 

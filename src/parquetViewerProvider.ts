@@ -2,11 +2,12 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { FileUtils } from './utils/fileUtils';
 import { TemplateUtils } from './utils/templateUtils';
-import { MessageHandler } from './utils/messageHandler';
+import { MessageHandler, WebviewMessage } from './utils/messageHandler';
 import { configureWebview, createReadonlyDocument, renderErrorHtml, rerouteIfNeeded } from './viewerProviderUtils';
 
 export class ParquetViewerProvider implements vscode.CustomReadonlyEditorProvider {
     public static readonly viewType = 'omni-viewer.parquetViewer';
+    private static readonly PREVIEW_ROW_COUNT = 10000;
 
     constructor(private readonly context: vscode.ExtensionContext) {}
 
@@ -35,7 +36,8 @@ export class ParquetViewerProvider implements vscode.CustomReadonlyEditorProvide
             }
 
             const parquetContent = await FileUtils.readParquetFile(parquetPath);
-            const parquetData = JSON.stringify(parquetContent);
+            const parquetData = TemplateUtils.escapeJsonForHtmlScriptTag(JSON.stringify(parquetContent));
+            let loadedRows = parquetContent.totalRows;
 
             const html = await TemplateUtils.loadTemplate(this.context, 'parquet/parquetViewer.html', {
                 fileName: parquetFileName,
@@ -44,8 +46,20 @@ export class ParquetViewerProvider implements vscode.CustomReadonlyEditorProvide
 
             webviewPanel.webview.html = html;
 
-            // Setup message listener with document URI for saving
-            MessageHandler.setupMessageListener(webviewPanel.webview, document.uri);
+            MessageHandler.setupMessageListener(webviewPanel.webview, document.uri, {
+                loadMoreParquet: async (_message: WebviewMessage) => {
+                    const nextParquetContent = await FileUtils.readParquetFile(parquetPath, {
+                        rowStart: loadedRows,
+                        rowEnd: loadedRows + ParquetViewerProvider.PREVIEW_ROW_COUNT
+                    });
+
+                    loadedRows += nextParquetContent.totalRows;
+                    await webviewPanel.webview.postMessage({
+                        type: 'appendData',
+                        data: nextParquetContent
+                    });
+                }
+            });
 
         } catch (error) {
             console.error('Error setting up Parquet viewer:', error);
