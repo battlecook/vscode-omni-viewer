@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.22.1] - 2026-04-30
+
+### Changed
+- **Audio Viewer**
+  - Set the default export location for saved audio regions so clip exports land in a more predictable directory without prompting for a manual path each time
+- **JSONL Viewer**
+  - Added incremental preview loading for large `JSONL` files, including 1MB-at-a-time expansion, full-load actions, and clearer preview-state messaging for oversized datasets
+  - Refined JSONL line rendering with inline syntax highlighting, improved hover popup positioning, and updated viewer copy to use consistent English UI text
+
 ## [0.22.0] - 2026-04-23
 
 ### Added
