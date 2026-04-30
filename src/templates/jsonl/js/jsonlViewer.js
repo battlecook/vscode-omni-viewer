@@ -21,10 +21,11 @@ class JsonlViewer {
     }
 
     init() {
-        this.setupEventListeners();
-        this.renderJsonlLines();
         this.setupVSCodeAPI();
+        this.setupEventListeners();
         this.setupContextMenu();
+        this.updatePreviewBanner();
+        this.renderJsonlLines();
     }
 
     setupVSCodeAPI() {
@@ -76,6 +77,15 @@ class JsonlViewer {
     }
 
     setupEventListeners() {
+        const loadMoreButton = document.getElementById('loadMoreButton');
+        const loadAllButton = document.getElementById('loadAllButton');
+        loadMoreButton.addEventListener('click', () => {
+            this.loadMoreContent(loadMoreButton);
+        });
+        loadAllButton.addEventListener('click', () => {
+            this.loadAllContent(loadAllButton);
+        });
+
         // Track mouse position
         document.addEventListener('mousemove', (e) => {
             this.mousePosition.x = e.clientX;
@@ -174,12 +184,85 @@ class JsonlViewer {
         });
     }
 
+    isPreviewMode() {
+        return Boolean(jsonlData && jsonlData.isPreview);
+    }
+
+    getSizeText(bytes) {
+        if (bytes === 0) {
+            return '0 B';
+        }
+
+        const units = ['B', 'KB', 'MB', 'GB'];
+        const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+        return `${(bytes / Math.pow(1024, index)).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+    }
+
+    updatePreviewBanner() {
+        const banner = document.getElementById('previewBanner');
+        const bannerText = document.getElementById('previewBannerText');
+        const loadMoreButton = document.getElementById('loadMoreButton');
+        const loadAllButton = document.getElementById('loadAllButton');
+        const shouldShowPreviewBanner = Boolean(jsonlData && jsonlData.isPreview && jsonlData.hasMoreContent);
+
+        if (!shouldShowPreviewBanner) {
+            banner.classList.add('hidden');
+            return;
+        }
+
+        const loadedSizeText = this.getSizeText(jsonlData?.loadedBytes ?? 0);
+        const fileSizeText = jsonlData?.fileSize ? ` Total file size: ${jsonlData.fileSize}.` : '';
+        bannerText.textContent = `Currently previewing up to ${loadedSizeText}.${fileSizeText} Use the buttons to load 1MB more at a time or load the entire file. Editing is disabled in preview mode.`;
+        loadMoreButton.disabled = false;
+        loadMoreButton.textContent = 'Load 1MB More';
+        loadAllButton.disabled = false;
+        loadAllButton.textContent = 'Load All';
+        banner.classList.remove('hidden');
+    }
+
+    ensureFullLoad(actionLabel = 'edit') {
+        if (!this.isPreviewMode()) {
+            return true;
+        }
+
+        alert(`This file is still in 1MB preview mode. To ${actionLabel}, load the rest of the file using "Load 1MB More" or "Load All".`);
+        return false;
+    }
+
+    loadMoreContent(button) {
+        if (!this.isPreviewMode()) {
+            return;
+        }
+
+        const loadAllButton = document.getElementById('loadAllButton');
+        button.disabled = true;
+        button.textContent = 'Loading...';
+        loadAllButton.disabled = true;
+        this.vscode.postMessage({
+            command: 'loadMoreJsonl'
+        });
+    }
+
+    loadAllContent(button) {
+        if (!this.isPreviewMode()) {
+            return;
+        }
+
+        const loadMoreButton = document.getElementById('loadMoreButton');
+        button.disabled = true;
+        button.textContent = 'Loading...';
+        loadMoreButton.disabled = true;
+        this.vscode.postMessage({
+            command: 'loadAllJsonl'
+        });
+    }
+
     renderJsonlLines() {
         const container = document.getElementById('editorContent');
         container.innerHTML = '';
 
         if (!jsonlData || !jsonlData.lines) {
-            container.innerHTML = '<div class="line"><div class="line-number">1</div><div class="line-content">JSONL 데이터를 불러올 수 없습니다.</div></div>';
+            container.innerHTML = '<div class="line"><div class="line-number">1</div><div class="line-content">Unable to load JSONL data.</div></div>';
             return;
         }
 
@@ -227,7 +310,7 @@ class JsonlViewer {
         lineNumber.className = 'line-number';
         lineNumber.textContent = line.lineNumber;
         lineNumber.title = 'Line selection (Shift: range, Ctrl: individual) | Drag to reorder';
-        lineNumber.draggable = true;
+        lineNumber.draggable = !this.isPreviewMode();
         
         // Add click event to line number for selection
         lineNumber.addEventListener('click', (e) => {
@@ -246,17 +329,30 @@ class JsonlViewer {
         });
 
         // Line content (editable)
+        const lineContentWrapper = document.createElement('div');
+        lineContentWrapper.className = 'line-content-wrapper';
+
+        const lineHighlight = document.createElement('div');
+        lineHighlight.className = 'line-highlight';
+        lineHighlight.dataset.lineNumber = line.lineNumber;
+        lineHighlight.innerHTML = this.renderLineSyntax(line.content, line.isValid);
+        lineHighlight.title = this.isPreviewMode() ? '' : 'Click to edit';
+        lineHighlight.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.startEditing(lineContent, line.lineNumber);
+        });
+
         const lineContent = document.createElement('textarea');
         lineContent.className = 'line-content';
         lineContent.value = line.content;
         lineContent.dataset.lineNumber = line.lineNumber;
-        lineContent.style.cursor = 'text';
+        lineContent.style.cursor = this.isPreviewMode() ? 'not-allowed' : 'text';
+        lineContent.readOnly = this.isPreviewMode();
 
         // Add edit event listeners
         lineContent.addEventListener('click', (e) => {
-            e.preventDefault();
             e.stopPropagation();
-            this.startEditing(lineContent, line.lineNumber);
         });
 
         lineContent.addEventListener('blur', () => {
@@ -301,8 +397,11 @@ class JsonlViewer {
             this.handleDrop(e, line.lineNumber);
         });
 
+        lineContentWrapper.appendChild(lineHighlight);
+        lineContentWrapper.appendChild(lineContent);
+
         lineDiv.appendChild(lineNumber);
-        lineDiv.appendChild(lineContent);
+        lineDiv.appendChild(lineContentWrapper);
 
         // Add hover event for JSON popup
         if (line.isValid && line.parsedJson) {
@@ -316,7 +415,7 @@ class JsonlViewer {
                 }
                 
                 this.currentHoverTimeout = setTimeout(() => {
-                    this.updateJsonPopup(line.parsedJson, line.lineNumber);
+                    this.updateJsonPopup(line.parsedJson, line.lineNumber, lineDiv);
                 }, 200); // 200ms delay
             });
 
@@ -331,7 +430,41 @@ class JsonlViewer {
         return lineDiv;
     }
 
-    updateJsonPopup(jsonData, lineNumber) {
+    renderLineSyntax(content, isValid) {
+        const escapedContent = this.escapeHtml(content ?? '');
+        if (!escapedContent) {
+            return '';
+        }
+
+        if (!isValid) {
+            return escapedContent;
+        }
+
+        return escapedContent
+            .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (match) => {
+                let cls = 'json-number';
+                if (/^"/.test(match)) {
+                    cls = /:$/.test(match) ? 'json-key' : 'json-string';
+                } else if (/^(true|false)$/.test(match)) {
+                    cls = 'json-boolean';
+                } else if (match === 'null') {
+                    cls = 'json-null';
+                }
+
+                return `<span class="${cls}">${match}</span>`;
+            })
+            .replace(/([{}[\]])/g, '<span class="json-bracket">$1</span>')
+            .replace(/([,:])/g, '<span class="json-comma">$1</span>');
+    }
+
+    escapeHtml(value) {
+        return value
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
+    updateJsonPopup(jsonData, lineNumber, anchorElement) {
         const popup = document.getElementById('jsonPopup');
         const content = document.getElementById('jsonContent');
         
@@ -344,8 +477,8 @@ class JsonlViewer {
         // Store current line data
         this.currentLineData = { jsonData, lineNumber };
         
-        // Position popup near mouse cursor
-        this.positionPopup(popup);
+        // Position popup to the right of the hovered line
+        this.positionPopup(popup, anchorElement);
         
         // Show popup if not already visible
         if (!popup.classList.contains('show')) {
@@ -353,19 +486,18 @@ class JsonlViewer {
         }
     }
 
-    positionPopup(popup) {
+    positionPopup(popup, anchorElement) {
         const popupWidth = 500;
         const popupHeight = 400;
         const margin = 20;
-        
-        let left = this.mousePosition.x + 15;
-        let top = this.mousePosition.y - 10;
-        
-        // Adjust if popup would go off screen
-        if (left + popupWidth > window.innerWidth - margin) {
-            left = this.mousePosition.x - popupWidth - 15;
-        }
-        
+        const anchorRect = anchorElement?.getBoundingClientRect();
+        const preferredLeft = Math.max(
+            anchorRect ? anchorRect.left + 48 : this.mousePosition.x + 24,
+            this.mousePosition.x + 24
+        );
+        let left = Math.min(preferredLeft, window.innerWidth - popupWidth - margin);
+        let top = anchorRect ? anchorRect.top : this.mousePosition.y - 10;
+
         if (top + popupHeight > window.innerHeight - margin) {
             top = window.innerHeight - popupHeight - margin;
         }
@@ -393,6 +525,7 @@ class JsonlViewer {
 
     startPopupEditing() {
         if (!this.currentLineData) return;
+        if (!this.ensureFullLoad('edit')) return;
         
         this.isPopupEditing = true;
         this.originalJsonContent = JSON.stringify(this.currentLineData.jsonData, null, 2);
@@ -458,7 +591,7 @@ class JsonlViewer {
             
         } catch (error) {
             // Show error message (you could add a toast notification here)
-            alert('유효하지 않은 JSON 형식입니다: ' + error.message);
+            alert('Invalid JSON format: ' + error.message);
         }
     }
 
@@ -484,12 +617,18 @@ class JsonlViewer {
     }
 
     updateData(newData) {
-        const parsedData = JSON.parse(newData);
-        jsonlData.lines = parsedData.lines;
+        const parsedData = typeof newData === 'string' ? JSON.parse(newData) : newData;
+        window.jsonlData = parsedData;
+        jsonlData = window.jsonlData;
+        this.updatePreviewBanner();
         this.renderJsonlLines();
     }
 
     startEditing(textarea, lineNumber) {
+        if (!this.ensureFullLoad('edit')) {
+            return;
+        }
+
         if (this.editingLine && this.editingLine !== lineNumber) {
             const previousTextarea = document.querySelector(`[data-line-number="${this.editingLine}"] .line-content`);
             if (previousTextarea) {
@@ -504,7 +643,9 @@ class JsonlViewer {
         this.updateLineSelectionStyles();
         
         this.editingLine = lineNumber;
+        textarea.closest('.line-content-wrapper')?.classList.add('editing');
         textarea.classList.add('editing');
+        textarea.style.display = 'block';
         textarea.focus();
         textarea.select();
     }
@@ -516,7 +657,9 @@ class JsonlViewer {
         }
         
         const newContent = textarea.value;
+        textarea.closest('.line-content-wrapper')?.classList.remove('editing');
         textarea.classList.remove('editing');
+        textarea.style.display = 'none';
         
         // If content is empty, delete the line
         if (!newContent.trim()) {
@@ -548,6 +691,8 @@ class JsonlViewer {
             jsonlData.lines[lineIndex].parsedJson = parsedJson;
         }
 
+        this.updateLineSyntaxView(textarea, newContent, isValid);
+
         // Update the document
         this.updateDocument(lineNumber, newContent);
         this.editingLine = null;
@@ -559,7 +704,10 @@ class JsonlViewer {
         if (originalLine) {
             textarea.value = originalLine.content;
         }
+        this.updateLineSyntaxView(textarea, textarea.value, originalLine?.isValid ?? false);
+        textarea.closest('.line-content-wrapper')?.classList.remove('editing');
         textarea.classList.remove('editing');
+        textarea.style.display = 'none';
         this.editingLine = null;
     }
 
@@ -590,9 +738,23 @@ class JsonlViewer {
             jsonlData.lines[lineIndex].isValid = isValid;
             jsonlData.lines[lineIndex].parsedJson = parsedJson;
         }
+
+        this.updateLineSyntaxView(textarea, content, isValid);
+    }
+
+    updateLineSyntaxView(textarea, content, isValid) {
+        const wrapper = textarea.closest('.line-content-wrapper');
+        const highlight = wrapper?.querySelector('.line-highlight');
+        if (highlight) {
+            highlight.innerHTML = this.renderLineSyntax(content, isValid);
+        }
     }
 
     deleteLine(lineNumber) {
+        if (!this.ensureFullLoad('delete')) {
+            return;
+        }
+
         console.log('🗑️ Deleting single line:', lineNumber);
         
         // Remove line from jsonlData
@@ -648,7 +810,7 @@ class JsonlViewer {
         if (invalidLines.length > 0) {
             // Show warning about invalid JSON lines
             const invalidLineNumbers = invalidLines.map(item => item.index).join(', ');
-            alert(`경고: ${invalidLines.length}개의 유효하지 않은 JSON 라인이 있습니다 (라인: ${invalidLineNumbers}). 유효한 JSON 라인만 추가됩니다.`);
+            alert(`Warning: ${invalidLines.length} invalid JSON line(s) found (lines: ${invalidLineNumbers}). Only valid JSON lines will be added.`);
         }
         
         if (validJsonLines.length > 0) {
@@ -821,6 +983,10 @@ class JsonlViewer {
     }
 
     deleteSelectedLines() {
+        if (!this.ensureFullLoad('delete')) {
+            return;
+        }
+
         if (this.selectedLines.size === 0) return;
 
         console.log('🗑️ Deleting selected lines:', Array.from(this.selectedLines));
@@ -851,6 +1017,10 @@ class JsonlViewer {
     }
 
     addNewLineAtEnd() {
+        if (!this.ensureFullLoad('add')) {
+            return;
+        }
+
         // Create new empty line
         const newLineNumber = jsonlData.lines.length + 1;
         const newLine = {
@@ -941,6 +1111,11 @@ class JsonlViewer {
 
     // Drag and Drop Methods
     handleDragStart(e, lineNumber, lineElement) {
+        if (!this.ensureFullLoad('reorder')) {
+            e.preventDefault();
+            return;
+        }
+
         this.draggedLine = lineNumber;
         this.dragStartY = e.clientY;
         this.isDragging = true;
@@ -1001,6 +1176,9 @@ class JsonlViewer {
 
     handleDrop(e, targetLineNumber) {
         e.preventDefault();
+        if (!this.ensureFullLoad('reorder')) {
+            return;
+        }
         
         console.log('📦 Drop event triggered on line:', targetLineNumber);
         

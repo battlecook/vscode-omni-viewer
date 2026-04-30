@@ -20,6 +20,7 @@ import {
     readExcelFile as readWorkbookFile,
     readJsonFile as readStructuredJsonFile,
     readJsonlFile as readJsonlLines,
+    readJsonlFilePreview as readJsonlPreview,
     readParquetFile as readParquetRows
 } from './fileUtils/tabular';
 import { readArchiveFile, readArchiveEntryPreview, ArchivePreviewData, ArchiveEntryPreviewData } from './fileUtils/archive';
@@ -744,6 +745,21 @@ export class FileUtils {
         fileSize: string;
     }> {
         return readJsonlLines(filePath);
+    }
+
+    public static async readJsonlFilePreview(filePath: string, previewBytes = 10 * 1024 * 1024): Promise<{
+        lines: Array<{ lineNumber: number; content: string; parsedJson?: any; isValid: boolean }>;
+        totalLines: number;
+        validLines: number;
+        invalidLines: number;
+        fileSize: string;
+        isPreview: boolean;
+        previewBytes: number;
+        loadedBytes: number;
+        totalBytes: number;
+        hasMoreContent: boolean;
+    }> {
+        return readJsonlPreview(filePath, previewBytes);
     }
 
     public static async readJsonFile(filePath: string): Promise<{

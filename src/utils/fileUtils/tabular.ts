@@ -51,42 +51,62 @@ export async function readJsonlFile(filePath: string): Promise<{
     fileSize: string;
 }> {
     const content = await fs.promises.readFile(filePath, 'utf-8');
-    const lines = content.split('\n').filter((line) => line.trim() !== '');
-    const parsedLines: Array<{ lineNumber: number; content: string; parsedJson?: any; isValid: boolean }> = [];
-    let validLines = 0;
-    let invalidLines = 0;
-
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) {
-            continue;
-        }
-
-        try {
-            parsedLines.push({
-                lineNumber: i + 1,
-                content: line,
-                parsedJson: JSON.parse(line),
-                isValid: true
-            });
-            validLines++;
-        } catch {
-            parsedLines.push({
-                lineNumber: i + 1,
-                content: line,
-                isValid: false
-            });
-            invalidLines++;
-        }
-    }
-
     return {
-        lines: parsedLines,
-        totalLines: parsedLines.length,
-        validLines,
-        invalidLines,
+        ...parseJsonlContent(content),
         fileSize: await getFileSize(filePath)
     };
+}
+
+export async function readJsonlFilePreview(
+    filePath: string,
+    previewBytes = 10 * 1024 * 1024
+): Promise<{
+    lines: Array<{ lineNumber: number; content: string; parsedJson?: any; isValid: boolean }>;
+    totalLines: number;
+    validLines: number;
+    invalidLines: number;
+    fileSize: string;
+    isPreview: boolean;
+    previewBytes: number;
+    loadedBytes: number;
+    totalBytes: number;
+    hasMoreContent: boolean;
+}> {
+    const stats = await fs.promises.stat(filePath);
+    const totalBytes = stats.size;
+    const fileSize = await getFileSize(filePath);
+
+    if (totalBytes <= previewBytes) {
+        return {
+            ...(await readJsonlFile(filePath)),
+            isPreview: false,
+            previewBytes,
+            loadedBytes: totalBytes,
+            totalBytes,
+            hasMoreContent: false
+        };
+    }
+
+    const fileHandle = await fs.promises.open(filePath, 'r');
+
+    try {
+        const buffer = Buffer.alloc(previewBytes);
+        const { bytesRead } = await fileHandle.read(buffer, 0, previewBytes, 0);
+        const previewContent = trimPartialJsonlChunk(buffer.subarray(0, bytesRead).toString('utf8'));
+        const loadedBytes = Buffer.byteLength(previewContent, 'utf8');
+
+        return {
+            ...parseJsonlContent(previewContent),
+            fileSize,
+            isPreview: true,
+            previewBytes,
+            loadedBytes,
+            totalBytes,
+            hasMoreContent: loadedBytes < totalBytes
+        };
+    } finally {
+        await fileHandle.close();
+    }
 }
 
 export async function readJsonFile(filePath: string): Promise<{
@@ -270,6 +290,66 @@ function buildSheetSummary(name: string, worksheet: XLSX.WorkSheet | undefined) 
         totalRows: normalizedRows.length,
         totalColumns: normalizedHeaders.length
     };
+}
+
+function parseJsonlContent(content: string): {
+    lines: Array<{ lineNumber: number; content: string; parsedJson?: any; isValid: boolean }>;
+    totalLines: number;
+    validLines: number;
+    invalidLines: number;
+} {
+    const lines = content.split('\n').filter((line) => line.trim() !== '');
+    const parsedLines: Array<{ lineNumber: number; content: string; parsedJson?: any; isValid: boolean }> = [];
+    let validLines = 0;
+    let invalidLines = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) {
+            continue;
+        }
+
+        try {
+            parsedLines.push({
+                lineNumber: i + 1,
+                content: line,
+                parsedJson: JSON.parse(line),
+                isValid: true
+            });
+            validLines++;
+        } catch {
+            parsedLines.push({
+                lineNumber: i + 1,
+                content: line,
+                isValid: false
+            });
+            invalidLines++;
+        }
+    }
+
+    return {
+        lines: parsedLines,
+        totalLines: parsedLines.length,
+        validLines,
+        invalidLines
+    };
+}
+
+function trimPartialJsonlChunk(content: string): string {
+    if (!content) {
+        return '';
+    }
+
+    if (content.endsWith('\n')) {
+        return content;
+    }
+
+    const lastNewlineIndex = content.lastIndexOf('\n');
+    if (lastNewlineIndex === -1) {
+        return '';
+    }
+
+    return content.slice(0, lastNewlineIndex);
 }
 
 function detectDelimiter(lines: string[]): string | null {

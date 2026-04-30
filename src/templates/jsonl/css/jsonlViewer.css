@@ -15,6 +15,62 @@ body {
     flex-direction: column;
 }
 
+.preview-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    background: color-mix(in srgb, var(--vscode-editorInfo-background, #0c2d48) 80%, transparent);
+    border-bottom: 1px solid var(--vscode-panel-border);
+    color: var(--vscode-editor-foreground);
+}
+
+.preview-banner.hidden {
+    display: none;
+}
+
+.preview-banner-text {
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--vscode-descriptionForeground);
+}
+
+.preview-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.preview-load-button {
+    border: 1px solid var(--vscode-button-border, transparent);
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border-radius: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font: inherit;
+    white-space: nowrap;
+}
+
+.preview-load-button:hover {
+    background: var(--vscode-button-hoverBackground);
+}
+
+.preview-load-button.secondary {
+    background: var(--vscode-button-secondaryBackground, var(--vscode-button-background));
+    color: var(--vscode-button-secondaryForeground, var(--vscode-button-foreground));
+}
+
+.preview-load-button.secondary:hover {
+    background: var(--vscode-button-secondaryHoverBackground, var(--vscode-button-hoverBackground));
+}
+
+.preview-load-button:disabled {
+    opacity: 0.7;
+    cursor: progress;
+}
+
 .editor-content {
     flex: 1;
     overflow: auto;
@@ -85,7 +141,7 @@ body {
 }
 
 /* Enhanced text visibility for selected lines */
-.line.selected .line-content {
+.line.selected .line-content-wrapper {
     color: var(--vscode-editor-foreground) !important;
     font-weight: 600;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
@@ -94,7 +150,7 @@ body {
     padding: 2px 4px;
 }
 
-.line.in-range .line-content {
+.line.in-range .line-content-wrapper {
     color: var(--vscode-editor-foreground) !important;
     font-weight: 600;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
@@ -143,63 +199,99 @@ body {
     transform: scale(1.02);
 }
 
-.line-content {
+.line-content-wrapper {
     flex: 1;
+    position: relative;
+    min-height: 1.5em;
+    display: block;
+}
+
+.line-highlight,
+.line-content {
     padding: 0 8px;
     white-space: pre-wrap;
     word-break: break-all;
     font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    min-height: 1.5em;
+    box-sizing: border-box;
+}
+
+.line-highlight {
+    margin: 0;
+    color: var(--vscode-editor-foreground);
+    position: relative;
+    z-index: 1;
+    min-height: 1.5em;
+    cursor: text;
+}
+
+.line-content {
     border: none;
-    background: transparent;
+    background: var(--vscode-input-background);
     outline: none;
     resize: none;
-    min-height: 1.5em;
+    overflow: hidden;
     color: var(--vscode-editor-foreground);
+    caret-color: var(--vscode-editor-foreground);
+    width: 100%;
+    display: none;
 }
 
-.line-content:focus {
-    background: var(--vscode-input-background);
+.line-content-wrapper:focus-within {
+    border-radius: 3px;
+}
+
+.line-content-wrapper.editing .line-content {
+    display: block;
     border: 1px solid var(--vscode-focusBorder);
     border-radius: 3px;
 }
 
-.line-content.editing {
-    background: var(--vscode-input-background);
-    border: 1px solid var(--vscode-focusBorder);
-    border-radius: 3px;
+.line-content-wrapper.editing .line-highlight {
+    display: none;
+}
+
+.line-content::selection {
+    background: rgba(0, 123, 255, 0.25);
 }
 
 /* JSON Syntax Highlighting for JSONL lines */
-.line-content .json-key {
+.line-highlight .json-key {
     color: var(--vscode-symbolIcon-keywordForeground, #9cdcfe);
     font-weight: 600;
 }
 
-.line-content .json-string {
+.line-highlight .json-string {
     color: var(--vscode-symbolIcon-stringForeground, #ce9178);
 }
 
-.line-content .json-number {
+.line-highlight .json-number {
     color: var(--vscode-symbolIcon-numberForeground, #b5cea8);
 }
 
-.line-content .json-boolean {
+.line-highlight .json-boolean {
     color: var(--vscode-symbolIcon-booleanForeground, #569cd6);
     font-weight: 600;
 }
 
-.line-content .json-null {
+.line-highlight .json-null {
     color: var(--vscode-symbolIcon-nullForeground, #569cd6);
     font-style: italic;
 }
 
-.line-content .json-punctuation {
+.line-highlight .json-punctuation {
     color: var(--vscode-editor-foreground);
 }
 
-.line-content .json-bracket {
+.line-highlight .json-bracket {
     color: var(--vscode-editor-foreground);
     font-weight: bold;
+}
+
+.line-highlight .json-comma {
+    color: var(--vscode-editor-foreground);
 }
 
 .line.invalid {

@@ -8,6 +8,13 @@
 </head>
 <body>
     <div class="editor-container">
+        <div id="previewBanner" class="preview-banner hidden">
+            <div class="preview-banner-text" id="previewBannerText"></div>
+            <div class="preview-actions">
+                <button id="loadMoreButton" class="preview-load-button">Load 1MB More</button>
+                <button id="loadAllButton" class="preview-load-button secondary">Load All</button>
+            </div>
+        </div>
         <div class="editor-content" id="editorContent">
             <!-- JSONL lines will be rendered here -->
         </div>
@@ -18,13 +25,13 @@
         <div class="popup-content">
             <div class="popup-header">
                 <div class="popup-controls">
-                    <button id="saveBtn" class="popup-btn primary" style="display: none;">저장</button>
-                    <button id="cancelBtn" class="popup-btn secondary" style="display: none;">취소</button>
+                    <button id="saveBtn" class="popup-btn primary" style="display: none;">Save</button>
+                    <button id="cancelBtn" class="popup-btn secondary" style="display: none;">Cancel</button>
                 </div>
                 <button id="closePopup" class="close-btn">&times;</button>
             </div>
             <pre id="jsonContent" class="json-content"></pre>
-            <textarea id="jsonEditArea" class="json-edit-area" placeholder="JSON을 편집하세요..."></textarea>
+            <textarea id="jsonEditArea" class="json-edit-area" placeholder="Edit JSON..."></textarea>
         </div>
     </div>
 
