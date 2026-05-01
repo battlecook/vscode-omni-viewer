@@ -19,6 +19,8 @@ export class AudioController {
             spectrogramPlugin: null,
             timelinePlugin: null,
             regionsPlugin: null,
+            spectrogramSplitChannels: false,
+            visualizationMode: 'waveform',
             isPlaying: false,
             loopEnabled: false,
             isSetupComplete: false,
@@ -110,6 +112,108 @@ export class AudioController {
         }
     }
 
+    shouldSplitChannels(decodedData = null) {
+        return (decodedData?.numberOfChannels || this.audioMetadata.channels) === 2;
+    }
+
+    applyChannelRendering(splitChannels) {
+        this.state.spectrogramSplitChannels = splitChannels;
+        const waveformEl = this.state.elements.waveform;
+        const spectrogramEl = this.state.elements.spectrogram;
+
+        if (waveformEl) {
+            waveformEl.classList.toggle('split-channels', splitChannels);
+        }
+        if (spectrogramEl) {
+            spectrogramEl.classList.toggle('split-channels', splitChannels);
+        }
+
+        if (this.state.wavesurfer?.setOptions) {
+            this.state.wavesurfer.setOptions({
+                splitChannels: splitChannels ? this.waveSurferManager.getSplitChannelOptions() : undefined
+            });
+        }
+    }
+
+    setVisualizationMode(mode) {
+        const normalizedMode = ['waveform', 'spectrogram', 'both'].includes(mode) ? mode : 'waveform';
+        this.state.visualizationMode = normalizedMode;
+
+        const showWaveform = normalizedMode === 'waveform' || normalizedMode === 'both';
+        const showSpectrogram = normalizedMode === 'spectrogram' || normalizedMode === 'both';
+        const { waveform, spectrogram, spectrogramScaleGroup, visualizationModeButtons } = this.state.elements;
+
+        if (waveform) {
+            waveform.style.display = 'block';
+        }
+        if (spectrogram) {
+            spectrogram.style.display = 'none';
+        }
+        this.setWaveformLayersVisible(showWaveform);
+        this.setSpectrogramLayerVisible(showSpectrogram);
+
+        if (spectrogramScaleGroup) {
+            spectrogramScaleGroup.style.display = showSpectrogram ? 'flex' : 'none';
+        }
+        if (visualizationModeButtons) {
+            visualizationModeButtons.forEach((button) => {
+                const isActive = button.dataset.viewMode === normalizedMode;
+                button.classList.toggle('active', isActive);
+                button.setAttribute('aria-pressed', String(isActive));
+            });
+        }
+
+        if (showSpectrogram && this.state.spectrogramPlugin) {
+            setTimeout(() => {
+                if (this.state.spectrogramPlugin) {
+                    this.state.spectrogramPlugin.render();
+                }
+            }, 100);
+        }
+
+        this.refreshSelectedRegionOverlays();
+    }
+
+    refreshSelectedRegionOverlays() {
+        if (!this.state.regionManager?.updateSelectedRegionOverlays) {
+            return;
+        }
+
+        const update = () => {
+            this.state.regionManager.updateSelectedRegionOverlays();
+        };
+
+        requestAnimationFrame(update);
+        setTimeout(update, 120);
+    }
+
+    setWaveformLayersVisible(visible) {
+        const wrapper = this.state.wavesurfer?.getWrapper?.();
+        if (!wrapper) {
+            return;
+        }
+
+        ['.canvases', '.progress', '.cursor'].forEach((selector) => {
+            const el = wrapper.querySelector(selector);
+            if (el) {
+                el.style.display = visible ? '' : 'none';
+            }
+        });
+    }
+
+    setSpectrogramLayerVisible(visible) {
+        const plugin = this.state.spectrogramPlugin;
+        const wrapper = plugin?.wrapper;
+        if (wrapper) {
+            wrapper.style.display = visible ? 'block' : 'none';
+        }
+    }
+
+    showViewerContent() {
+        this.state.elements.loading.style.display = 'none';
+        this.setVisualizationMode(this.state.visualizationMode || 'waveform');
+    }
+
     async initPrecomputedMode() {
         const { peaks, duration, sampleRate, spectrogram } = this.precomputedData;
 
@@ -138,10 +242,8 @@ export class AudioController {
             await this.pluginManager.setupTimeline();
             await this.pluginManager.setupRegions();
 
-            // Hide loading, show content (including minimap)
-            this.state.elements.loading.style.display = 'none';
-            this.state.elements.waveform.style.display = 'block';
-            this.state.elements.spectrogram.style.display = 'block';
+            // Hide loading, show the selected visualization (including minimap)
+            this.showViewerContent();
             const minimapEl = document.getElementById('minimap');
             if (minimapEl) minimapEl.style.display = 'block';
 
@@ -151,6 +253,7 @@ export class AudioController {
             this.eventManager.setupVolume();
             this.eventManager.setupLoop();
             this.eventManager.setupSpectrogramScale();
+            this.eventManager.setupVisualizationMode();
             this.eventManager.setupZoom(duration);
             this.eventManager.setupWaveSurferEvents();
 
@@ -187,15 +290,14 @@ export class AudioController {
             await this.pluginManager.setupTimeline();
             await this.pluginManager.setupRegions();
 
-            this.state.elements.loading.style.display = 'none';
-            this.state.elements.waveform.style.display = 'block';
-            this.state.elements.spectrogram.style.display = 'block';
+            this.showViewerContent();
 
             this.eventManager.setupPlayPause();
             this.eventManager.setupStop();
             this.eventManager.setupVolume();
             this.eventManager.setupLoop();
             this.eventManager.setupSpectrogramScale();
+            this.eventManager.setupVisualizationMode();
             this.eventManager.setupWaveSurferEvents();
 
             const duration = this.state.wavesurfer.getDuration();
@@ -212,7 +314,9 @@ export class AudioController {
     }
 
     async initDefaultMode() {
-        this.state.wavesurfer = this.waveSurferManager.create();
+        this.state.wavesurfer = this.waveSurferManager.create({
+            splitChannels: this.shouldSplitChannels()
+        });
 
         const loadAudio = async () => {
             try {
@@ -279,21 +383,16 @@ export class AudioController {
             this.state.isSetupComplete = true;
             this.clearLoadTimeout();
 
-            await this.pluginManager.setupSpectrogram();
+            const decodedData = this.state.wavesurfer.getDecodedData();
+            const splitChannels = this.shouldSplitChannels(decodedData);
+            this.applyChannelRendering(splitChannels);
+
+            await this.pluginManager.setupSpectrogram({ splitChannels });
             await this.pluginManager.setupTimeline();
             await this.pluginManager.setupRegions();
 
-            // Hide loading, show content
-            this.state.elements.loading.style.display = 'none';
-            this.state.elements.waveform.style.display = 'block';
-            this.state.elements.spectrogram.style.display = 'block';
-
-            // Force spectrogram redraw
-            if (this.state.spectrogramPlugin) {
-                setTimeout(() => {
-                    this.state.spectrogramPlugin.render();
-                }, 100);
-            }
+            // Hide loading, show the selected visualization
+            this.showViewerContent();
 
             // Set up event listeners
             console.log('Setting up event listeners...');
@@ -302,6 +401,7 @@ export class AudioController {
             this.eventManager.setupVolume();
             this.eventManager.setupLoop();
             this.eventManager.setupSpectrogramScale();
+            this.eventManager.setupVisualizationMode();
             this.eventManager.setupWaveSurferEvents();
             console.log('Event listeners setup complete');
 

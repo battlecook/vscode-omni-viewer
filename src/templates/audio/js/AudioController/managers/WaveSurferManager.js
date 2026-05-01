@@ -9,7 +9,22 @@ export class WaveSurferManager {
         this.state = state;
     }
 
-    create() {
+    getSplitChannelOptions() {
+        return [
+            {
+                overlay: false,
+                waveColor: CONSTANTS.WAVESURFER.WAVE_COLOR,
+                progressColor: CONSTANTS.WAVESURFER.PROGRESS_COLOR,
+            },
+            {
+                overlay: false,
+                waveColor: CONSTANTS.WAVESURFER.SECONDARY_WAVE_COLOR,
+                progressColor: CONSTANTS.WAVESURFER.SECONDARY_PROGRESS_COLOR,
+            }
+        ];
+    }
+
+    create({ splitChannels = false } = {}) {
         return WaveSurfer.create({
             container: '#waveform',
             waveColor: CONSTANTS.WAVESURFER.WAVE_COLOR,
@@ -27,6 +42,7 @@ export class WaveSurferManager {
             mediaControls: false,
             hideScrollbar: false,
             interact: true,
+            ...(splitChannels ? { splitChannels: this.getSplitChannelOptions() } : {}),
             plugins: [
                 HoverPlugin.create({
                     lineWidth: 2,

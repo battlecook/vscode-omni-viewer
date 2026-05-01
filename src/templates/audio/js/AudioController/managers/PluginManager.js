@@ -10,7 +10,9 @@ export class PluginManager {
         this.waveSurferManager = waveSurferManager;
     }
 
-    async setupSpectrogram() {
+    async setupSpectrogram({ splitChannels = false } = {}) {
+        this.state.spectrogramSplitChannels = splitChannels;
+
         if (this.state.spectrogramPlugin) {
             try {
                 this.state.wavesurfer.unregisterPlugin(this.state.spectrogramPlugin);
@@ -30,7 +32,7 @@ export class PluginManager {
                 container: '#spectrogram',
                 labels: true,
                 scale: CONSTANTS.SPECTROGRAM.DEFAULT_SCALE,
-                splitChannels: false,
+                splitChannels,
                 fftSize: CONSTANTS.SPECTROGRAM.FFT_SIZE,
                 noverlap: CONSTANTS.SPECTROGRAM.NOVERLAP,
                 height: CONSTANTS.SPECTROGRAM.HEIGHT,
@@ -137,7 +139,7 @@ export class PluginManager {
                 container: '#spectrogram',
                 labels: true,
                 scale: newScale,
-                splitChannels: false,
+                splitChannels: this.state.spectrogramSplitChannels || false,
                 height: CONSTANTS.SPECTROGRAM.HEIGHT,
             };
 

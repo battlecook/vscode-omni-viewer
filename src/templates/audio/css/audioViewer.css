@@ -196,6 +196,143 @@ body {
     background: var(--vscode-panel-background);
     border-radius: 8px;
     border: 1px solid var(--vscode-panel-border);
+    flex-wrap: wrap;
+}
+
+.view-mode-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 6px;
+}
+
+.view-mode-btn {
+    width: 38px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--vscode-descriptionForeground);
+    cursor: pointer;
+}
+
+.view-mode-btn:hover {
+    background: var(--vscode-toolbar-hoverBackground);
+}
+
+.view-mode-btn.active {
+    color: var(--vscode-button-foreground);
+    background: var(--vscode-button-background);
+}
+
+.view-mode-icon {
+    width: 26px;
+    height: 24px;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.waveform-icon {
+    gap: 3px;
+}
+
+.waveform-icon span {
+    width: 3px;
+    border-radius: 2px;
+    background: currentColor;
+}
+
+.waveform-icon span:nth-child(1),
+.waveform-icon span:nth-child(5) {
+    height: 8px;
+}
+
+.waveform-icon span:nth-child(2),
+.waveform-icon span:nth-child(4) {
+    height: 16px;
+}
+
+.waveform-icon span:nth-child(3) {
+    height: 22px;
+}
+
+.spectrogram-icon {
+    display: grid;
+    grid-template-columns: repeat(5, 3px);
+    grid-auto-rows: 3px;
+    align-content: end;
+    gap: 2px;
+}
+
+.spectrogram-icon span {
+    width: 3px;
+    height: 3px;
+    background: currentColor;
+}
+
+.spectrogram-icon span:nth-child(1),
+.spectrogram-icon span:nth-child(2),
+.spectrogram-icon span:nth-child(3),
+.spectrogram-icon span:nth-child(6),
+.spectrogram-icon span:nth-child(7),
+.spectrogram-icon span:nth-child(11) {
+    opacity: 0;
+}
+
+.both-icon .mini-wave {
+    position: absolute;
+    left: 1px;
+    top: 2px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.both-icon .mini-wave span {
+    width: 2px;
+    border-radius: 2px;
+    background: currentColor;
+}
+
+.both-icon .mini-wave span:nth-child(1),
+.both-icon .mini-wave span:nth-child(3) {
+    height: 8px;
+}
+
+.both-icon .mini-wave span:nth-child(2) {
+    height: 14px;
+}
+
+.both-icon .mini-spec {
+    position: absolute;
+    right: 1px;
+    bottom: 2px;
+    display: grid;
+    grid-template-columns: repeat(3, 3px);
+    gap: 2px;
+}
+
+.both-icon .mini-spec span {
+    width: 3px;
+    height: 3px;
+    background: currentColor;
+}
+
+.both-icon .both-slash {
+    position: absolute;
+    width: 2px;
+    height: 30px;
+    border-radius: 2px;
+    background: currentColor;
+    transform: rotate(42deg);
 }
 
 .time-display {
@@ -232,6 +369,7 @@ body {
     flex-direction: column;
     align-items: center;
     gap: 2px;
+    min-width: 0;
 }
 
 .file-info-label {
@@ -242,6 +380,16 @@ body {
 .file-info-value {
     font-family: 'Monaco', 'Menlo', monospace;
     font-weight: 500;
+}
+
+.file-info-subvalue {
+    font-family: 'Monaco', 'Menlo', monospace;
+    font-size: 10px;
+    color: var(--vscode-descriptionForeground);
+    max-width: min(420px, 40vw);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .loop-controls {

@@ -3,6 +3,8 @@ export const CONSTANTS = {
     WAVESURFER: {
         WAVE_COLOR: '#4F4A85',
         PROGRESS_COLOR: '#383351',
+        SECONDARY_WAVE_COLOR: '#2F7D77',
+        SECONDARY_PROGRESS_COLOR: '#1F5C58',
         CURSOR_COLOR: '#fff',
         BAR_WIDTH: 2,
         BAR_RADIUS: 3,

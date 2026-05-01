@@ -42,6 +42,7 @@ export class FileInfoManager {
             this.state.elements.bitDepthInfo.textContent = bitDepth === '--' ? '--' : `${bitDepth} bit`;
             this.state.elements.formatInfo.textContent = format || '--';
             this.state.elements.fileSizeInfo.textContent = fileSize || '--';
+            this.updateChannelDetails(decodedData);
             
             // Update duration if available
             if (duration && duration !== '--') {
@@ -54,6 +55,60 @@ export class FileInfoManager {
         } catch (error) {
             console.warn('Error updating file info:', error);
         }
+    }
+
+    updateChannelDetails(decodedData) {
+        const detailsEl = this.state.elements.channelDetailsInfo;
+        if (!detailsEl) {
+            return;
+        }
+
+        const channelCount = decodedData?.numberOfChannels || this.audioMetadata.channels || 0;
+        if (!decodedData || channelCount !== 2) {
+            detailsEl.textContent = '';
+            detailsEl.style.display = 'none';
+            return;
+        }
+
+        const left = this.getChannelStats(decodedData.getChannelData(0));
+        const right = this.getChannelStats(decodedData.getChannelData(1));
+        detailsEl.textContent = `L peak ${left.peak}, RMS ${left.rms} | R peak ${right.peak}, RMS ${right.rms}`;
+        detailsEl.style.display = 'block';
+    }
+
+    getChannelStats(channelData) {
+        if (!channelData || channelData.length === 0) {
+            return { peak: '--', rms: '--' };
+        }
+
+        const maxSamples = 200000;
+        const step = Math.max(1, Math.ceil(channelData.length / maxSamples));
+        let peak = 0;
+        let sumSquares = 0;
+        let count = 0;
+
+        for (let i = 0; i < channelData.length; i += step) {
+            const value = channelData[i] || 0;
+            const abs = Math.abs(value);
+            if (abs > peak) {
+                peak = abs;
+            }
+            sumSquares += value * value;
+            count++;
+        }
+
+        const rms = count > 0 ? Math.sqrt(sumSquares / count) : 0;
+        return {
+            peak: this.formatAmplitude(peak),
+            rms: this.formatAmplitude(rms)
+        };
+    }
+
+    formatAmplitude(value) {
+        if (!isFinite(value)) {
+            return '--';
+        }
+        return value.toFixed(3);
     }
 
     estimateFileSize(decodedData) {

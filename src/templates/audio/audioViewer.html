@@ -30,6 +30,7 @@
                 <div class="file-info-item">
                     <div class="file-info-label">Channels</div>
                     <div class="file-info-value" id="channelsInfo">--</div>
+                    <div class="file-info-subvalue" id="channelDetailsInfo" style="display: none;"></div>
                 </div>
                 <div class="file-info-item">
                     <div class="file-info-label">Bit Depth</div>
@@ -65,7 +66,27 @@
                     <button id="zoomIn" class="btn zoom-btn" title="Zoom in (show less time)">+</button>
                 </div>
 
-                <div class="control-group">
+                <div class="view-mode-control" id="visualizationMode" role="group" aria-label="Visualization mode">
+                    <button class="view-mode-btn active" data-view-mode="waveform" title="Waveform only" aria-label="Waveform only">
+                        <span class="view-mode-icon waveform-icon" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></span>
+                    </button>
+                    <button class="view-mode-btn" data-view-mode="spectrogram" title="Spectrogram only" aria-label="Spectrogram only">
+                        <span class="view-mode-icon spectrogram-icon" aria-hidden="true">
+                            <span></span><span></span><span></span><span></span><span></span>
+                            <span></span><span></span><span></span><span></span><span></span>
+                            <span></span><span></span><span></span><span></span><span></span>
+                        </span>
+                    </button>
+                    <button class="view-mode-btn" data-view-mode="both" title="Waveform and spectrogram" aria-label="Waveform and spectrogram">
+                        <span class="view-mode-icon both-icon" aria-hidden="true">
+                            <span class="mini-wave"><span></span><span></span><span></span></span>
+                            <span class="mini-spec"><span></span><span></span><span></span><span></span><span></span><span></span></span>
+                            <span class="both-slash"></span>
+                        </span>
+                    </button>
+                </div>
+
+                <div class="control-group" id="spectrogramScaleGroup" style="display: none;">
                     <label>Spectrogram Scale:</label>
                     <select id="spectrogramScale" class="scale-selector">
                         <option value="linear">Linear</option>

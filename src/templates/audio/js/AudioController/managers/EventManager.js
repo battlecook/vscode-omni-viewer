@@ -73,9 +73,22 @@ export class EventManager {
                 
                 if (this.state.pluginManager) {
                     await this.state.pluginManager.changeSpectrogramScale(newScale);
+                    this.state.audioController?.setVisualizationMode?.(this.state.visualizationMode);
                 }
             });
         }
+    }
+
+    setupVisualizationMode() {
+        const buttons = this.state.elements.visualizationModeButtons || [];
+        buttons.forEach((button) => {
+            button.addEventListener('click', () => {
+                const mode = button.dataset.viewMode;
+                if (mode && this.state.audioController?.setVisualizationMode) {
+                    this.state.audioController.setVisualizationMode(mode);
+                }
+            });
+        });
     }
 
     setupZoom(duration) {
