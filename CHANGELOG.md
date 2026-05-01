@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.23.0] - 2026-05-02
+
+### Added
+- **Viewer workflow**
+  - Added a shared `Refresh Viewer` command for Omni Viewer custom editors, including an editor-title refresh action that reloads the active preview without closing and reopening the file
+- **Parquet Viewer**
+  - Added incremental loading for large Parquet previews so files over the preview threshold can continue loading in 10,000-row batches from the webview
+- **Audio Viewer**
+  - Added waveform/spectrogram display mode controls so audio previews can switch between waveform-only, spectrogram-only, and combined views
+  - Added split-channel rendering and left/right peak/RMS details for stereo audio previews
+
+### Changed
+- **Parquet Viewer**
+  - Switched Parquet reads to file-backed async buffers with reusable metadata, reducing memory pressure while previewing larger files
+  - Improved large-file preview messaging, loaded-row progress, export metadata, and load-more button states
+- **Viewer infrastructure**
+  - Centralized refreshable-viewer registration and webview listener replacement so refreshed previews reuse the active editor panel more reliably
+
 ## [0.22.1] - 2026-04-30
 
 ### Changed
