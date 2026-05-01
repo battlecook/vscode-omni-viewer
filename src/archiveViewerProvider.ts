@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { FileUtils } from './utils/fileUtils';
 import { TemplateUtils } from './utils/templateUtils';
-import { configureWebview, createReadonlyDocument, renderErrorHtml, rerouteIfNeeded } from './viewerProviderUtils';
+import { configureWebview, createReadonlyDocument, refreshCancellationToken, registerRefreshableViewer, renderErrorHtml, replacePanelDisposable, rerouteIfNeeded } from './viewerProviderUtils';
 
 export class ArchiveViewerProvider implements vscode.CustomReadonlyEditorProvider {
     public static readonly viewType = 'omni-viewer.archiveViewer';
@@ -23,6 +23,9 @@ export class ArchiveViewerProvider implements vscode.CustomReadonlyEditorProvide
         _token: vscode.CancellationToken
     ): Promise<void> {
         configureWebview(this.context, webviewPanel);
+        registerRefreshableViewer(document.uri, ArchiveViewerProvider.viewType, webviewPanel, async () => {
+            await this.resolveCustomEditor(document, webviewPanel, refreshCancellationToken);
+        });
 
         const archiveUri = document.uri;
         const archivePath = archiveUri.fsPath;
@@ -40,7 +43,7 @@ export class ArchiveViewerProvider implements vscode.CustomReadonlyEditorProvide
             });
 
             webviewPanel.webview.html = html;
-            webviewPanel.webview.onDidReceiveMessage(async (message) => {
+            replacePanelDisposable(webviewPanel, 'archiveMessages', webviewPanel.webview.onDidReceiveMessage(async (message) => {
                 if (!message || message.type !== 'requestEntryPreview' || typeof message.path !== 'string') {
                     return;
                 }
@@ -71,7 +74,7 @@ export class ArchiveViewerProvider implements vscode.CustomReadonlyEditorProvide
                     type: 'entryPreview',
                     ...preview
                 });
-            });
+            }));
         } catch (error) {
             console.error('Error setting up archive viewer:', error);
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';

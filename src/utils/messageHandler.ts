@@ -7,6 +7,8 @@ import { WebviewMessage } from './messageHandlers/types';
 export type { WebviewMessage } from './messageHandlers/types';
 
 export class MessageHandler {
+    private static readonly messageListeners = new WeakMap<vscode.Webview, vscode.Disposable>();
+
     public static async handleWebviewMessage(
         message: WebviewMessage,
         documentUri?: vscode.Uri,
@@ -78,7 +80,9 @@ export class MessageHandler {
         documentUri?: vscode.Uri,
         customHandlers?: { [command: string]: (message: WebviewMessage) => void }
     ): vscode.Disposable {
-        return webview.onDidReceiveMessage(async (message: WebviewMessage) => {
+        this.messageListeners.get(webview)?.dispose();
+
+        const listener = webview.onDidReceiveMessage(async (message: WebviewMessage) => {
             if (customHandlers && customHandlers[message.command]) {
                 customHandlers[message.command](message);
                 return;
@@ -86,5 +90,8 @@ export class MessageHandler {
 
             await this.handleWebviewMessage(message, documentUri, webview);
         });
+
+        this.messageListeners.set(webview, listener);
+        return listener;
     }
 }

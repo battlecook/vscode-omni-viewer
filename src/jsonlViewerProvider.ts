@@ -3,7 +3,7 @@ import * as path from 'path';
 import { FileUtils } from './utils/fileUtils';
 import { TemplateUtils } from './utils/templateUtils';
 import { MessageHandler, WebviewMessage } from './utils/messageHandler';
-import { configureWebview, createReadonlyDocument, renderErrorHtml, rerouteIfNeeded } from './viewerProviderUtils';
+import { configureWebview, createReadonlyDocument, refreshCancellationToken, registerRefreshableViewer, renderErrorHtml, rerouteIfNeeded } from './viewerProviderUtils';
 
 export class JsonlViewerProvider implements vscode.CustomReadonlyEditorProvider {
     public static readonly viewType = 'omni-viewer.jsonlViewer';
@@ -25,6 +25,9 @@ export class JsonlViewerProvider implements vscode.CustomReadonlyEditorProvider 
         _token: vscode.CancellationToken
     ): Promise<void> {
         configureWebview(this.context, webviewPanel);
+        registerRefreshableViewer(document.uri, JsonlViewerProvider.viewType, webviewPanel, async () => {
+            await this.resolveCustomEditor(document, webviewPanel, refreshCancellationToken);
+        });
 
         const jsonlUri = document.uri;
         const jsonlPath = jsonlUri.fsPath;

@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import { buildYamlViewerModel } from './utils/yamlNodeBuilder';
 import { FileUtils } from './utils/fileUtils';
 import { TemplateUtils } from './utils/templateUtils';
-import { configureWebview, createReadonlyDocument, renderErrorHtml, rerouteIfNeeded } from './viewerProviderUtils';
+import { configureWebview, createReadonlyDocument, refreshCancellationToken, registerRefreshableViewer, renderErrorHtml, replacePanelDisposable, rerouteIfNeeded } from './viewerProviderUtils';
 
 export class YamlViewerProvider implements vscode.CustomReadonlyEditorProvider {
     public static readonly viewType = 'omni-viewer.yamlViewer';
@@ -24,6 +24,9 @@ export class YamlViewerProvider implements vscode.CustomReadonlyEditorProvider {
         _token: vscode.CancellationToken
     ): Promise<void> {
         configureWebview(this.context, webviewPanel);
+        registerRefreshableViewer(document.uri, YamlViewerProvider.viewType, webviewPanel, async () => {
+            await this.resolveCustomEditor(document, webviewPanel, refreshCancellationToken);
+        });
 
         const yamlUri = document.uri;
         const yamlPath = yamlUri.fsPath;
@@ -45,13 +48,13 @@ export class YamlViewerProvider implements vscode.CustomReadonlyEditorProvider {
                 column: position.character + 1
             });
         });
-        webviewPanel.onDidDispose(() => selectionSubscription.dispose());
+        replacePanelDisposable(webviewPanel, 'yamlSelection', selectionSubscription);
 
-        webviewPanel.webview.onDidReceiveMessage(async (message) => {
+        replacePanelDisposable(webviewPanel, 'yamlMessages', webviewPanel.webview.onDidReceiveMessage(async (message) => {
             if (message?.type === 'revealSource') {
                 await this.revealSource(yamlUri, message.range);
             }
-        });
+        }));
 
         try {
             if (await rerouteIfNeeded(yamlUri, YamlViewerProvider.viewType, webviewPanel)) {

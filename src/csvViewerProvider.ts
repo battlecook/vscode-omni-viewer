@@ -3,7 +3,7 @@ import * as path from 'path';
 import { FileUtils } from './utils/fileUtils';
 import { TemplateUtils } from './utils/templateUtils';
 import { MessageHandler } from './utils/messageHandler';
-import { configureWebview, createReadonlyDocument, renderErrorHtml, rerouteIfNeeded } from './viewerProviderUtils';
+import { configureWebview, createReadonlyDocument, refreshCancellationToken, registerRefreshableViewer, renderErrorHtml, rerouteIfNeeded } from './viewerProviderUtils';
 
 export class CsvViewerProvider implements vscode.CustomReadonlyEditorProvider {
     public static readonly viewType = 'omni-viewer.csvViewer';
@@ -24,6 +24,9 @@ export class CsvViewerProvider implements vscode.CustomReadonlyEditorProvider {
         _token: vscode.CancellationToken
     ): Promise<void> {
         configureWebview(this.context, webviewPanel);
+        registerRefreshableViewer(document.uri, CsvViewerProvider.viewType, webviewPanel, async () => {
+            await this.resolveCustomEditor(document, webviewPanel, refreshCancellationToken);
+        });
 
         const csvUri = document.uri;
         const csvPath = csvUri.fsPath;

@@ -4,7 +4,7 @@ import * as path from 'path';
 import { FileUtils } from './utils/fileUtils';
 import { TemplateUtils } from './utils/templateUtils';
 import { MessageHandler } from './utils/messageHandler';
-import { configureWebview, createReadonlyDocument, renderErrorHtml, rerouteIfNeeded } from './viewerProviderUtils';
+import { configureWebview, createReadonlyDocument, refreshCancellationToken, registerRefreshableViewer, renderErrorHtml, rerouteIfNeeded } from './viewerProviderUtils';
 import { AudioEngine } from './audioEngine';
 
 const LARGE_FILE_THRESHOLD = 50 * 1024 * 1024; // 50MB
@@ -60,6 +60,9 @@ export class AudioViewerProvider implements vscode.CustomReadonlyEditorProvider 
 
         // Configure webview with default options first
         configureWebview(this.context, webviewPanel);
+        registerRefreshableViewer(document.uri, AudioViewerProvider.viewType, webviewPanel, async () => {
+            await this.resolveCustomEditor(document, webviewPanel, refreshCancellationToken);
+        });
 
         try {
             if (await rerouteIfNeeded(audioUri, AudioViewerProvider.viewType, webviewPanel)) {

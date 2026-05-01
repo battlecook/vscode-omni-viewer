@@ -3,7 +3,7 @@ import * as path from 'path';
 import { FileUtils } from './utils/fileUtils';
 import { TemplateUtils } from './utils/templateUtils';
 import { MessageHandler } from './utils/messageHandler';
-import { configureWebview, createReadonlyDocument, renderErrorHtml, rerouteIfNeeded } from './viewerProviderUtils';
+import { configureWebview, createReadonlyDocument, refreshCancellationToken, registerRefreshableViewer, renderErrorHtml, rerouteIfNeeded } from './viewerProviderUtils';
 
 export class ExcelViewerProvider implements vscode.CustomReadonlyEditorProvider {
     public static readonly viewType = 'omni-viewer.excelViewer';
@@ -24,6 +24,9 @@ export class ExcelViewerProvider implements vscode.CustomReadonlyEditorProvider 
         _token: vscode.CancellationToken
     ): Promise<void> {
         configureWebview(this.context, webviewPanel);
+        registerRefreshableViewer(document.uri, ExcelViewerProvider.viewType, webviewPanel, async () => {
+            await this.resolveCustomEditor(document, webviewPanel, refreshCancellationToken);
+        });
 
         const excelUri = document.uri;
         const excelPath = excelUri.fsPath;

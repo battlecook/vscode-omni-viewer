@@ -352,6 +352,13 @@
       }
     ],
     "menus": {
+      "editor/title": [
+        {
+          "command": "omni-viewer.refresh",
+          "when": "activeCustomEditorId =~ /^omni-viewer\\./",
+          "group": "navigation@1"
+        }
+      ],
       "explorer/context": [
         {
           "command": "omni-viewer.openArchiveViewer",
@@ -505,6 +512,12 @@
         "command": "omni-viewer.openPptViewer",
         "title": "Open with PowerPoint Viewer",
         "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.refresh",
+        "title": "Refresh Viewer",
+        "category": "Omni Viewer",
+        "icon": "$(refresh)"
       }
     ]
   },

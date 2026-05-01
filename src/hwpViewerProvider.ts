@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { TemplateUtils } from './utils/templateUtils';
 import { MessageHandler } from './utils/messageHandler';
-import { createReadonlyDocument, renderErrorHtml, rerouteIfNeeded } from './viewerProviderUtils';
+import { createReadonlyDocument, refreshCancellationToken, registerRefreshableViewer, renderErrorHtml, rerouteIfNeeded } from './viewerProviderUtils';
 
 export class HwpViewerProvider implements vscode.CustomReadonlyEditorProvider {
     public static readonly viewType = 'omni-viewer.hwpViewer';
@@ -26,6 +26,9 @@ export class HwpViewerProvider implements vscode.CustomReadonlyEditorProvider {
         const hwpUri = document.uri;
         const hwpPath = hwpUri.fsPath;
         const hwpFileName = path.basename(hwpPath);
+        registerRefreshableViewer(document.uri, HwpViewerProvider.viewType, webviewPanel, async () => {
+            await this.resolveCustomEditor(document, webviewPanel, refreshCancellationToken);
+        });
 
         try {
             if (await rerouteIfNeeded(hwpUri, HwpViewerProvider.viewType, webviewPanel)) {

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { FileUtils, OmniViewerViewType } from './utils/fileUtils';
 import { VIEWER_REGISTRATIONS } from './viewerRegistry';
+import { refreshActiveViewer } from './viewerProviderUtils';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('🚀 Omni Viewer extension is now active!');
@@ -39,7 +40,9 @@ export function activate(context: vscode.ExtensionContext) {
         return [openCommand, editorRegistration];
     });
 
-    context.subscriptions.push(...registrations);
+    const refreshCommand = vscode.commands.registerCommand('omni-viewer.refresh', refreshActiveViewer);
+
+    context.subscriptions.push(...registrations, refreshCommand);
 }
 
 export function deactivate() {

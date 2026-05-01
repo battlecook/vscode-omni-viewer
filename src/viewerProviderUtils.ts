@@ -16,6 +16,30 @@ export interface ViewerProviderContext {
     viewType: OmniViewerViewType;
 }
 
+interface RefreshableViewer {
+    uri: vscode.Uri;
+    viewType: OmniViewerViewType;
+    webviewPanel: vscode.WebviewPanel;
+    refresh: () => Promise<void>;
+}
+
+const refreshableViewers = new Map<string, RefreshableViewer>();
+const refreshDisposeKeys = new WeakMap<vscode.WebviewPanel, Set<string>>();
+const panelDisposables = new WeakMap<vscode.WebviewPanel, Map<string, vscode.Disposable>>();
+const refreshTokenSource = new vscode.CancellationTokenSource();
+
+export const refreshCancellationToken = refreshTokenSource.token;
+
+function getViewerKey(uri: vscode.Uri, viewType: string): string {
+    return `${viewType}:${uri.toString()}`;
+}
+
+function getActiveCustomEditorInput(): { uri?: vscode.Uri; viewType?: string } | undefined {
+    const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
+    const input = activeTab?.input as { uri?: vscode.Uri; viewType?: string } | undefined;
+    return input;
+}
+
 export function createReadonlyDocument(uri: vscode.Uri): vscode.CustomDocument {
     return {
         uri,
@@ -43,6 +67,82 @@ export async function rerouteIfNeeded(
     await vscode.commands.executeCommand('vscode.openWith', documentUri, detection.viewType);
     webviewPanel.dispose();
     return true;
+}
+
+export function registerRefreshableViewer(
+    documentUri: vscode.Uri,
+    viewType: OmniViewerViewType,
+    webviewPanel: vscode.WebviewPanel,
+    refresh: () => Promise<void>
+): void {
+    const key = getViewerKey(documentUri, viewType);
+    refreshableViewers.set(key, {
+        uri: documentUri,
+        viewType,
+        webviewPanel,
+        refresh
+    });
+
+    let disposeKeys = refreshDisposeKeys.get(webviewPanel);
+    if (!disposeKeys) {
+        disposeKeys = new Set<string>();
+        refreshDisposeKeys.set(webviewPanel, disposeKeys);
+    }
+
+    if (!disposeKeys.has(key)) {
+        disposeKeys.add(key);
+        webviewPanel.onDidDispose(() => {
+            const current = refreshableViewers.get(key);
+            if (current?.webviewPanel === webviewPanel) {
+                refreshableViewers.delete(key);
+            }
+        });
+    }
+}
+
+export function replacePanelDisposable(
+    webviewPanel: vscode.WebviewPanel,
+    key: string,
+    disposable: vscode.Disposable
+): void {
+    let disposables = panelDisposables.get(webviewPanel);
+    if (!disposables) {
+        disposables = new Map<string, vscode.Disposable>();
+        panelDisposables.set(webviewPanel, disposables);
+        webviewPanel.onDidDispose(() => {
+            for (const item of disposables?.values() || []) {
+                item.dispose();
+            }
+            disposables?.clear();
+        });
+    }
+
+    disposables.get(key)?.dispose();
+    disposables.set(key, disposable);
+}
+
+export async function refreshActiveViewer(): Promise<void> {
+    const input = getActiveCustomEditorInput();
+    if (!input?.uri || !input.viewType) {
+        vscode.window.showWarningMessage('No Omni Viewer editor is active.');
+        return;
+    }
+
+    const viewer = refreshableViewers.get(getViewerKey(input.uri, input.viewType));
+    if (!viewer) {
+        vscode.window.showWarningMessage('The active Omni Viewer editor cannot be refreshed.');
+        return;
+    }
+
+    await vscode.window.withProgress(
+        {
+            location: vscode.ProgressLocation.Window,
+            title: `Refreshing ${vscode.workspace.asRelativePath(viewer.uri, false)}`
+        },
+        async () => {
+            await viewer.refresh();
+        }
+    );
 }
 
 export function renderErrorHtml(
