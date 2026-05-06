@@ -10,10 +10,13 @@
     <div class="container">
         <div class="header">
             <div class="title">📄 {{fileName}}</div>
-            <div class="file-info" id="fileInfo">
-                <span id="fileSize">{{fileSize}}</span>
-                <span class="separator">•</span>
-                <span id="pageCount">로드 중...</span>
+            <div class="header-right">
+                <div class="file-info" id="fileInfo">
+                    <span id="fileSize">{{fileSize}}</span>
+                    <span class="separator">•</span>
+                    <span id="pageCount">로드 중...</span>
+                </div>
+                {{omniShareButtons}}
             </div>
         </div>
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.24.0] - 2026-05-06
+
+### Added
+- **File sharing**
+  - Added `Share with Omni Viewer` commands for custom editor title actions and explorer context menus so supported files can be uploaded and shared directly from VS Code
+  - Added shared-link opening support that accepts an Omni Viewer share URL or share ID, downloads the shared file to a temporary location, and opens it in VS Code
+  - Added in-viewer Share and Open Link buttons across Omni Viewer previews, including archive, audio, CSV, Excel, HWP, image, JSON, Parquet, PDF, PowerPoint, PSD, TOML, video, Word, and YAML viewers
+
+### Changed
+- **Viewer infrastructure**
+  - Centralized Omni Viewer share button injection and webview message wiring so sharing controls are applied consistently across templates
+  - Added shared-link message handling from webviews to the extension host, reusing the same share/open commands as the command palette and editor actions
+
 ## [0.23.0] - 2026-05-02
 
 ### Added

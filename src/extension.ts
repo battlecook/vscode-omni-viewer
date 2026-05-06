@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { FileUtils, OmniViewerViewType } from './utils/fileUtils';
 import { VIEWER_REGISTRATIONS } from './viewerRegistry';
 import { refreshActiveViewer } from './viewerProviderUtils';
+import { openSharedLinkCommand, shareFileCommand } from './shareCommand';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('🚀 Omni Viewer extension is now active!');
@@ -41,8 +42,10 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     const refreshCommand = vscode.commands.registerCommand('omni-viewer.refresh', refreshActiveViewer);
+    const shareCommand = vscode.commands.registerCommand('omni-viewer.shareFile', shareFileCommand);
+    const openSharedLinkRegistration = vscode.commands.registerCommand('omni-viewer.openSharedLink', openSharedLinkCommand);
 
-    context.subscriptions.push(...registrations, refreshCommand);
+    context.subscriptions.push(...registrations, refreshCommand, shareCommand, openSharedLinkRegistration);
 }
 
 export function deactivate() {

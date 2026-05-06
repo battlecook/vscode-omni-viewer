@@ -3,7 +3,7 @@
   "displayName": "omni-viewer",
   "publisher": "battlecook",
   "description": "A VSCode extension for viewing audio, image, video, archive, csv, excel, word, powerpoint, parquet, jsonl, yaml, toml, hwp, PSD and PDF files",
-  "version": "0.23.0",
+  "version": "0.24.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
@@ -357,6 +357,16 @@
           "command": "omni-viewer.refresh",
           "when": "activeCustomEditorId =~ /^omni-viewer\\./",
           "group": "navigation@1"
+        },
+        {
+          "command": "omni-viewer.shareFile",
+          "when": "activeCustomEditorId =~ /^omni-viewer\\./",
+          "group": "navigation@2"
+        },
+        {
+          "command": "omni-viewer.openSharedLink",
+          "when": "activeCustomEditorId =~ /^omni-viewer\\./",
+          "group": "navigation@3"
         }
       ],
       "explorer/context": [
@@ -434,6 +444,11 @@
           "command": "omni-viewer.openPptViewer",
           "when": "resourceExtname == '.pptx' || resourceExtname == '.ppt'",
           "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.shareFile",
+          "when": "!explorerResourceIsFolder",
+          "group": "7_modification"
         }
       ]
     },
@@ -518,6 +533,18 @@
         "title": "Refresh Viewer",
         "category": "Omni Viewer",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "omni-viewer.shareFile",
+        "title": "Share with Omni Viewer",
+        "category": "Omni Viewer",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "omni-viewer.openSharedLink",
+        "title": "Open Shared Link",
+        "category": "Omni Viewer",
+        "icon": "$(cloud-download)"
       }
     ]
   },

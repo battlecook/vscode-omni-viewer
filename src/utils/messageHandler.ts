@@ -3,6 +3,7 @@ import { MediaMessageHandlers } from './messageHandlers/mediaMessageHandlers';
 import { PdfMessageHandlers } from './messageHandlers/pdfMessageHandlers';
 import { TextMessageHandlers } from './messageHandlers/textMessageHandlers';
 import { WebviewMessage } from './messageHandlers/types';
+import { openSharedLinkCommand, shareFileCommand } from '../shareCommand';
 
 export type { WebviewMessage } from './messageHandlers/types';
 
@@ -65,6 +66,12 @@ export class MessageHandler {
                 break;
             case 'resetMergePdfCache':
                 PdfMessageHandlers.resetMergedPdfCache(documentUri);
+                break;
+            case 'omniViewerShare':
+                await shareFileCommand(documentUri);
+                break;
+            case 'omniViewerOpenSharedLink':
+                await openSharedLinkCommand();
                 break;
             default:
                 console.log('Unknown message type:', messageType);

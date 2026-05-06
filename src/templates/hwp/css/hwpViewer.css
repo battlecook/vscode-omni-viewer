@@ -69,6 +69,13 @@ body {
     font-size: 12px;
 }
 
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
 .separator {
     opacity: 0.6;
 }
