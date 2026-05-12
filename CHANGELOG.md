@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.24.1] - 2026-05-12
+
+### Added
+- **Extension metadata**
+  - Added a GitHub Sponsors entry in `package.json` so the marketplace can surface sponsorship links
+
+### Changed
+- **File sharing**
+  - Set the default share link lifetime to **5 minutes** (previously 60 minutes) so client requests match the documented temporary-retention policy
+  - Extended the share success notification to explain that the copied link is only valid for that period before it expires
+  - Updated the in-viewer Share button tooltip and `aria-label` to state that shared data is stored on the server for 5 minutes only, then discarded
+
 ## [0.24.0] - 2026-05-06
 
 ### Added

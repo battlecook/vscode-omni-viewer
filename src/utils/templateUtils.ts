@@ -37,7 +37,7 @@ export class TemplateUtils {
     }
 
     private static readonly OMNI_SHARE_BUTTONS_HTML = `<div class="omni-header-actions">
-    <button type="button" class="omni-header-action-btn" data-omni-action="share" title="Share with Omni Viewer" aria-label="Share with Omni Viewer">Share</button>
+    <button type="button" class="omni-header-action-btn" data-omni-action="share" title="Share with Omni Viewer. Shared data is stored on the server for 5 minutes only, then discarded." aria-label="Share with Omni Viewer. Shared data is stored on the server for 5 minutes only, then discarded.">Share</button>
     <button type="button" class="omni-header-action-btn" data-omni-action="open-shared-link" title="Open shared link" aria-label="Open shared link">Open Link</button>
 </div>`;
 

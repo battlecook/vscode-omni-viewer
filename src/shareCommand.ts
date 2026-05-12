@@ -8,7 +8,7 @@ import { URL } from 'url';
 const SHARE_API_BASE = 'https://omni-viewer-share-624036133562.us-west1.run.app';
 const WEB_BASE = 'https://omni-viewer-web.web.app';
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
-const DEFAULT_EXPIRES_IN_MINUTES = 60;
+const DEFAULT_EXPIRES_IN_MINUTES = 5;
 const SHARE_PATH_PATTERN = /\/share\/([^/?#]+)/;
 const BARE_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
 
@@ -217,7 +217,7 @@ export async function shareFileCommand(uri?: vscode.Uri): Promise<void> {
                 await vscode.env.clipboard.writeText(shareUrl);
 
                 const action = await vscode.window.showInformationMessage(
-                    `Share link copied to clipboard: ${shareUrl}`,
+                    `Share link copied to clipboard: ${shareUrl} The link is valid for ${DEFAULT_EXPIRES_IN_MINUTES} minutes only, then it expires.`,
                     'Open in Browser'
                 );
                 if (action === 'Open in Browser') {

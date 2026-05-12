@@ -3,10 +3,13 @@
   "displayName": "omni-viewer",
   "publisher": "battlecook",
   "description": "A VSCode extension for viewing audio, image, video, archive, csv, excel, word, powerpoint, parquet, jsonl, yaml, toml, hwp, PSD and PDF files",
-  "version": "0.24.0",
+  "version": "0.24.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
+  },
+  "sponsor": {
+    "url": "https://github.com/sponsors/battlecook"
   },
   "license": "MIT",
   "engines": {
