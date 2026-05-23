@@ -2,6 +2,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { buildYamlViewerModel } from './utils/yamlNodeBuilder';
 import { FileUtils } from './utils/fileUtils';
+import { MessageHandler } from './utils/messageHandler';
 import { TemplateUtils } from './utils/templateUtils';
 import { configureWebview, createReadonlyDocument, refreshCancellationToken, registerRefreshableViewer, renderErrorHtml, replacePanelDisposable, rerouteIfNeeded } from './viewerProviderUtils';
 
@@ -51,9 +52,16 @@ export class YamlViewerProvider implements vscode.CustomReadonlyEditorProvider {
         replacePanelDisposable(webviewPanel, 'yamlSelection', selectionSubscription);
 
         replacePanelDisposable(webviewPanel, 'yamlMessages', webviewPanel.webview.onDidReceiveMessage(async (message) => {
+            if (!message) {
+                return;
+            }
+
             if (message?.type === 'revealSource') {
                 await this.revealSource(yamlUri, message.range);
+                return;
             }
+
+            await MessageHandler.handleWebviewMessage(message, yamlUri, webviewPanel.webview);
         }));
 
         try {

@@ -1,6 +1,6 @@
 # VSCode Omni Viewer
 
-A comprehensive audio, image, PSD, video, CSV, Excel, Word, PowerPoint, PDF, Parquet, JSONL, and HWP viewer extension for VSCode and Cursor.
+A comprehensive audio, image, PSD, video, CSV, Excel, Word, PowerPoint, PDF, Parquet, JSONL, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-red)](https://github.com/sponsors/battlecook)
 
@@ -166,6 +166,20 @@ Note: `.ts` files share an extension with TypeScript source files, so automatic 
 
 ### Supported HWP Formats
 - HWP, HWPX
+
+## 🧩 PlantUML Viewer Features
+
+### Browser-Based PlantUML Preview
+- **Serverless Rendering**: Renders PlantUML diagrams in the VS Code webview without a PlantUML server
+- **Diagram / Split / Source Views**: Switch between rendered preview, side-by-side source, and read-only source
+- **Zoom Controls**: Zoom in/out and reset
+- **Light / Dark Render Modes**: Toggle PlantUML output mode
+- **Copy Source**: Copy the original diagram text to clipboard
+- **File Information**: File name, file size, and line count
+- **Powered by**: [PlantUML.js](https://github.com/plantuml/plantuml.js) for browser-side PlantUML rendering
+
+### Supported PlantUML Formats
+- PUML, PlantUML, IUML
 
 ## 📄 JSONL Viewer Features
 

@@ -171,6 +171,50 @@ describe('FileUtils delimited formats', () => {
         expect(result.matchedBySignature).toBe(true);
     });
 
+    it('detects Mermaid files by extension', async () => {
+        const filePath = path.join(tempDir, 'diagram.mmd');
+        fs.writeFileSync(filePath, 'flowchart LR\n  A[Start] --> B[Done]\n', 'utf8');
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.mermaidViewer');
+        expect(result.matchedBySignature).toBe(false);
+        expect(result.reason).toContain('Mermaid extension');
+    });
+
+    it('detects Mermaid content without a Mermaid extension', async () => {
+        const filePath = path.join(tempDir, 'diagram.txt');
+        fs.writeFileSync(filePath, 'sequenceDiagram\n  Alice->>Bob: Hello\n', 'utf8');
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.mermaidViewer');
+        expect(result.matchedBySignature).toBe(false);
+        expect(result.reason).toContain('Mermaid diagram content');
+    });
+
+    it('detects PlantUML files by extension', async () => {
+        const filePath = path.join(tempDir, 'diagram.puml');
+        fs.writeFileSync(filePath, '@startuml\nBob -> Alice: Hello\n@enduml\n', 'utf8');
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.plantumlViewer');
+        expect(result.matchedBySignature).toBe(false);
+        expect(result.reason).toContain('PlantUML extension');
+    });
+
+    it('detects PlantUML content without a PlantUML extension', async () => {
+        const filePath = path.join(tempDir, 'diagram.txt');
+        fs.writeFileSync(filePath, '@startmindmap\n* Root\n** Branch\n@endmindmap\n', 'utf8');
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.plantumlViewer');
+        expect(result.matchedBySignature).toBe(false);
+        expect(result.reason).toContain('PlantUML diagram content');
+    });
+
     it('detects AIFF files by FORM signature', async () => {
         const filePath = path.join(tempDir, 'sample.bin');
         fs.writeFileSync(filePath, Buffer.from([

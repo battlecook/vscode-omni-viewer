@@ -11,14 +11,15 @@ export class TemplateUtils {
     public static async loadTemplate(
         context: vscode.ExtensionContext,
         templateName: string,
-        variables: { [key: string]: string }
+        variables: { [key: string]: string },
+        webview?: vscode.Webview
     ): Promise<string> {
         const templatePath = path.join(context.extensionPath, 'src', 'templates', templateName);
 
         try {
             let template = await fs.promises.readFile(templatePath, 'utf8');
 
-            template = await this.inlineExternalFiles(context, templatePath, template);
+            template = await this.inlineExternalFiles(context, templatePath, template, webview);
 
             for (const [key, value] of Object.entries(variables)) {
                 const placeholder = `{{${key}}}`;
@@ -150,7 +151,12 @@ export class TemplateUtils {
         return html;
     }
 
-    private static async inlineExternalFiles(context: vscode.ExtensionContext, templatePath: string, html: string): Promise<string> {
+    private static async inlineExternalFiles(
+        context: vscode.ExtensionContext,
+        templatePath: string,
+        html: string,
+        webview?: vscode.Webview
+    ): Promise<string> {
         const templateDir = path.dirname(templatePath);
         
         const cssMatch = html.match(/<link[^>]*href="([^"]*\.css)"[^>]*>/g);
@@ -187,6 +193,17 @@ export class TemplateUtils {
                     const jsPath = path.join(templateDir, jsRelativePath);
                     
                     try {
+                        if (/\sdata-omni-no-inline(?:\s|=|>)/.test(scriptTag)) {
+                            if (!webview) {
+                                throw new Error(`Webview URI conversion is required for non-inlined script: ${jsRelativePath}`);
+                            }
+
+                            const resourceSrc = webview.asWebviewUri(vscode.Uri.file(jsPath)).toString();
+                            const scriptTagWithUri = scriptTag.replace(srcMatch[0], `src="${resourceSrc}"`);
+                            html = html.replace(scriptTag, () => scriptTagWithUri);
+                            continue;
+                        }
+
                         const jsContent = await fs.promises.readFile(jsPath, 'utf8');
                         const inlineScriptTag = `<script>\n${jsContent}\n</script>`;
                         html = html.replace(scriptTag, () => inlineScriptTag);

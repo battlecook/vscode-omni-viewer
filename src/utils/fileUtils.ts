@@ -38,6 +38,8 @@ export type OmniViewerViewType =
     | 'omni-viewer.yamlViewer'
     | 'omni-viewer.jsonlViewer'
     | 'omni-viewer.tomlViewer'
+    | 'omni-viewer.mermaidViewer'
+    | 'omni-viewer.plantumlViewer'
     | 'omni-viewer.parquetViewer'
     | 'omni-viewer.hwpViewer'
     | 'omni-viewer.psdViewer'
@@ -638,6 +640,26 @@ export class FileUtils {
             };
         }
 
+        if (ext === '.puml' || ext === '.plantuml' || ext === '.iuml' || this.looksLikePlantuml(lines)) {
+            return {
+                viewType: 'omni-viewer.plantumlViewer',
+                reason: ext === '.puml' || ext === '.plantuml' || ext === '.iuml'
+                    ? 'Used the PlantUML extension fallback.'
+                    : 'Matched PlantUML diagram content.',
+                matchedBySignature: false
+            };
+        }
+
+        if (ext === '.mmd' || ext === '.mermaid' || this.looksLikeMermaid(lines)) {
+            return {
+                viewType: 'omni-viewer.mermaidViewer',
+                reason: ext === '.mmd' || ext === '.mermaid'
+                    ? 'Used the Mermaid extension fallback.'
+                    : 'Matched Mermaid diagram content.',
+                matchedBySignature: false
+            };
+        }
+
         if (ext === '.csv' || ext === '.tsv') {
             return {
                 viewType: 'omni-viewer.csvViewer',
@@ -705,6 +727,30 @@ export class FileUtils {
         }
 
         return tableCount > 0 && assignmentCount > 0 || assignmentCount >= 3;
+    }
+
+    private static looksLikeMermaid(lines: string[]): boolean {
+        const firstMeaningfulLine = lines
+            .map(line => line.replace(/^%%.*$/, '').trim())
+            .find(Boolean);
+
+        if (!firstMeaningfulLine) {
+            return false;
+        }
+
+        return /^(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram(?:-v2)?|erDiagram|journey|gantt|pie|gitGraph|mindmap|timeline|quadrantChart|requirementDiagram|C4Context|C4Container|C4Component|C4Dynamic|C4Deployment|sankey-beta|xychart-beta|block-beta|packet-beta|architecture-beta|kanban|venn|radar-beta|treemap-beta)\b/.test(firstMeaningfulLine);
+    }
+
+    private static looksLikePlantuml(lines: string[]): boolean {
+        const firstMeaningfulLine = lines
+            .map(line => line.replace(/^'.*$/, '').trim())
+            .find(Boolean);
+
+        if (!firstMeaningfulLine) {
+            return false;
+        }
+
+        return /^@start(?:uml|mindmap|wbs|gantt|salt|ditaa|jcckit|json|yaml|ebnf|regex|chen|wire|creole|dot|math|latex|files|board|archimate)\b/i.test(firstMeaningfulLine);
     }
 
     private static parseDelimitedLine(line: string, delimiter: string): string[] {

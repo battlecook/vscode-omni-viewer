@@ -2,8 +2,8 @@
   "name": "omni-viewer",
   "displayName": "omni-viewer",
   "publisher": "battlecook",
-  "description": "A VSCode extension for viewing audio, image, video, archive, csv, excel, word, powerpoint, parquet, jsonl, yaml, toml, hwp, PSD and PDF files",
-  "version": "0.24.1",
+  "description": "A VSCode extension for viewing audio, image, video, archive, csv, excel, word, powerpoint, parquet, jsonl, yaml, toml, mermaid, PlantUML, hwp, PSD and PDF files",
+  "version": "0.25.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
@@ -40,6 +40,8 @@
     "JSON",
     "YAML",
     "TOML",
+    "Mermaid",
+    "PlantUML",
     "Parquet",
     "HWP",
     "PSD",
@@ -272,6 +274,35 @@
         "priority": "option"
       },
       {
+        "viewType": "omni-viewer.mermaidViewer",
+        "displayName": "Mermaid Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.mmd"
+          },
+          {
+            "filenamePattern": "*.mermaid"
+          }
+        ],
+        "priority": "option"
+      },
+      {
+        "viewType": "omni-viewer.plantumlViewer",
+        "displayName": "PlantUML Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.puml"
+          },
+          {
+            "filenamePattern": "*.plantuml"
+          },
+          {
+            "filenamePattern": "*.iuml"
+          }
+        ],
+        "priority": "option"
+      },
+      {
         "viewType": "omni-viewer.parquetViewer",
         "displayName": "Parquet Viewer",
         "selector": [
@@ -419,6 +450,16 @@
           "group": "navigation"
         },
         {
+          "command": "omni-viewer.openMermaidViewer",
+          "when": "resourceExtname == '.mmd' || resourceExtname == '.mermaid'",
+          "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openPlantumlViewer",
+          "when": "resourceExtname == '.puml' || resourceExtname == '.plantuml' || resourceExtname == '.iuml'",
+          "group": "navigation"
+        },
+        {
           "command": "omni-viewer.openParquetViewer",
           "when": "resourceExtname == '.parquet'",
           "group": "navigation"
@@ -499,6 +540,16 @@
       {
         "command": "omni-viewer.openTomlViewer",
         "title": "Open with TOML Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openMermaidViewer",
+        "title": "Open with Mermaid Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openPlantumlViewer",
+        "title": "Open with PlantUML Viewer",
         "category": "Omni Viewer"
       },
       {
@@ -592,6 +643,7 @@
     "hwp.js": "^0.0.3",
     "hyparquet": "^1.21.0",
     "jszip": "^3.10.1",
+    "mermaid": "^11.15.0",
     "music-metadata": "^11.8.3",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.10.38",

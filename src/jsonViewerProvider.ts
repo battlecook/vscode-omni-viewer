@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { FileUtils } from './utils/fileUtils';
 import { TemplateUtils } from './utils/templateUtils';
+import { MessageHandler } from './utils/messageHandler';
 import { configureWebview, createReadonlyDocument, refreshCancellationToken, registerRefreshableViewer, renderErrorHtml, rerouteIfNeeded } from './viewerProviderUtils';
 
 export class JsonViewerProvider implements vscode.CustomReadonlyEditorProvider {
@@ -43,6 +44,7 @@ export class JsonViewerProvider implements vscode.CustomReadonlyEditorProvider {
             });
 
             webviewPanel.webview.html = html;
+            MessageHandler.setupMessageListener(webviewPanel.webview, document.uri);
         } catch (error) {
             console.error('Error setting up JSON viewer:', error);
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';

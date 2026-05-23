@@ -90,8 +90,10 @@ export class MessageHandler {
         this.messageListeners.get(webview)?.dispose();
 
         const listener = webview.onDidReceiveMessage(async (message: WebviewMessage) => {
-            if (customHandlers && customHandlers[message.command]) {
-                customHandlers[message.command](message);
+            const messageType = message.type || message.command;
+
+            if (customHandlers && customHandlers[messageType]) {
+                customHandlers[messageType](message);
                 return;
             }
 

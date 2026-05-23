@@ -1,4 +1,5 @@
 const path = require('path');
+const webpack = require('webpack');
 
 module.exports = [
   // TypeScript files configuration
@@ -85,6 +86,49 @@ module.exports = [
         }
       ]
     }
+  },
+  // JavaScript files configuration for Mermaid viewer
+  {
+    mode: 'production',
+    target: 'web',
+    entry: {
+      'templates/mermaid/js/mermaidViewer': './src/templates/mermaid/js/mermaidViewerMain.js'
+    },
+    output: {
+      path: path.resolve(__dirname, 'src/templates/mermaid/js'),
+      filename: 'mermaidViewer.js',
+      libraryTarget: 'var',
+      library: 'MermaidViewer'
+    },
+    resolve: {
+      extensions: ['.js']
+    },
+    module: {
+      rules: [
+        {
+          test: /\.js$/,
+          exclude: /node_modules/,
+          use: {
+            loader: 'babel-loader',
+            options: {
+              presets: ['@babel/preset-env']
+            }
+          }
+        }
+      ]
+    },
+    optimization: {
+      splitChunks: false,
+      runtimeChunk: false,
+      minimize: true,
+      usedExports: true,
+      sideEffects: false
+    },
+    plugins: [
+      new webpack.optimize.LimitChunkCountPlugin({
+        maxChunks: 1
+      })
+    ]
   },
   // JavaScript files configuration for audio viewer
   {

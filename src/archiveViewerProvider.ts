@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { FileUtils } from './utils/fileUtils';
+import { MessageHandler } from './utils/messageHandler';
 import { TemplateUtils } from './utils/templateUtils';
 import { configureWebview, createReadonlyDocument, refreshCancellationToken, registerRefreshableViewer, renderErrorHtml, replacePanelDisposable, rerouteIfNeeded } from './viewerProviderUtils';
 
@@ -44,7 +45,12 @@ export class ArchiveViewerProvider implements vscode.CustomReadonlyEditorProvide
 
             webviewPanel.webview.html = html;
             replacePanelDisposable(webviewPanel, 'archiveMessages', webviewPanel.webview.onDidReceiveMessage(async (message) => {
-                if (!message || message.type !== 'requestEntryPreview' || typeof message.path !== 'string') {
+                if (!message) {
+                    return;
+                }
+
+                if (message.type !== 'requestEntryPreview' || typeof message.path !== 'string') {
+                    await MessageHandler.handleWebviewMessage(message, archiveUri, webviewPanel.webview);
                     return;
                 }
 

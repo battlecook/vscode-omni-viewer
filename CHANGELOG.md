@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.25.0] - 2026-05-24
+
+### Added
+- **Mermaid Viewer**
+  - Added a dedicated Mermaid viewer for `.mmd` and `.mermaid` files with custom editor registration, explorer/context menu actions, and direct `Open with Mermaid Viewer` command support
+  - Added an editable diagram source workflow in the webview so Mermaid diagrams can be previewed and saved from the Omni Viewer surface
+- **PlantUML Viewer**
+  - Added a dedicated PlantUML viewer for `.puml`, `.plantuml`, and `.iuml` files with custom editor registration, explorer/context menu actions, and direct `Open with PlantUML Viewer` command support
+  - Added bundled PlantUML webview assets so diagrams can render inside VS Code without relying on an external preview service
+
+### Changed
+- **Extension metadata**
+  - Updated the extension description and keywords to advertise Mermaid and PlantUML support
+
 ## [0.24.1] - 2026-05-12
 
 ### Added

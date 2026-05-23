@@ -7,8 +7,10 @@ import { HwpViewerProvider } from './hwpViewerProvider';
 import { ImageViewerProvider } from './imageViewerProvider';
 import { JsonViewerProvider } from './jsonViewerProvider';
 import { JsonlViewerProvider } from './jsonlViewerProvider';
+import { MermaidViewerProvider } from './mermaidViewerProvider';
 import { ParquetViewerProvider } from './parquetViewerProvider';
 import { PdfViewerProvider } from './pdfViewerProvider';
+import { PlantumlViewerProvider } from './plantumlViewerProvider';
 import { PptViewerProvider } from './pptViewerProvider';
 import { PsdViewerProvider } from './psdViewerProvider';
 import { TomlViewerProvider } from './tomlViewerProvider';
@@ -88,6 +90,20 @@ export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
         missingMessage: 'No TOML file selected',
         retainContextWhenHidden: true,
         createProvider: (context) => new TomlViewerProvider(context)
+    },
+    {
+        viewType: MermaidViewerProvider.viewType,
+        command: 'omni-viewer.openMermaidViewer',
+        missingMessage: 'No Mermaid file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new MermaidViewerProvider(context)
+    },
+    {
+        viewType: PlantumlViewerProvider.viewType,
+        command: 'omni-viewer.openPlantumlViewer',
+        missingMessage: 'No PlantUML file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new PlantumlViewerProvider(context)
     },
     {
         viewType: ParquetViewerProvider.viewType,

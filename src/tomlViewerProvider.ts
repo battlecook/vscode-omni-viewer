@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { MessageHandler } from './utils/messageHandler';
 import { TemplateUtils } from './utils/templateUtils';
 import { TomlParser } from './utils/tomlParser';
 import { configureWebview, createReadonlyDocument, refreshCancellationToken, registerRefreshableViewer, renderErrorHtml, rerouteIfNeeded } from './viewerProviderUtils';
@@ -46,6 +47,7 @@ export class TomlViewerProvider implements vscode.CustomReadonlyEditorProvider {
             });
 
             webviewPanel.webview.html = html;
+            MessageHandler.setupMessageListener(webviewPanel.webview, document.uri);
         } catch (error) {
             console.error('Error setting up TOML viewer:', error);
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
