@@ -2,8 +2,8 @@
   "name": "omni-viewer",
   "displayName": "omni-viewer",
   "publisher": "battlecook",
-  "description": "A VSCode extension for viewing audio, image, video, archive, csv, excel, word, powerpoint, parquet, jsonl, yaml, toml, mermaid, PlantUML, hwp, PSD and PDF files",
-  "version": "0.25.0",
+  "description": "A VSCode extension for viewing audio, image, video, archive, csv, excel, word, powerpoint, parquet, jsonl, yaml, toml, markdown, mermaid, PlantUML, hwp, PSD and PDF files",
+  "version": "0.26.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
@@ -40,6 +40,7 @@
     "JSON",
     "YAML",
     "TOML",
+    "Markdown",
     "Mermaid",
     "PlantUML",
     "Parquet",
@@ -274,6 +275,19 @@
         "priority": "option"
       },
       {
+        "viewType": "omni-viewer.markdownViewer",
+        "displayName": "Markdown Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.md"
+          },
+          {
+            "filenamePattern": "*.markdown"
+          }
+        ],
+        "priority": "option"
+      },
+      {
         "viewType": "omni-viewer.mermaidViewer",
         "displayName": "Mermaid Viewer",
         "selector": [
@@ -450,6 +464,11 @@
           "group": "navigation"
         },
         {
+          "command": "omni-viewer.openMarkdownViewer",
+          "when": "resourceExtname == '.md' || resourceExtname == '.markdown'",
+          "group": "navigation"
+        },
+        {
           "command": "omni-viewer.openMermaidViewer",
           "when": "resourceExtname == '.mmd' || resourceExtname == '.mermaid'",
           "group": "navigation"
@@ -540,6 +559,11 @@
       {
         "command": "omni-viewer.openTomlViewer",
         "title": "Open with TOML Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openMarkdownViewer",
+        "title": "Open with MD Viewer",
         "category": "Omni Viewer"
       },
       {
@@ -638,11 +662,14 @@
   },
   "dependencies": {
     "@rhwp/core": "^0.7.3",
+    "@braintree/sanitize-url": "^7.1.2",
     "ag-psd": "^30.1.0",
     "docx-preview": "^0.3.7",
+    "dompurify": "^3.4.5",
     "hwp.js": "^0.0.3",
     "hyparquet": "^1.21.0",
     "jszip": "^3.10.1",
+    "marked": "^16.4.2",
     "mermaid": "^11.15.0",
     "music-metadata": "^11.8.3",
     "pdf-lib": "^1.17.1",

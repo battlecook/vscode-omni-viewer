@@ -38,6 +38,7 @@ export type OmniViewerViewType =
     | 'omni-viewer.yamlViewer'
     | 'omni-viewer.jsonlViewer'
     | 'omni-viewer.tomlViewer'
+    | 'omni-viewer.markdownViewer'
     | 'omni-viewer.mermaidViewer'
     | 'omni-viewer.plantumlViewer'
     | 'omni-viewer.parquetViewer'
@@ -606,6 +607,14 @@ export class FileUtils {
 
         if (lines.length === 0) {
             return null;
+        }
+
+        if (ext === '.md' || ext === '.markdown') {
+            return {
+                viewType: 'omni-viewer.markdownViewer',
+                reason: 'Used the Markdown extension fallback.',
+                matchedBySignature: false
+            };
         }
 
         if (ext === '.jsonl' || ext === '.ndjson' || ext === '.jsonlines' || this.looksLikeJsonl(lines)) {

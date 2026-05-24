@@ -434,6 +434,27 @@ describe('FileUtils delimited formats', () => {
         expect(result.matchedBySignature).toBe(false);
     });
 
+    it('detects Markdown documents by extension', async () => {
+        const filePath = path.join(tempDir, 'readme.md');
+        fs.writeFileSync(filePath, '# Title\n\n- item\n', 'utf8');
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.markdownViewer');
+        expect(result.matchedBySignature).toBe(false);
+        expect(result.reason).toContain('Markdown extension');
+    });
+
+    it('keeps JSON-looking Markdown files on the Markdown viewer', async () => {
+        const filePath = path.join(tempDir, 'notes.markdown');
+        fs.writeFileSync(filePath, '{"example":true}', 'utf8');
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.markdownViewer');
+        expect(result.matchedBySignature).toBe(false);
+    });
+
     it('keeps .doc files on the Word viewer even when embedded workbook metadata exists', async () => {
         const filePath = path.join(tempDir, 'embedded-chart.doc');
         const header = Buffer.from([0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]);

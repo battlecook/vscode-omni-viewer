@@ -7,6 +7,7 @@ import { HwpViewerProvider } from './hwpViewerProvider';
 import { ImageViewerProvider } from './imageViewerProvider';
 import { JsonViewerProvider } from './jsonViewerProvider';
 import { JsonlViewerProvider } from './jsonlViewerProvider';
+import { MarkdownViewerProvider } from './markdownViewerProvider';
 import { MermaidViewerProvider } from './mermaidViewerProvider';
 import { ParquetViewerProvider } from './parquetViewerProvider';
 import { PdfViewerProvider } from './pdfViewerProvider';
@@ -90,6 +91,13 @@ export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
         missingMessage: 'No TOML file selected',
         retainContextWhenHidden: true,
         createProvider: (context) => new TomlViewerProvider(context)
+    },
+    {
+        viewType: MarkdownViewerProvider.viewType,
+        command: 'omni-viewer.openMarkdownViewer',
+        missingMessage: 'No Markdown file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new MarkdownViewerProvider(context)
     },
     {
         viewType: MermaidViewerProvider.viewType,

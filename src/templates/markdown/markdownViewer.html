@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown Viewer - {{fileName}}</title>
+    <link rel="stylesheet" href="css/markdownViewer.css">
+</head>
+<body>
+    <div class="viewer-shell">
+        <header class="viewer-header">
+            <div>
+                <div class="viewer-title">{{fileName}}</div>
+                <div id="summaryText" class="viewer-subtitle">{{fileSize}} Markdown document</div>
+            </div>
+            <div id="statusBadge" class="status-badge">Ready</div>
+            {{omniShareButtons}}
+        </header>
+
+        <section class="toolbar">
+            <div class="toolbar-group">
+                <button type="button" class="toolbar-btn is-active" data-view-mode="preview">Preview</button>
+                <button type="button" class="toolbar-btn" data-view-mode="split">Split</button>
+                <button type="button" class="toolbar-btn" data-view-mode="source">Source</button>
+            </div>
+            <div class="toolbar-group">
+                <button type="button" class="toolbar-btn primary" id="renderBtn">Render</button>
+                <button type="button" class="toolbar-btn" id="copyHtmlBtn">Copy HTML</button>
+                <button type="button" class="toolbar-btn" id="copySourceBtn">Copy Source</button>
+            </div>
+        </section>
+
+        <main id="workspace" class="workspace">
+            <section id="previewPanel" class="panel preview-panel">
+                <div class="panel-header">
+                    <span>Preview</span>
+                    <span id="previewCaption" class="panel-caption">Rendering</span>
+                </div>
+                <article id="markdownPreview" class="markdown-preview"></article>
+            </section>
+
+            <section id="sourcePanel" class="panel source-panel">
+                <div class="panel-header">
+                    <span>Source</span>
+                    <span id="sourceCaption" class="panel-caption">Editable</span>
+                </div>
+                <textarea id="sourceView" class="source-view" spellcheck="false"></textarea>
+            </section>
+        </main>
+
+        <section id="messagePanel" class="message-panel is-hidden"></section>
+    </div>
+
+    <script>
+        window.markdownSource = {{markdownSource}};
+    </script>
+    <script src="js/markdownViewer.js" data-omni-no-inline></script>
+</body>
+</html>

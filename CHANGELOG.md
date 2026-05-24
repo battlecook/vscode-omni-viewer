@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.26.0] - 2026-05-24
+
+### Added
+- **Markdown Viewer**
+  - Added a dedicated Markdown viewer for `.md` and `.markdown` files with custom editor registration, explorer/context menu actions, and direct `Open with MD Viewer` command support
+  - Added Markdown-to-HTML rendering with sanitized output and explicit runtime dependencies for `marked`, `DOMPurify`, and URL sanitization
+  - Added Mermaid fenced-code rendering inside Markdown previews so ` ```mermaid ` blocks render as diagrams directly in the Markdown viewer
+  - Added editable split/source workflow with Render-to-save behavior, keyboard shortcuts, source undo/redo, HTML/source copy actions, and share/open-link support from the viewer header
+
+### Changed
+- **Extension metadata**
+  - Updated the extension description and keywords to advertise Markdown support
+
 ## [0.25.0] - 2026-05-24
 
 ### Added

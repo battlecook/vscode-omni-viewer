@@ -87,6 +87,49 @@ module.exports = [
       ]
     }
   },
+  // JavaScript files configuration for Markdown viewer
+  {
+    mode: 'production',
+    target: 'web',
+    entry: {
+      'templates/markdown/js/markdownViewer': './src/templates/markdown/js/markdownViewerMain.js'
+    },
+    output: {
+      path: path.resolve(__dirname, 'src/templates/markdown/js'),
+      filename: 'markdownViewer.js',
+      libraryTarget: 'var',
+      library: 'MarkdownViewer'
+    },
+    resolve: {
+      extensions: ['.js']
+    },
+    module: {
+      rules: [
+        {
+          test: /\.js$/,
+          exclude: /node_modules/,
+          use: {
+            loader: 'babel-loader',
+            options: {
+              presets: ['@babel/preset-env']
+            }
+          }
+        }
+      ]
+    },
+    optimization: {
+      splitChunks: false,
+      runtimeChunk: false,
+      minimize: true,
+      usedExports: true,
+      sideEffects: false
+    },
+    plugins: [
+      new webpack.optimize.LimitChunkCountPlugin({
+        maxChunks: 1
+      })
+    ]
+  },
   // JavaScript files configuration for Mermaid viewer
   {
     mode: 'production',
