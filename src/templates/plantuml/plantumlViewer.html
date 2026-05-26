@@ -32,11 +32,16 @@
                 </select>
             </label>
             <div class="toolbar-group">
+                <button type="button" class="toolbar-btn primary" id="renderBtn">Render</button>
+                <button type="button" class="toolbar-btn" id="saveBtn">Save</button>
+            </div>
+            <div class="toolbar-group">
                 <button type="button" class="toolbar-btn" id="zoomOutBtn">-</button>
                 <button type="button" class="toolbar-btn" id="zoomResetBtn">100%</button>
                 <button type="button" class="toolbar-btn" id="zoomInBtn">+</button>
             </div>
             <div class="toolbar-group">
+                <button type="button" class="toolbar-btn" id="copySvgBtn">Copy SVG</button>
                 <button type="button" class="toolbar-btn" id="copySourceBtn">Copy Source</button>
             </div>
         </section>
@@ -48,26 +53,22 @@
                     <span id="diagramCaption" class="panel-caption">Initializing renderer</span>
                 </div>
                 <div id="diagramSurface" class="diagram-surface">
-                    <div id="diagramOutput" class="diagram-output">
-                        <img id="diagramImage" class="diagram-image" alt="Rendered PlantUML diagram">
-                    </div>
+                    <div id="diagramOutput" class="diagram-output"></div>
                 </div>
             </section>
 
             <section id="sourcePanel" class="panel source-panel">
                 <div class="panel-header">
                     <span>Source</span>
-                    <span id="sourceCaption" class="panel-caption">Read-only</span>
+                    <span id="sourceCaption" class="panel-caption">Editable</span>
                 </div>
-                <textarea id="sourceView" class="source-view" spellcheck="false" readonly></textarea>
+                <textarea id="sourceView" class="source-view" spellcheck="false"></textarea>
             </section>
         </main>
 
         <section id="messagePanel" class="message-panel is-hidden"></section>
     </div>
 
-    <script src="https://cjrtnc.leaningtech.com/2.3/loader.js"></script>
-    <script src="vendor/plantuml.js"></script>
     <script>
         window.plantumlSource = {{plantumlSource}};
     </script>

@@ -176,7 +176,7 @@ Note: `.ts` files share an extension with TypeScript source files, so automatic 
 - **Light / Dark Render Modes**: Toggle PlantUML output mode
 - **Copy Source**: Copy the original diagram text to clipboard
 - **File Information**: File name, file size, and line count
-- **Powered by**: [PlantUML.js](https://github.com/plantuml/plantuml.js) for browser-side PlantUML rendering
+- **Powered by**: [puml-canvas-js](https://github.com/battlecook/puml-canvas-js) for native JavaScript SVG rendering
 
 ### Supported PlantUML Formats
 - PUML, PlantUML, IUML

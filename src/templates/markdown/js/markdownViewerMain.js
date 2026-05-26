@@ -1,7 +1,41 @@
 import DOMPurify from 'dompurify';
+import hljs from 'highlight.js/lib/core';
+import bash from 'highlight.js/lib/languages/bash';
+import css from 'highlight.js/lib/languages/css';
+import diff from 'highlight.js/lib/languages/diff';
+import ini from 'highlight.js/lib/languages/ini';
+import javascript from 'highlight.js/lib/languages/javascript';
+import json from 'highlight.js/lib/languages/json';
 import mermaid from 'mermaid';
 import { marked } from 'marked';
+import markdown from 'highlight.js/lib/languages/markdown';
+import plaintext from 'highlight.js/lib/languages/plaintext';
+import { render as renderPlantuml } from 'puml-canvas-js';
+import shell from 'highlight.js/lib/languages/shell';
+import typescript from 'highlight.js/lib/languages/typescript';
+import xml from 'highlight.js/lib/languages/xml';
+import yaml from 'highlight.js/lib/languages/yaml';
 import { sanitizeUrl } from '@braintree/sanitize-url';
+
+hljs.registerLanguage('bash', bash);
+hljs.registerLanguage('css', css);
+hljs.registerLanguage('diff', diff);
+hljs.registerLanguage('html', xml);
+hljs.registerLanguage('ini', ini);
+hljs.registerLanguage('javascript', javascript);
+hljs.registerLanguage('js', javascript);
+hljs.registerLanguage('json', json);
+hljs.registerLanguage('markdown', markdown);
+hljs.registerLanguage('md', markdown);
+hljs.registerLanguage('plaintext', plaintext);
+hljs.registerLanguage('shell', shell);
+hljs.registerLanguage('sh', bash);
+hljs.registerLanguage('ts', typescript);
+hljs.registerLanguage('tsx', typescript);
+hljs.registerLanguage('typescript', typescript);
+hljs.registerLanguage('xml', xml);
+hljs.registerLanguage('yaml', yaml);
+hljs.registerLanguage('yml', yaml);
 
 (function () {
     const state = {
@@ -122,6 +156,50 @@ import { sanitizeUrl } from '@braintree/sanitize-url';
         });
     }
 
+    function isDiagramLanguage(language) {
+        return language === 'mermaid' || language === 'plantuml' || language === 'puml' || language === 'uml';
+    }
+
+    function getCodeLanguage(block) {
+        for (const className of block.classList) {
+            if (className.startsWith('language-')) {
+                return className.slice('language-'.length).toLowerCase();
+            }
+
+            if (className.startsWith('lang-')) {
+                return className.slice('lang-'.length).toLowerCase();
+            }
+        }
+
+        return '';
+    }
+
+    function renderCodeHighlights(root) {
+        root.querySelectorAll('pre > code').forEach((block) => {
+            const language = getCodeLanguage(block);
+            if (isDiagramLanguage(language)) {
+                return;
+            }
+
+            const source = block.textContent || '';
+            let result;
+            if (language && hljs.getLanguage(language)) {
+                result = hljs.highlight(source, {
+                    language,
+                    ignoreIllegals: true
+                });
+            } else {
+                result = hljs.highlightAuto(source);
+            }
+
+            block.innerHTML = result.value;
+            block.classList.add('hljs');
+            if (result.language) {
+                block.dataset.language = result.language;
+            }
+        });
+    }
+
     async function renderMermaidBlocks(root) {
         const blocks = Array.from(root.querySelectorAll('pre > code.language-mermaid, pre > code.lang-mermaid'));
         state.diagramCount = blocks.length;
@@ -158,6 +236,34 @@ import { sanitizeUrl } from '@braintree/sanitize-url';
                 pre.replaceWith(diagram);
             }
         }));
+    }
+
+    function renderPlantumlBlocks(root) {
+        const blocks = Array.from(root.querySelectorAll('pre > code.language-plantuml, pre > code.lang-plantuml, pre > code.language-puml, pre > code.lang-puml, pre > code.language-uml, pre > code.lang-uml'));
+        state.diagramCount += blocks.length;
+
+        blocks.forEach((block) => {
+            const source = block.textContent || '';
+            const pre = block.closest('pre');
+            const diagram = document.createElement('div');
+            diagram.className = 'plantuml-diagram';
+            diagram.setAttribute('role', 'img');
+
+            try {
+                const svg = renderPlantuml(source, { document });
+                svg.setAttribute('role', 'img');
+                svg.setAttribute('aria-label', 'Rendered PlantUML diagram');
+                const serialized = new XMLSerializer().serializeToString(svg);
+                diagram.innerHTML = sanitizeSvg(serialized);
+            } catch (error) {
+                diagram.classList.add('is-invalid');
+                diagram.textContent = error instanceof Error ? error.message : 'Unable to render PlantUML diagram.';
+            }
+
+            if (pre) {
+                pre.replaceWith(diagram);
+            }
+        });
     }
 
     async function copyText(text, successText) {
@@ -226,7 +332,9 @@ import { sanitizeUrl } from '@braintree/sanitize-url';
             state.renderedHtml = sanitizeRenderedHtml(rawHtml);
             els.markdownPreview.innerHTML = state.renderedHtml;
             hardenLinksAndImages(els.markdownPreview);
+            renderCodeHighlights(els.markdownPreview);
             await renderMermaidBlocks(els.markdownPreview);
+            renderPlantumlBlocks(els.markdownPreview);
 
             const lineCount = state.source.length === 0 ? 0 : state.source.split(/\r?\n/).length;
             const wordCount = (state.source.match(/\S+/g) || []).length;

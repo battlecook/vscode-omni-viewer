@@ -173,6 +173,42 @@ module.exports = [
       })
     ]
   },
+  // JavaScript files configuration for PlantUML viewer
+  {
+    mode: 'production',
+    target: 'web',
+    entry: {
+      'templates/plantuml/js/plantumlViewer': './src/templates/plantuml/js/plantumlViewerMain.js'
+    },
+    output: {
+      path: path.resolve(__dirname, 'src/templates/plantuml/js'),
+      filename: 'plantumlViewer.js',
+      libraryTarget: 'var',
+      library: 'PlantumlViewer'
+    },
+    resolve: {
+      extensions: ['.js']
+    },
+    module: {
+      rules: [
+        {
+          test: /\.js$/,
+          exclude: /node_modules/,
+          use: {
+            loader: 'babel-loader',
+            options: {
+              presets: ['@babel/preset-env']
+            }
+          }
+        }
+      ]
+    },
+    optimization: {
+      minimize: true,
+      usedExports: true,
+      sideEffects: false
+    }
+  },
   // JavaScript files configuration for audio viewer
   {
     mode: 'production',

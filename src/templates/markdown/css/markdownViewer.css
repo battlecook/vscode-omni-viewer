@@ -223,8 +223,80 @@ body {
 }
 
 .markdown-preview pre code {
+    display: block;
     padding: 0;
     background: transparent;
+}
+
+.markdown-preview code.hljs {
+    color: var(--vscode-editor-foreground);
+}
+
+.markdown-preview .hljs-comment,
+.markdown-preview .hljs-quote {
+    color: var(--vscode-descriptionForeground);
+    font-style: italic;
+}
+
+.markdown-preview .hljs-keyword,
+.markdown-preview .hljs-selector-tag,
+.markdown-preview .hljs-subst {
+    color: var(--vscode-symbolIcon-keywordForeground, #c586c0);
+}
+
+.markdown-preview .hljs-string,
+.markdown-preview .hljs-doctag,
+.markdown-preview .hljs-regexp {
+    color: var(--vscode-symbolIcon-stringForeground, #ce9178);
+}
+
+.markdown-preview .hljs-number,
+.markdown-preview .hljs-literal,
+.markdown-preview .hljs-variable,
+.markdown-preview .hljs-template-variable {
+    color: var(--vscode-symbolIcon-numberForeground, #b5cea8);
+}
+
+.markdown-preview .hljs-title,
+.markdown-preview .hljs-section,
+.markdown-preview .hljs-selector-id {
+    color: var(--vscode-symbolIcon-functionForeground, #dcdcaa);
+}
+
+.markdown-preview .hljs-type,
+.markdown-preview .hljs-class .hljs-title,
+.markdown-preview .hljs-built_in {
+    color: var(--vscode-symbolIcon-classForeground, #4ec9b0);
+}
+
+.markdown-preview .hljs-attr,
+.markdown-preview .hljs-attribute,
+.markdown-preview .hljs-name,
+.markdown-preview .hljs-selector-class {
+    color: var(--vscode-symbolIcon-propertyForeground, #9cdcfe);
+}
+
+.markdown-preview .hljs-meta,
+.markdown-preview .hljs-symbol,
+.markdown-preview .hljs-bullet,
+.markdown-preview .hljs-link {
+    color: var(--vscode-symbolIcon-colorForeground, #d7ba7d);
+}
+
+.markdown-preview .hljs-addition {
+    color: var(--vscode-gitDecoration-addedResourceForeground, #81b88b);
+}
+
+.markdown-preview .hljs-deletion {
+    color: var(--vscode-gitDecoration-deletedResourceForeground, #c74e39);
+}
+
+.markdown-preview .hljs-emphasis {
+    font-style: italic;
+}
+
+.markdown-preview .hljs-strong {
+    font-weight: 700;
 }
 
 .markdown-preview table {
@@ -266,6 +338,29 @@ body {
 }
 
 .mermaid-diagram.is-invalid {
+    color: var(--vscode-errorForeground);
+    background: var(--vscode-inputValidation-errorBackground, rgba(244, 71, 71, 0.1));
+    white-space: pre-wrap;
+}
+
+.plantuml-diagram {
+    overflow: auto;
+    margin: 0 0 1em;
+    padding: 16px;
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 8px;
+    background: var(--vscode-editor-background);
+}
+
+.plantuml-diagram svg {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 0 auto;
+    background: #fff;
+}
+
+.plantuml-diagram.is-invalid {
     color: var(--vscode-errorForeground);
     background: var(--vscode-inputValidation-errorBackground, rgba(244, 71, 71, 0.1));
     white-space: pre-wrap;

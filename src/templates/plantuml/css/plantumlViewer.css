@@ -97,9 +97,23 @@ body {
     background: var(--vscode-button-secondaryHoverBackground, rgba(127, 127, 127, 0.24));
 }
 
+.toolbar-btn.primary {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+}
+
+.toolbar-btn.primary:hover {
+    background: var(--vscode-button-hoverBackground);
+}
+
 .toolbar-btn.is-active {
     border-color: var(--vscode-focusBorder);
     background: color-mix(in srgb, var(--vscode-focusBorder) 22%, transparent);
+}
+
+.toolbar-btn.is-dirty {
+    border-color: var(--vscode-gitDecoration-modifiedResourceForeground, var(--vscode-focusBorder));
+    color: var(--vscode-gitDecoration-modifiedResourceForeground, var(--vscode-button-secondaryForeground));
 }
 
 .select-field {
@@ -180,7 +194,7 @@ body {
     transform-origin: top center;
 }
 
-.diagram-image {
+.diagram-output svg {
     max-width: none;
     height: auto;
     background: #fff;

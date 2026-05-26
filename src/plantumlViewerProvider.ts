@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import { FileUtils } from './utils/fileUtils';
 import { MessageHandler } from './utils/messageHandler';
 import { TemplateUtils } from './utils/templateUtils';
-import { configureWebview, createReadonlyDocument, refreshCancellationToken, registerRefreshableViewer, renderErrorHtml, rerouteIfNeeded } from './viewerProviderUtils';
+import { configureWebview, createReadonlyDocument, refreshCancellationToken, registerRefreshableViewer, renderErrorHtml, replacePanelDisposable, rerouteIfNeeded } from './viewerProviderUtils';
 
 export class PlantumlViewerProvider implements vscode.CustomReadonlyEditorProvider {
     public static readonly viewType = 'omni-viewer.plantumlViewer';
@@ -33,6 +33,29 @@ export class PlantumlViewerProvider implements vscode.CustomReadonlyEditorProvid
         const plantumlPath = plantumlUri.fsPath;
         const plantumlFileName = path.basename(plantumlPath);
 
+        replacePanelDisposable(webviewPanel, 'plantumlMessages', webviewPanel.webview.onDidReceiveMessage(async (message) => {
+            if (!message) {
+                return;
+            }
+
+            if (message?.type !== 'saveSource' || typeof message.source !== 'string') {
+                await MessageHandler.handleWebviewMessage(message, plantumlUri, webviewPanel.webview);
+                return;
+            }
+
+            try {
+                await vscode.workspace.fs.writeFile(plantumlUri, Buffer.from(message.source, 'utf8'));
+                await webviewPanel.webview.postMessage({ type: 'saveSourceResult', ok: true });
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+                await webviewPanel.webview.postMessage({
+                    type: 'saveSourceResult',
+                    ok: false,
+                    message: errorMessage
+                });
+            }
+        }));
+
         try {
             if (await rerouteIfNeeded(plantumlUri, PlantumlViewerProvider.viewType, webviewPanel)) {
                 return;
@@ -55,7 +78,6 @@ export class PlantumlViewerProvider implements vscode.CustomReadonlyEditorProvid
             });
 
             webviewPanel.webview.html = html;
-            MessageHandler.setupMessageListener(webviewPanel.webview, document.uri);
         } catch (error) {
             console.error('Error setting up PlantUML viewer:', error);
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';

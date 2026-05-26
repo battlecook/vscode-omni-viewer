@@ -3,7 +3,7 @@
   "displayName": "omni-viewer",
   "publisher": "battlecook",
   "description": "A VSCode extension for viewing audio, image, video, archive, csv, excel, word, powerpoint, parquet, jsonl, yaml, toml, markdown, mermaid, PlantUML, hwp, PSD and PDF files",
-  "version": "0.26.0",
+  "version": "0.27.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
@@ -661,11 +661,12 @@
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {
-    "@rhwp/core": "^0.7.3",
     "@braintree/sanitize-url": "^7.1.2",
+    "@rhwp/core": "^0.7.3",
     "ag-psd": "^30.1.0",
     "docx-preview": "^0.3.7",
     "dompurify": "^3.4.5",
+    "highlight.js": "^11.11.1",
     "hwp.js": "^0.0.3",
     "hyparquet": "^1.21.0",
     "jszip": "^3.10.1",
@@ -674,6 +675,7 @@
     "music-metadata": "^11.8.3",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.10.38",
+    "puml-canvas-js": "0.5.0",
     "wavesurfer.js": "^7.12.3",
     "xlsx": "^0.18.5",
     "yaml": "^2.8.3"

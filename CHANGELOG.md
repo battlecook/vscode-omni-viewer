@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.27.0] - 2026-05-27
+
+### Added
+- **Markdown Viewer**
+  - Added syntax highlighting for fenced Markdown code blocks while keeping Mermaid fenced blocks rendered as diagrams
+  - Added PlantUML fenced-code rendering inside Markdown previews so ` ```plantuml `, ` ```puml `, and ` ```uml ` blocks render as diagrams directly in the Markdown viewer
+
+### Changed
+- **PlantUML Viewer**
+  - Replaced the previous CheerpJ/PlantUML.js runtime with the native JavaScript `puml-canvas-js` renderer, removing the bundled PlantUML core JAR assets from the extension
+  - Added a bundled PlantUML webview build entry so the viewer ships its renderer through the standard webpack pipeline
+  - Made PlantUML sources editable from the viewer with render-to-save, explicit save, SVG copy, source copy, zoom, split/source modes, and dirty-state feedback
+- **Extension metadata**
+  - Updated the extension description and keywords to advertise Markdown support
+
+### Fixed
+- **Audio analysis**
+  - Added an invalid `nfft` guard in the bundled Kiss FFT allocator to prevent overflow-prone allocation sizing for non-positive transform lengths
+
 ## [0.26.0] - 2026-05-24
 
 ### Added
