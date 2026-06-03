@@ -210,10 +210,36 @@ hljs.registerLanguage('yml', yaml);
 
         mermaid.initialize({
             startOnLoad: false,
-            theme: 'default',
+            theme: 'base',
             securityLevel: 'strict',
             fontFamily: 'var(--vscode-font-family)',
-            maxTextSize: 200000
+            maxTextSize: 200000,
+            themeVariables: {
+                background: '#ffffff',
+                mainBkg: '#f4f4ff',
+                secondBkg: '#ffffff',
+                primaryColor: '#f4f4ff',
+                primaryBorderColor: '#7c6fbd',
+                primaryTextColor: '#111111',
+                lineColor: '#333333',
+                textColor: '#111111',
+                secondaryTextColor: '#111111',
+                tertiaryTextColor: '#111111',
+                labelTextColor: '#111111',
+                nodeTextColor: '#111111',
+                stateLabelColor: '#111111',
+                stateBkg: '#f4f4ff',
+                stateBorder: '#7c6fbd',
+                compositeBackground: '#ffffff',
+                edgeLabelBackground: '#ffffff',
+                actorBkg: '#f4f4ff',
+                actorBorder: '#7c6fbd',
+                actorTextColor: '#111111',
+                signalColor: '#333333',
+                signalTextColor: '#111111',
+                noteBkgColor: '#fff7cc',
+                noteTextColor: '#111111'
+            }
         });
 
         await Promise.all(blocks.map(async (block, index) => {
@@ -422,8 +448,6 @@ hljs.registerLanguage('yml', yaml);
         if (message.ok) {
             state.savedSource = state.source;
             state.lastEditorValue = state.source;
-            state.undoStack = [];
-            state.redoStack = [];
             markDirty(false);
             setStatus('Saved', 'valid');
             els.sourceCaption.textContent = 'Saved';

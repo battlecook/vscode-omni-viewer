@@ -5,7 +5,6 @@ import { getFileSize } from './media';
 
 const DEFAULT_DELIMITER = ',';
 const PARQUET_PREVIEW_FILE_SIZE_MB = 50;
-const PARQUET_MAX_ALLOWED_SIZE_MB = 150;
 const PARQUET_PREVIEW_ROW_COUNT = 10000;
 
 export interface ParquetReadOptions {
@@ -152,10 +151,6 @@ export async function readParquetFile(filePath: string, options: ParquetReadOpti
     const fileSizeBytes = stats.size;
     const fileSizeMB = fileSizeBytes / (1024 * 1024);
 
-    if (fileSizeMB >= PARQUET_MAX_ALLOWED_SIZE_MB) {
-        throw new Error(`File size (${fileSizeMB.toFixed(1)}MB) exceeds the maximum allowed size of ${PARQUET_MAX_ALLOWED_SIZE_MB}MB. Cannot open this file.`);
-    }
-
     const hyparquet = await import('hyparquet') as unknown as typeof import('hyparquet') & {
         asyncBufferFromFile: (filename: string) => Promise<{
             byteLength: number;
@@ -163,6 +158,7 @@ export async function readParquetFile(filePath: string, options: ParquetReadOpti
         }>;
     };
     const { asyncBufferFromFile, parquetMetadataAsync, parquetReadObjects, parquetSchema } = hyparquet;
+    const { compressors } = await import('hyparquet-compressors');
     const asyncBuffer = await asyncBufferFromFile(filePath);
 
     let schema: any = null;
@@ -178,12 +174,13 @@ export async function readParquetFile(filePath: string, options: ParquetReadOpti
         schema = null;
     }
 
-    const isLimited = fileSizeMB >= PARQUET_PREVIEW_FILE_SIZE_MB && fileSizeMB < PARQUET_MAX_ALLOWED_SIZE_MB;
+    const isLimited = fileSizeMB >= PARQUET_PREVIEW_FILE_SIZE_MB;
     const rowStart = Math.max(0, options.rowStart ?? 0);
     const defaultRowEnd = rowStart + PARQUET_PREVIEW_ROW_COUNT;
     const rowEnd = options.rowEnd ?? defaultRowEnd;
     const readOptions: any = {
-        file: asyncBuffer as any
+        file: asyncBuffer as any,
+        compressors
     };
 
     if (metadata) {

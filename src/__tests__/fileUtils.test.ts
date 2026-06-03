@@ -7,11 +7,17 @@ const mockParquetMetadataAsync = jest.fn();
 const mockParquetReadObjects = jest.fn();
 const mockParquetSchema = jest.fn();
 const mockAsyncBufferFromFile = jest.fn();
+const mockCompressors = {
+    ZSTD: jest.fn()
+};
 jest.mock('hyparquet', () => ({
     asyncBufferFromFile: mockAsyncBufferFromFile,
     parquetMetadataAsync: mockParquetMetadataAsync,
     parquetReadObjects: mockParquetReadObjects,
     parquetSchema: mockParquetSchema
+}), { virtual: true });
+jest.mock('hyparquet-compressors', () => ({
+    compressors: mockCompressors
 }), { virtual: true });
 jest.mock('hwp.js', () => ({}), { virtual: true });
 jest.mock('xlsx', () => ({}), { virtual: true });
@@ -100,6 +106,7 @@ describe('FileUtils delimited formats', () => {
         expect(mockParquetMetadataAsync).toHaveBeenCalledWith(asyncBuffer);
         expect(mockParquetReadObjects).toHaveBeenCalledWith(expect.objectContaining({
             file: asyncBuffer,
+            compressors: mockCompressors,
             metadata: { num_rows: 25000 },
             rowStart: 0,
             rowEnd: 10000
@@ -138,6 +145,7 @@ describe('FileUtils delimited formats', () => {
 
         expect(mockParquetReadObjects).toHaveBeenCalledWith(expect.objectContaining({
             file: asyncBuffer,
+            compressors: mockCompressors,
             metadata: { num_rows: 25000 },
             rowStart: 10000,
             rowEnd: 20000
@@ -149,6 +157,39 @@ describe('FileUtils delimited formats', () => {
             [10001],
             [10002]
         ]);
+    });
+
+    it('previews parquet files larger than the former maximum size instead of rejecting them', async () => {
+        const filePath = path.join(tempDir, 'huge.parquet');
+        fs.writeFileSync(filePath, '');
+        fs.truncateSync(filePath, 200 * 1024 * 1024);
+
+        const asyncBuffer = { byteLength: 200 * 1024 * 1024, slice: jest.fn() };
+        mockAsyncBufferFromFile.mockResolvedValue(asyncBuffer);
+        mockParquetMetadataAsync.mockResolvedValue({ num_rows: 50000 });
+        mockParquetSchema.mockReturnValue({
+            children: [
+                { element: { name: 'id' }, path: ['id'] }
+            ]
+        });
+        mockParquetReadObjects.mockResolvedValue([
+            { id: 1 }
+        ]);
+
+        const result = await FileUtils.readParquetFile(filePath);
+
+        expect(mockParquetReadObjects).toHaveBeenCalledWith(expect.objectContaining({
+            file: asyncBuffer,
+            compressors: mockCompressors,
+            metadata: { num_rows: 50000 },
+            rowStart: 0,
+            rowEnd: 10000
+        }));
+        expect(result.isLimited).toBe(true);
+        expect(result.hasMoreRows).toBe(true);
+        expect(result.nextRowStart).toBe(1);
+        expect(result.limitMessage).toContain('Large file (200.0MB)');
+        expect(result.rows).toEqual([[1]]);
     });
 
     it('detects PDF files by signature even with the wrong extension', async () => {

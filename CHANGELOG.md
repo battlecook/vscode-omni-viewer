@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.28.0] - 2026-06-03
+
+### Added
+- **Parquet Viewer**
+  - Added `hyparquet-compressors` support so compressed Parquet data can be read through the existing preview pipeline
+
+### Changed
+- **Parquet Viewer**
+  - Removed the previous hard maximum file-size rejection for Parquet files and kept oversized files on the incremental preview path instead
+- **Markdown Viewer**
+  - Improved split-view ordering so source and preview panels keep a more predictable layout across desktop and mobile widths
+  - Updated Mermaid rendering to use an explicit light diagram theme with readable labels across VS Code color themes
+
+### Fixed
+- **Markdown Viewer**
+  - Preserved source undo/redo history after a successful save instead of clearing edit history immediately
+
 ## [0.27.0] - 2026-05-27
 
 ### Added

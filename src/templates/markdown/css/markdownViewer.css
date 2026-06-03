@@ -4,6 +4,43 @@ body {
     color: var(--vscode-editor-foreground);
     font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
     font-size: var(--vscode-editor-font-size, 13px);
+    --omni-md-code-comment: #6a9955;
+    --omni-md-code-keyword: #c586c0;
+    --omni-md-code-string: #ce9178;
+    --omni-md-code-number: #b5cea8;
+    --omni-md-code-title: #dcdcaa;
+    --omni-md-code-type: #4ec9b0;
+    --omni-md-code-attr: #9cdcfe;
+    --omni-md-code-meta: #d7ba7d;
+    --omni-md-code-addition: #81b88b;
+    --omni-md-code-deletion: #c74e39;
+}
+
+body.vscode-light {
+    --omni-md-code-comment: #008000;
+    --omni-md-code-keyword: #0000ff;
+    --omni-md-code-string: #a31515;
+    --omni-md-code-number: #098658;
+    --omni-md-code-title: #795e26;
+    --omni-md-code-type: #267f99;
+    --omni-md-code-attr: #001080;
+    --omni-md-code-meta: #af00db;
+    --omni-md-code-addition: #098658;
+    --omni-md-code-deletion: #a31515;
+}
+
+body.vscode-high-contrast,
+body.vscode-high-contrast-light {
+    --omni-md-code-comment: var(--vscode-editor-foreground);
+    --omni-md-code-keyword: var(--vscode-terminal-ansiMagenta, #ff00ff);
+    --omni-md-code-string: var(--vscode-terminal-ansiGreen, #00ff00);
+    --omni-md-code-number: var(--vscode-terminal-ansiCyan, #00ffff);
+    --omni-md-code-title: var(--vscode-terminal-ansiYellow, #ffff00);
+    --omni-md-code-type: var(--vscode-terminal-ansiBlue, #0000ff);
+    --omni-md-code-attr: var(--vscode-terminal-ansiBrightBlue, #00aaff);
+    --omni-md-code-meta: var(--vscode-terminal-ansiYellow, #ffff00);
+    --omni-md-code-addition: var(--vscode-terminal-ansiGreen, #00ff00);
+    --omni-md-code-deletion: var(--vscode-terminal-ansiRed, #ff0000);
 }
 
 .viewer-shell {
@@ -122,6 +159,16 @@ body {
     grid-template-columns: minmax(320px, 1.1fr) minmax(300px, 0.9fr);
 }
 
+.workspace.is-split #sourcePanel {
+    grid-column: 1;
+    grid-row: 1;
+}
+
+.workspace.is-split #previewPanel {
+    grid-column: 2;
+    grid-row: 1;
+}
+
 .panel {
     display: flex;
     flex-direction: column;
@@ -234,61 +281,61 @@ body {
 
 .markdown-preview .hljs-comment,
 .markdown-preview .hljs-quote {
-    color: var(--vscode-descriptionForeground);
+    color: var(--omni-md-code-comment);
     font-style: italic;
 }
 
 .markdown-preview .hljs-keyword,
 .markdown-preview .hljs-selector-tag,
 .markdown-preview .hljs-subst {
-    color: var(--vscode-symbolIcon-keywordForeground, #c586c0);
+    color: var(--omni-md-code-keyword);
 }
 
 .markdown-preview .hljs-string,
 .markdown-preview .hljs-doctag,
 .markdown-preview .hljs-regexp {
-    color: var(--vscode-symbolIcon-stringForeground, #ce9178);
+    color: var(--omni-md-code-string);
 }
 
 .markdown-preview .hljs-number,
 .markdown-preview .hljs-literal,
 .markdown-preview .hljs-variable,
 .markdown-preview .hljs-template-variable {
-    color: var(--vscode-symbolIcon-numberForeground, #b5cea8);
+    color: var(--omni-md-code-number);
 }
 
 .markdown-preview .hljs-title,
 .markdown-preview .hljs-section,
 .markdown-preview .hljs-selector-id {
-    color: var(--vscode-symbolIcon-functionForeground, #dcdcaa);
+    color: var(--omni-md-code-title);
 }
 
 .markdown-preview .hljs-type,
 .markdown-preview .hljs-class .hljs-title,
 .markdown-preview .hljs-built_in {
-    color: var(--vscode-symbolIcon-classForeground, #4ec9b0);
+    color: var(--omni-md-code-type);
 }
 
 .markdown-preview .hljs-attr,
 .markdown-preview .hljs-attribute,
 .markdown-preview .hljs-name,
 .markdown-preview .hljs-selector-class {
-    color: var(--vscode-symbolIcon-propertyForeground, #9cdcfe);
+    color: var(--omni-md-code-attr);
 }
 
 .markdown-preview .hljs-meta,
 .markdown-preview .hljs-symbol,
 .markdown-preview .hljs-bullet,
 .markdown-preview .hljs-link {
-    color: var(--vscode-symbolIcon-colorForeground, #d7ba7d);
+    color: var(--omni-md-code-meta);
 }
 
 .markdown-preview .hljs-addition {
-    color: var(--vscode-gitDecoration-addedResourceForeground, #81b88b);
+    color: var(--omni-md-code-addition);
 }
 
 .markdown-preview .hljs-deletion {
-    color: var(--vscode-gitDecoration-deletedResourceForeground, #c74e39);
+    color: var(--omni-md-code-deletion);
 }
 
 .markdown-preview .hljs-emphasis {
@@ -327,7 +374,7 @@ body {
     padding: 16px;
     border: 1px solid var(--vscode-panel-border);
     border-radius: 8px;
-    background: var(--vscode-editor-background);
+    background: #fff;
 }
 
 .mermaid-diagram svg {
@@ -335,6 +382,30 @@ body {
     max-width: 100%;
     height: auto;
     margin: 0 auto;
+    background: #fff;
+}
+
+.mermaid-diagram svg text,
+.mermaid-diagram svg text *,
+.mermaid-diagram svg tspan {
+    color: #111 !important;
+    fill: #111 !important;
+}
+
+.mermaid-diagram svg .stateLabel,
+.mermaid-diagram svg .stateLabel *,
+.mermaid-diagram svg foreignObject,
+.mermaid-diagram svg foreignObject * {
+    color: #111 !important;
+}
+
+.mermaid-diagram svg .edgeLabel {
+    color: #111 !important;
+}
+
+.mermaid-diagram svg .edgeLabel rect,
+.mermaid-diagram svg .labelBkg {
+    fill: #fff !important;
 }
 
 .mermaid-diagram.is-invalid {
@@ -408,6 +479,16 @@ body {
     .workspace,
     .workspace.is-split {
         grid-template-columns: minmax(0, 1fr);
+    }
+
+    .workspace.is-split #sourcePanel {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .workspace.is-split #previewPanel {
+        grid-column: 1;
+        grid-row: 2;
     }
 
     .markdown-preview {
