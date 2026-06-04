@@ -159,6 +159,47 @@ describe('FileUtils delimited formats', () => {
         ]);
     });
 
+    it('serializes parquet DATE columns as displayable date strings', async () => {
+        const filePath = path.join(tempDir, 'dated.parquet');
+        fs.writeFileSync(filePath, 'PAR1');
+
+        const asyncBuffer = { byteLength: 4, slice: jest.fn() };
+        mockAsyncBufferFromFile.mockResolvedValue(asyncBuffer);
+        mockParquetMetadataAsync.mockResolvedValue({ num_rows: 1 });
+        mockParquetSchema.mockReturnValue({
+            children: [
+                {
+                    element: {
+                        name: 'date',
+                        converted_type: 'DATE',
+                        logical_type: { type: 'DATE' }
+                    },
+                    path: ['date']
+                },
+                {
+                    element: {
+                        name: 'updated_at',
+                        logical_type: { type: 'TIMESTAMP' }
+                    },
+                    path: ['updated_at']
+                }
+            ]
+        });
+        mockParquetReadObjects.mockResolvedValue([
+            {
+                date: new Date('2021-01-07T00:00:00.000Z'),
+                updated_at: new Date('2021-01-07T12:34:56.000Z')
+            }
+        ]);
+
+        const result = await FileUtils.readParquetFile(filePath);
+
+        expect(result.headers).toEqual(['date', 'updated_at']);
+        expect(result.rows).toEqual([
+            ['2021-01-07', '2021-01-07T12:34:56.000Z']
+        ]);
+    });
+
     it('previews parquet files larger than the former maximum size instead of rejecting them', async () => {
         const filePath = path.join(tempDir, 'huge.parquet');
         fs.writeFileSync(filePath, '');

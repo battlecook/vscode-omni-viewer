@@ -212,12 +212,15 @@ export async function readParquetFile(filePath: string, options: ParquetReadOpti
         throw new Error('Could not extract column names from Parquet file. The file may be empty or corrupted.');
     }
 
-    const serializableSchema = schema ? convertBigInt(schema) : {};
+    const columnLogicalTypes = collectColumnLogicalTypes(schema);
+    const serializableSchema = schema ? convertParquetValue(schema) : {};
     const rows = dataObjects
         .filter((row: any) => row && typeof row === 'object')
         .map((row: any) => {
-            const convertedRow = convertBigInt(row);
-            return headers.map((header) => convertedRow[header] !== undefined ? convertedRow[header] : null);
+            return headers.map((header) => {
+                const cell = row[header] !== undefined ? row[header] : null;
+                return convertParquetValue(cell, columnLogicalTypes.get(header));
+            });
         });
 
     const loadedRowsEnd = rowStart + rows.length;
@@ -454,21 +457,59 @@ function parseDelimitedLine(line: string, delimiter: string): string[] {
     return result;
 }
 
-function convertBigInt(value: any): any {
+function convertParquetValue(value: any, columnType?: ParquetColumnType): any {
     if (typeof value === 'bigint') {
         return value.toString();
     }
+    if (value instanceof Date) {
+        if (columnType?.logicalType === 'DATE' || columnType?.convertedType === 'DATE') {
+            return value.toISOString().slice(0, 10);
+        }
+        return value.toISOString();
+    }
     if (Array.isArray(value)) {
-        return value.map(convertBigInt);
+        return value.map((item) => convertParquetValue(item));
     }
     if (value && typeof value === 'object') {
         const converted: any = {};
         for (const key in value) {
-            converted[key] = convertBigInt(value[key]);
+            converted[key] = convertParquetValue(value[key]);
         }
         return converted;
     }
     return value;
+}
+
+interface ParquetColumnType {
+    logicalType?: string;
+    convertedType?: string;
+}
+
+function collectColumnLogicalTypes(schemaTree: any): Map<string, ParquetColumnType> {
+    const types = new Map<string, ParquetColumnType>();
+    collectColumnLogicalTypesInto(schemaTree, types);
+    return types;
+}
+
+function collectColumnLogicalTypesInto(schemaTree: any, types: Map<string, ParquetColumnType>): void {
+    if (!schemaTree) {
+        return;
+    }
+
+    const hasChildren = Array.isArray(schemaTree.children) && schemaTree.children.length > 0;
+    if (schemaTree.element && schemaTree.element.name && !hasChildren) {
+        const columnName = Array.isArray(schemaTree.path) && schemaTree.path.length > 0
+            ? schemaTree.path.join('.')
+            : schemaTree.element.name;
+        types.set(columnName, {
+            logicalType: schemaTree.element.logical_type?.type,
+            convertedType: schemaTree.element.converted_type
+        });
+    }
+
+    if (hasChildren) {
+        schemaTree.children.forEach((child: any) => collectColumnLogicalTypesInto(child, types));
+    }
 }
 
 function extractColumnNames(schemaTree: any): string[] {

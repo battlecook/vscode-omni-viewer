@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.28.1] - 2026-06-04
+
+### Fixed
+- **Parquet Viewer**
+  - Fixed Parquet `DATE` logical type values rendering as empty objects by serializing them as displayable `YYYY-MM-DD` strings
+
 ## [0.28.0] - 2026-06-03
 
 ### Added
