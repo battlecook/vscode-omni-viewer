@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { ArchiveViewerProvider } from './archiveViewerProvider';
 import { AudioViewerProvider } from './audioViewerProvider';
 import { CsvViewerProvider } from './csvViewerProvider';
+import { DbcViewerProvider } from './dbcViewerProvider';
 import { ExcelViewerProvider } from './excelViewerProvider';
 import { HwpViewerProvider } from './hwpViewerProvider';
 import { ImageViewerProvider } from './imageViewerProvider';
@@ -63,6 +64,13 @@ export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
         missingMessage: 'No CSV file selected',
         retainContextWhenHidden: true,
         createProvider: (context) => new CsvViewerProvider(context)
+    },
+    {
+        viewType: DbcViewerProvider.viewType,
+        command: 'omni-viewer.openDbcViewer',
+        missingMessage: 'No DBC file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new DbcViewerProvider(context)
     },
     {
         viewType: JsonViewerProvider.viewType,

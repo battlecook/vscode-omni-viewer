@@ -15,6 +15,9 @@ let currentZoom = 100;
 let currentRotation = 0;
 let isFlippedHorizontal = false;
 let isFlippedVertical = false;
+let isGridVisible = false;
+let gridCellWidth = 32;
+let gridCellHeight = 32;
 let originalWidth = 0;
 let originalHeight = 0;
 let imageFormat = '';
@@ -37,6 +40,10 @@ const flipVerticalBtn = document.getElementById('flipVertical');
 const resetBtn = document.getElementById('reset');
 const fitToScreenBtn = document.getElementById('fitToScreen');
 const saveFilteredBtn = document.getElementById('saveFiltered');
+const toggleGridBtn = document.getElementById('toggleGrid');
+const gridOverlay = document.getElementById('gridOverlay');
+const gridCellWidthInput = document.getElementById('gridCellWidth');
+const gridCellHeightInput = document.getElementById('gridCellHeight');
 
 // Initialize modules
 const imageFilters = new ImageFilters(image);
@@ -136,6 +143,26 @@ function setupEventListeners() {
         fitToScreen();
     });
 
+    toggleGridBtn.addEventListener('click', () => {
+        toggleGrid();
+    });
+
+    gridCellWidthInput.addEventListener('input', () => {
+        updateGridSizeFromInputs();
+    });
+
+    gridCellHeightInput.addEventListener('input', () => {
+        updateGridSizeFromInputs();
+    });
+
+    gridCellWidthInput.addEventListener('change', () => {
+        normalizeGridSizeInputs();
+    });
+
+    gridCellHeightInput.addEventListener('change', () => {
+        normalizeGridSizeInputs();
+    });
+
     // Save image (with or without edit elements)
     saveFilteredBtn.addEventListener('click', () => {
         const elements = imageEditMode.getAllElements();
@@ -173,6 +200,12 @@ function setupEventListeners() {
                 e.preventDefault();
                 fitToScreenBtn.click();
                 break;
+            case 'g':
+                if (!e.ctrlKey && !e.metaKey) {
+                    e.preventDefault();
+                    toggleGridBtn.click();
+                }
+                break;
             case 'ArrowLeft':
                 e.preventDefault();
                 rotateBtn.click();
@@ -189,6 +222,10 @@ function setupEventListeners() {
                 break;
         }
     });
+
+    window.addEventListener('resize', () => {
+        updateGridOverlay();
+    });
 }
 
 function updateZoom() {
@@ -200,13 +237,60 @@ function updateTransform() {
     const rotation = currentRotation;
     const flipH = isFlippedHorizontal ? -1 : 1;
     const flipV = isFlippedVertical ? -1 : 1;
+    const transform = `scale(${scale * flipH}, ${scale * flipV}) rotate(${rotation}deg)`;
     
-    image.style.transform = `scale(${scale * flipH}, ${scale * flipV}) rotate(${rotation}deg)`;
+    image.style.transform = transform;
+    gridOverlay.style.transform = transform;
+    updateGridOverlay();
     
     // Update edit canvas if in edit mode
     if (imageEditMode.isEditMode) {
         imageEditMode.setupEditCanvas();
     }
+}
+
+function updateGridOverlay() {
+    gridOverlay.style.width = `${image.offsetWidth}px`;
+    gridOverlay.style.height = `${image.offsetHeight}px`;
+
+    const cellDisplayWidth = originalWidth > 0
+        ? Math.max(1, image.offsetWidth * gridCellWidth / originalWidth)
+        : gridCellWidth;
+    const cellDisplayHeight = originalHeight > 0
+        ? Math.max(1, image.offsetHeight * gridCellHeight / originalHeight)
+        : gridCellHeight;
+
+    gridOverlay.style.setProperty('--grid-cell-display-width', `${cellDisplayWidth}px`);
+    gridOverlay.style.setProperty('--grid-cell-display-height', `${cellDisplayHeight}px`);
+}
+
+function toggleGrid() {
+    isGridVisible = !isGridVisible;
+    gridOverlay.classList.toggle('active', isGridVisible);
+    toggleGridBtn.classList.toggle('active', isGridVisible);
+    toggleGridBtn.setAttribute('aria-pressed', isGridVisible ? 'true' : 'false');
+    updateGridOverlay();
+}
+
+function updateGridSizeFromInputs() {
+    gridCellWidth = parseGridSizeValue(gridCellWidthInput.value, gridCellWidth);
+    gridCellHeight = parseGridSizeValue(gridCellHeightInput.value, gridCellHeight);
+    updateGridOverlay();
+}
+
+function normalizeGridSizeInputs() {
+    updateGridSizeFromInputs();
+    gridCellWidthInput.value = String(gridCellWidth);
+    gridCellHeightInput.value = String(gridCellHeight);
+}
+
+function parseGridSizeValue(value, fallback) {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed)) {
+        return fallback;
+    }
+
+    return Math.min(9999, Math.max(1, parsed));
 }
 
 function updateImageInfo() {

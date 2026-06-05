@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DBC Viewer - {{fileName}}</title>
+    <link rel="stylesheet" href="css/dbcViewer.css">
+</head>
+<body>
+    <div class="viewer-shell">
+        <header class="viewer-header">
+            <div>
+                <div class="viewer-title">{{fileName}}</div>
+                <div class="viewer-subtitle">CAN database message and signal explorer</div>
+            </div>
+            <div id="statusBadge" class="status-badge">Ready</div>
+            {{omniShareButtons}}
+        </header>
+
+        <section class="summary-bar">
+            <div class="summary-item">
+                <span class="summary-label">Messages</span>
+                <strong id="messageCount">0</strong>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Signals</span>
+                <strong id="signalCount">0</strong>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Nodes</span>
+                <strong id="nodeCount">0</strong>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Max DLC</span>
+                <strong id="maxDlc">0</strong>
+            </div>
+            <div class="summary-item wide">
+                <span class="summary-label">Version</span>
+                <strong id="versionText">-</strong>
+            </div>
+        </section>
+
+        <section class="toolbar">
+            <input id="searchInput" class="search-input" type="search" placeholder="Search message, signal, node, unit, or comment" spellcheck="false">
+            <label class="filter-field">
+                <span>Node</span>
+                <select id="nodeFilter" class="select-input" aria-label="Node filter">
+                    <option value="">All nodes</option>
+                </select>
+            </label>
+            <button type="button" id="copyMessageBtn" class="toolbar-btn">Copy Message JSON</button>
+            <button type="button" id="copySourceBtn" class="toolbar-btn">Copy Source</button>
+        </section>
+
+        <main class="workspace">
+            <section class="message-panel">
+                <div class="panel-header">
+                    <span>Messages</span>
+                    <span id="messageCaption" class="panel-caption">0 visible</span>
+                </div>
+                <div id="messageList" class="message-list"></div>
+            </section>
+
+            <section class="detail-panel">
+                <div class="detail-header">
+                    <div>
+                        <div id="detailTitle" class="detail-title">No message selected</div>
+                        <div id="detailSubtitle" class="panel-caption">Select a message to inspect signals</div>
+                    </div>
+                    <div id="messageMeta" class="meta-row"></div>
+                </div>
+
+                <div id="commentBox" class="comment-box is-hidden"></div>
+
+                <div class="tabs">
+                    <button type="button" class="tab-btn is-active" data-tab="signals">Signals</button>
+                    <button type="button" class="tab-btn" data-tab="raw">Source</button>
+                    <button type="button" class="tab-btn" data-tab="nodes">Nodes</button>
+                </div>
+
+                <div id="signalsTab" class="tab-panel">
+                    <div class="table-wrap">
+                        <table class="signal-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Start</th>
+                                    <th>Length</th>
+                                    <th>Endian</th>
+                                    <th>Type</th>
+                                    <th>Scale</th>
+                                    <th>Offset</th>
+                                    <th>Range</th>
+                                    <th>Unit</th>
+                                    <th>Receivers</th>
+                                </tr>
+                            </thead>
+                            <tbody id="signalTableBody"></tbody>
+                        </table>
+                    </div>
+                    <div id="signalDetail" class="signal-detail is-hidden"></div>
+                </div>
+
+                <textarea id="sourceView" class="source-view is-hidden" spellcheck="false" readonly></textarea>
+                <div id="nodesView" class="nodes-view is-hidden"></div>
+            </section>
+        </main>
+
+        <section id="warningPanel" class="warning-panel is-hidden"></section>
+    </div>
+
+    <script>
+        window.dbcSource = {{dbcSource}};
+        window.dbcModel = {{dbcModel}};
+    </script>
+    <script src="js/dbcViewer.js"></script>
+</body>
+</html>

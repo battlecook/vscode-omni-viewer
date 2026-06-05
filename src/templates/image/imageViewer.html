@@ -42,6 +42,12 @@
                     <button id="fitToScreen" class="btn">📐 Fit</button>
                     <button id="zoomOut" class="btn">🔍-</button>
                     <button id="zoomIn" class="btn">🔍+</button>
+                    <button id="toggleGrid" class="btn" title="Toggle grid overlay" aria-pressed="false"># Grid</button>
+                    <div class="grid-size-controls" aria-label="Grid cell size">
+                        <input id="gridCellWidth" class="grid-size-input" type="number" min="1" max="9999" value="32" title="Grid cell width" aria-label="Grid cell width">
+                        <span class="grid-size-separator">×</span>
+                        <input id="gridCellHeight" class="grid-size-input" type="number" min="1" max="9999" value="32" title="Grid cell height" aria-label="Grid cell height">
+                    </div>
                     <button id="toggleEditMode" class="btn">🎨</button>
                     <button id="saveFiltered" class="btn save-btn">💾 Save</button>
                 </div>
@@ -115,6 +121,7 @@
                 <div id="error" class="error" style="display: none;"></div>
                 <div id="imageWrapper" class="image-wrapper" style="display: none;">
                     <img id="image" src="{{imageSrc}}" alt="{{fileName}}">
+                    <div id="gridOverlay" class="grid-overlay" aria-hidden="true"></div>
                     <div id="editCanvas" class="edit-canvas"></div>
                 </div>
             </div>

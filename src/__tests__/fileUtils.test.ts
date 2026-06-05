@@ -537,6 +537,22 @@ describe('FileUtils delimited formats', () => {
         expect(result.matchedBySignature).toBe(false);
     });
 
+    it('detects DBC files by extension and CAN database content', async () => {
+        const filePath = path.join(tempDir, 'network.dbc');
+        fs.writeFileSync(filePath, [
+            'VERSION "demo"',
+            'BU_: ECM Tester',
+            'BO_ 100 EngineData: 8 ECM',
+            ' SG_ Speed : 0|16@1+ (0.01,0) [0|250] "km/h" Tester'
+        ].join('\n'), 'utf8');
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.dbcViewer');
+        expect(result.matchedBySignature).toBe(false);
+        expect(result.reason).toContain('DBC extension');
+    });
+
     it('keeps .doc files on the Word viewer even when embedded workbook metadata exists', async () => {
         const filePath = path.join(tempDir, 'embedded-chart.doc');
         const header = Buffer.from([0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]);

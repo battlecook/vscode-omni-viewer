@@ -34,6 +34,7 @@ export type OmniViewerViewType =
     | 'omni-viewer.imageViewer'
     | 'omni-viewer.archiveViewer'
     | 'omni-viewer.csvViewer'
+    | 'omni-viewer.dbcViewer'
     | 'omni-viewer.jsonViewer'
     | 'omni-viewer.yamlViewer'
     | 'omni-viewer.jsonlViewer'
@@ -649,6 +650,14 @@ export class FileUtils {
             };
         }
 
+        if (ext === '.dbc' || this.looksLikeDbc(lines)) {
+            return {
+                viewType: 'omni-viewer.dbcViewer',
+                reason: ext === '.dbc' ? 'Used the DBC extension fallback.' : 'Matched CAN DBC message definitions.',
+                matchedBySignature: false
+            };
+        }
+
         if (ext === '.puml' || ext === '.plantuml' || ext === '.iuml' || this.looksLikePlantuml(lines)) {
             return {
                 viewType: 'omni-viewer.plantumlViewer',
@@ -736,6 +745,15 @@ export class FileUtils {
         }
 
         return tableCount > 0 && assignmentCount > 0 || assignmentCount >= 3;
+    }
+
+    private static looksLikeDbc(lines: string[]): boolean {
+        const sampleLines = lines.slice(0, 80);
+        const hasMessage = sampleLines.some(line => /^BO_\s+\d+\s+[A-Za-z_][\w.]*\s*:\s*\d+\s+\S+/.test(line));
+        const hasSignal = sampleLines.some(line => /^SG_\s+[A-Za-z_][\w.]*\s*(?:M|m\d+)?\s*:/.test(line));
+        const hasDbcHeader = sampleLines.some(line => /^(VERSION|NS_|BS_|BU_):?/.test(line));
+
+        return hasMessage && (hasSignal || hasDbcHeader);
     }
 
     private static looksLikeMermaid(lines: string[]): boolean {

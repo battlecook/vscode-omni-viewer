@@ -2,8 +2,8 @@
   "name": "omni-viewer",
   "displayName": "omni-viewer",
   "publisher": "battlecook",
-  "description": "A VSCode extension for viewing audio, image, video, archive, csv, excel, word, powerpoint, parquet, jsonl, yaml, toml, markdown, mermaid, PlantUML, hwp, PSD and PDF files",
-  "version": "0.28.1",
+  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, excel, word, powerpoint, parquet, jsonl, yaml, toml, markdown, mermaid, PlantUML, hwp, PSD and PDF files",
+  "version": "0.29.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
@@ -29,6 +29,8 @@
     "gz",
     "PDF",
     "CSV",
+    "DBC",
+    "CAN",
     "Excel",
     "xlsx",
     "xls",
@@ -221,6 +223,16 @@
           },
           {
             "filenamePattern": "*.tsv"
+          }
+        ],
+        "priority": "option"
+      },
+      {
+        "viewType": "omni-viewer.dbcViewer",
+        "displayName": "DBC Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.dbc"
           }
         ],
         "priority": "option"
@@ -444,6 +456,11 @@
           "group": "navigation"
         },
         {
+          "command": "omni-viewer.openDbcViewer",
+          "when": "resourceExtname == '.dbc'",
+          "group": "navigation"
+        },
+        {
           "command": "omni-viewer.openJsonViewer",
           "when": "resourceExtname == '.json'",
           "group": "navigation"
@@ -539,6 +556,11 @@
       {
         "command": "omni-viewer.openCsvViewer",
         "title": "Open with CSV Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openDbcViewer",
+        "title": "Open with DBC Viewer",
         "category": "Omni Viewer"
       },
       {

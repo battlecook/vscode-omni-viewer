@@ -1,6 +1,6 @@
 # VSCode Omni Viewer
 
-A comprehensive audio, image, PSD, video, CSV, Excel, Word, PowerPoint, PDF, Parquet, JSONL, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
+A comprehensive audio, image, PSD, video, CSV, DBC, Excel, Word, PowerPoint, PDF, Parquet, JSONL, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-red)](https://github.com/sponsors/battlecook)
 
@@ -91,6 +91,18 @@ Note: `.ts` files share an extension with TypeScript source files, so automatic 
 ### Supported CSV Formats
 - CSV (Comma-Separated Values)
 - TSV (Tab-Separated Values)
+
+## 🚗 DBC Viewer Features
+
+### CAN Database Explorer
+- **Message Overview**: Browse CAN messages with ID, hexadecimal ID, DLC, transmitter, and signal count
+- **Signal Table**: Inspect start bit, bit length, byte order, signedness, scale, offset, range, unit, and receivers
+- **Search & Filter**: Search across messages/signals/comments and filter by CAN node
+- **Comments & Value Tables**: Shows `CM_` comments and `VAL_` enumerations when present
+- **Raw Source View**: Keep the original DBC text available beside the structured view
+
+### Supported DBC Formats
+- DBC (CAN database)
 
 ## 📊 Excel Viewer Features
 

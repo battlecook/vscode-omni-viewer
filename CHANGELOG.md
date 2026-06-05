@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.29.0] - 2026-06-05
+
+### Added
+- **DBC Viewer**
+  - Added a dedicated DBC viewer for `.dbc` CAN database files with custom editor registration, explorer/context menu actions, and direct `Open with DBC Viewer` command support
+  - Added DBC parsing for version metadata, bus configuration, nodes, messages, signals, signedness, byte order, scaling, ranges, units, receivers, comments, and `VAL_` value tables
+  - Added an interactive DBC workbench with message search, node filtering, signal detail inspection, raw source view, node list, copy actions, summary stats, and parser warning display
+  - Added DBC routing heuristics and regression coverage so `.dbc` files and CAN database-like content open through the new viewer
+- **Image Viewer**
+  - Added a toggleable image grid overlay with configurable cell width and height controls for pixel/sprite inspection workflows
+
+### Changed
+- **Extension metadata**
+  - Updated extension metadata, keywords, README coverage, and viewer registration to advertise DBC/CAN database support
+
 ## [0.28.1] - 2026-06-04
 
 ### Fixed
