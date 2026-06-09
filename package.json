@@ -2,8 +2,8 @@
   "name": "omni-viewer",
   "displayName": "omni-viewer",
   "publisher": "battlecook",
-  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, excel, word, powerpoint, parquet, jsonl, yaml, toml, markdown, mermaid, PlantUML, hwp, PSD and PDF files",
-  "version": "0.29.0",
+  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, ARXML, A2L, ASC, BLF, MF4, excel, word, powerpoint, parquet, jsonl, yaml, toml, markdown, mermaid, PlantUML, hwp, PSD and PDF files",
+  "version": "0.30.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
@@ -30,6 +30,11 @@
     "PDF",
     "CSV",
     "DBC",
+    "ARXML",
+    "A2L",
+    "ASC",
+    "BLF",
+    "MF4",
     "CAN",
     "Excel",
     "xlsx",
@@ -233,6 +238,59 @@
         "selector": [
           {
             "filenamePattern": "*.dbc"
+          }
+        ],
+        "priority": "option"
+      },
+      {
+        "viewType": "omni-viewer.arxmlViewer",
+        "displayName": "ARXML Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.arxml"
+          }
+        ],
+        "priority": "option"
+      },
+      {
+        "viewType": "omni-viewer.a2lViewer",
+        "displayName": "A2L Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.a2l"
+          },
+          {
+            "filenamePattern": "*.A2L"
+          }
+        ],
+        "priority": "option"
+      },
+      {
+        "viewType": "omni-viewer.ascViewer",
+        "displayName": "ASC Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.asc"
+          }
+        ],
+        "priority": "option"
+      },
+      {
+        "viewType": "omni-viewer.blfViewer",
+        "displayName": "BLF Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.blf"
+          }
+        ],
+        "priority": "option"
+      },
+      {
+        "viewType": "omni-viewer.mf4Viewer",
+        "displayName": "MF4 Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.mf4"
           }
         ],
         "priority": "option"
@@ -461,6 +519,31 @@
           "group": "navigation"
         },
         {
+          "command": "omni-viewer.openArxmlViewer",
+          "when": "resourceExtname == '.arxml'",
+          "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openA2lViewer",
+          "when": "resourceExtname == '.a2l'",
+          "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openAscViewer",
+          "when": "resourceExtname == '.asc'",
+          "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openBlfViewer",
+          "when": "resourceExtname == '.blf'",
+          "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openMf4Viewer",
+          "when": "resourceExtname == '.mf4'",
+          "group": "navigation"
+        },
+        {
           "command": "omni-viewer.openJsonViewer",
           "when": "resourceExtname == '.json'",
           "group": "navigation"
@@ -561,6 +644,31 @@
       {
         "command": "omni-viewer.openDbcViewer",
         "title": "Open with DBC Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openArxmlViewer",
+        "title": "Open with ARXML Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openA2lViewer",
+        "title": "Open with A2L Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openAscViewer",
+        "title": "Open with ASC Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openBlfViewer",
+        "title": "Open with BLF Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openMf4Viewer",
+        "title": "Open with MF4 Viewer",
         "category": "Omni Viewer"
       },
       {

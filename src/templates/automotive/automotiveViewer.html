@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automotive Viewer - {{fileName}}</title>
+    <link rel="stylesheet" href="css/automotiveViewer.css">
+</head>
+<body>
+    <div class="app">
+        <header class="topbar">
+            <div>
+                <div class="eyebrow" id="formatLabel">Automotive</div>
+                <h1>{{fileName}}</h1>
+                <div class="subtitle" id="subtitle">Loading...</div>
+            </div>
+            {{omniShareButtons}}
+        </header>
+
+        <section class="summary-grid" id="summaryGrid"></section>
+
+        <div class="toolbar">
+            <input id="searchInput" type="search" placeholder="Search tables..." aria-label="Search tables">
+            <div class="tabs" id="tabs"></div>
+            <button type="button" id="copyBtn">Copy JSON</button>
+        </div>
+
+        <section id="warningPanel" class="warning-panel is-hidden"></section>
+
+        <main class="content">
+            <section id="tablePanel" class="panel"></section>
+            <section id="rawPanel" class="panel is-hidden">
+                <pre id="rawPreview"></pre>
+            </section>
+        </main>
+    </div>
+
+    <script id="viewer-data" type="application/json">{{viewerData}}</script>
+    <script src="js/automotiveViewer.js"></script>
+</body>
+</html>

@@ -1,6 +1,10 @@
 import * as vscode from 'vscode';
+import { A2lViewerProvider } from './a2lViewerProvider';
+import { ArxmlViewerProvider } from './arxmlViewerProvider';
 import { ArchiveViewerProvider } from './archiveViewerProvider';
+import { AscViewerProvider } from './ascViewerProvider';
 import { AudioViewerProvider } from './audioViewerProvider';
+import { BlfViewerProvider } from './blfViewerProvider';
 import { CsvViewerProvider } from './csvViewerProvider';
 import { DbcViewerProvider } from './dbcViewerProvider';
 import { ExcelViewerProvider } from './excelViewerProvider';
@@ -10,6 +14,7 @@ import { JsonViewerProvider } from './jsonViewerProvider';
 import { JsonlViewerProvider } from './jsonlViewerProvider';
 import { MarkdownViewerProvider } from './markdownViewerProvider';
 import { MermaidViewerProvider } from './mermaidViewerProvider';
+import { Mf4ViewerProvider } from './mf4ViewerProvider';
 import { ParquetViewerProvider } from './parquetViewerProvider';
 import { PdfViewerProvider } from './pdfViewerProvider';
 import { PlantumlViewerProvider } from './plantumlViewerProvider';
@@ -71,6 +76,41 @@ export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
         missingMessage: 'No DBC file selected',
         retainContextWhenHidden: true,
         createProvider: (context) => new DbcViewerProvider(context)
+    },
+    {
+        viewType: ArxmlViewerProvider.viewType,
+        command: 'omni-viewer.openArxmlViewer',
+        missingMessage: 'No ARXML file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new ArxmlViewerProvider(context)
+    },
+    {
+        viewType: A2lViewerProvider.viewType,
+        command: 'omni-viewer.openA2lViewer',
+        missingMessage: 'No A2L file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new A2lViewerProvider(context)
+    },
+    {
+        viewType: AscViewerProvider.viewType,
+        command: 'omni-viewer.openAscViewer',
+        missingMessage: 'No ASC file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new AscViewerProvider(context)
+    },
+    {
+        viewType: BlfViewerProvider.viewType,
+        command: 'omni-viewer.openBlfViewer',
+        missingMessage: 'No BLF file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new BlfViewerProvider(context)
+    },
+    {
+        viewType: Mf4ViewerProvider.viewType,
+        command: 'omni-viewer.openMf4Viewer',
+        missingMessage: 'No MF4 file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new Mf4ViewerProvider(context)
     },
     {
         viewType: JsonViewerProvider.viewType,

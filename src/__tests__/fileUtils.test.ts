@@ -553,6 +553,60 @@ describe('FileUtils delimited formats', () => {
         expect(result.reason).toContain('DBC extension');
     });
 
+    it('detects ARXML files by extension', async () => {
+        const filePath = path.join(tempDir, 'network.arxml');
+        fs.writeFileSync(filePath, '<AUTOSAR><AR-PACKAGE><SHORT-NAME>Demo</SHORT-NAME></AR-PACKAGE></AUTOSAR>', 'utf8');
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.arxmlViewer');
+        expect(result.matchedBySignature).toBe(false);
+    });
+
+    it('detects A2L files by extension', async () => {
+        const filePath = path.join(tempDir, 'ecu.a2l');
+        fs.writeFileSync(filePath, '/begin PROJECT Demo ""\n/begin MODULE ECU ""\n/end MODULE\n/end PROJECT', 'utf8');
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.a2lViewer');
+        expect(result.matchedBySignature).toBe(false);
+    });
+
+    it('detects ASC files by extension', async () => {
+        const filePath = path.join(tempDir, 'trace.asc');
+        fs.writeFileSync(filePath, [
+            'date Sam Sep 30 15:06:13.191 2017',
+            'base hex  timestamps absolute',
+            '  30.300981 CANFD 3 Tx 50005x 0 1 5 0 140000'
+        ].join('\n'), 'utf8');
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.ascViewer');
+        expect(result.matchedBySignature).toBe(false);
+    });
+
+    it('detects BLF files by LOGG signature', async () => {
+        const filePath = path.join(tempDir, 'trace.bin');
+        fs.writeFileSync(filePath, Buffer.from('LOGG................', 'ascii'));
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.blfViewer');
+        expect(result.matchedBySignature).toBe(true);
+    });
+
+    it('detects MF4 files by MDF signature', async () => {
+        const filePath = path.join(tempDir, 'measurement.bin');
+        fs.writeFileSync(filePath, Buffer.from('MDF     4.10    ', 'ascii'));
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.mf4Viewer');
+        expect(result.matchedBySignature).toBe(true);
+    });
+
     it('keeps .doc files on the Word viewer even when embedded workbook metadata exists', async () => {
         const filePath = path.join(tempDir, 'embedded-chart.doc');
         const header = Buffer.from([0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]);

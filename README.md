@@ -1,6 +1,6 @@
 # VSCode Omni Viewer
 
-A comprehensive audio, image, PSD, video, CSV, DBC, Excel, Word, PowerPoint, PDF, Parquet, JSONL, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
+A comprehensive audio, image, PSD, video, CSV, DBC, ARXML, A2L, ASC, BLF, MF4, Excel, Word, PowerPoint, PDF, Parquet, JSONL, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-red)](https://github.com/sponsors/battlecook)
 
@@ -103,6 +103,23 @@ Note: `.ts` files share an extension with TypeScript source files, so automatic 
 
 ### Supported DBC Formats
 - DBC (CAN database)
+
+## 🚘 Automotive Data Viewer Features
+
+### ARXML, A2L, ASC, BLF, and MF4 Explorer
+- **ARXML Structure View**: Summarizes AUTOSAR packages, named CAN-related elements, and references
+- **A2L Block View**: Lists ASAP2 blocks and counts key sections such as `MEASUREMENT`, `CHARACTERISTIC`, and `IF_DATA`
+- **ASC Log Preview**: Parses Vector ASCII CAN/CAN FD events into a searchable table
+- **BLF Header Preview**: Detects Vector BLF `LOGG` files and shows binary header/hex preview
+- **MF4 Header Preview**: Detects ASAM MDF 4 files and summarizes known MDF block markers
+- **Search & Raw Preview**: Search across extracted tables and inspect the original text preview for text-based formats
+
+### Supported Automotive Formats
+- ARXML (AUTOSAR XML)
+- A2L (ASAM MCD-2 MC / ASAP2)
+- ASC (Vector ASCII CAN log)
+- BLF (Vector Binary Logging Format header preview)
+- MF4 (ASAM MDF 4 header and block marker preview)
 
 ## 📊 Excel Viewer Features
 

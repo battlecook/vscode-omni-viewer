@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.30.0] - 2026-06-09
+
+### Added
+- **Automotive Viewers**
+  - Added dedicated ARXML, A2L, ASC, BLF, and MF4 viewers with custom editor registration, explorer/context menu actions, and direct `Open with` commands for each format
+  - Added a shared automotive viewer UI with summary metrics, searchable tables, tabbed views, raw preview support for text-based formats, parser warnings, and JSON copy support
+  - Added ARXML parsing for AUTOSAR packages, named CAN-related elements, references, XML namespace summaries, and truncated large-file previews
+  - Added A2L/ASAP2 parsing for block summaries, important calibration sections, block counts, and raw source previews
+  - Added ASC parsing for Vector ASCII CAN/CAN FD log headers and CAN event tables with parsed time, channel, direction, frame ID, DLC, data, and source line details
+  - Added BLF and MF4 binary header inspectors with signature detection, summary fields, known MDF block marker counts, and hex/ASCII previews
+  - Added automotive file detection heuristics and regression coverage for ARXML, A2L, ASC, BLF `LOGG`, and MF4/MDF signatures
+
+### Changed
+- **Parquet Viewer**
+  - Improved table usability with estimated column widths, draggable column resizing, auto-fit actions, column value copy controls, cell copy actions, context menus, fixed table layout, and clipboard fallback handling
+- **Extension metadata**
+  - Updated extension metadata, keywords, README coverage, and viewer registration to advertise ARXML, A2L, ASC, BLF, and MF4 support
+
 ## [0.29.0] - 2026-06-05
 
 ### Added

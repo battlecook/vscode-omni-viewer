@@ -180,8 +180,9 @@ body {
 }
 
 .parquet-table {
-    width: 100%;
+    min-width: 100%;
     border-collapse: collapse;
+    table-layout: fixed;
     font-size: 13px;
     background: var(--vscode-editor-background);
 }
@@ -196,11 +197,12 @@ body {
 .parquet-table th {
     background: var(--vscode-list-hoverBackground);
     border: 1px solid var(--vscode-panel-border);
-    padding: 8px 12px;
+    padding: 8px 18px 8px 12px;
     text-align: left;
     font-weight: 600;
     color: var(--vscode-editor-foreground);
     position: relative;
+    user-select: none;
 }
 
 .parquet-table th:hover {
@@ -236,6 +238,39 @@ body {
     flex-shrink: 0;
 }
 
+.copy-column-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--vscode-descriptionForeground);
+    cursor: pointer;
+    flex-shrink: 0;
+    font-size: 12px;
+    line-height: 1;
+    opacity: 0;
+}
+
+.parquet-table th:hover .copy-column-button,
+.copy-column-button:focus-visible {
+    opacity: 1;
+}
+
+.copy-column-button:hover {
+    background: var(--vscode-toolbar-hoverBackground);
+    color: var(--vscode-editor-foreground);
+}
+
+.copy-column-button:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: 1px;
+}
+
 .sort-button:hover {
     background: var(--vscode-toolbar-hoverBackground);
     color: var(--vscode-editor-foreground);
@@ -258,12 +293,40 @@ body {
     color: var(--vscode-editor-foreground);
 }
 
+.column-resizer {
+    position: absolute;
+    top: 0;
+    right: -4px;
+    bottom: 0;
+    width: 8px;
+    cursor: col-resize;
+    z-index: 2;
+}
+
+.column-resizer::after {
+    content: '';
+    position: absolute;
+    top: 20%;
+    right: 3px;
+    width: 1px;
+    height: 60%;
+    background: transparent;
+}
+
+.column-resizer:hover::after,
+.is-resizing-column .column-resizer::after {
+    background: var(--vscode-focusBorder);
+}
+
+.is-resizing-column {
+    cursor: col-resize;
+    user-select: none;
+}
+
 .parquet-table td {
     border: 1px solid var(--vscode-panel-border);
     padding: 6px 12px;
     color: var(--vscode-editor-foreground);
-    word-break: break-word;
-    max-width: 200px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -275,6 +338,11 @@ body {
 
 .parquet-table tbody tr:hover {
     background: var(--vscode-list-hoverBackground);
+}
+
+.parquet-table td:hover {
+    background: var(--vscode-list-activeSelectionBackground);
+    cursor: copy;
 }
 
 .parquet-table tbody tr.highlight {

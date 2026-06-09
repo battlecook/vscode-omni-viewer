@@ -35,6 +35,11 @@ export type OmniViewerViewType =
     | 'omni-viewer.archiveViewer'
     | 'omni-viewer.csvViewer'
     | 'omni-viewer.dbcViewer'
+    | 'omni-viewer.arxmlViewer'
+    | 'omni-viewer.a2lViewer'
+    | 'omni-viewer.ascViewer'
+    | 'omni-viewer.blfViewer'
+    | 'omni-viewer.mf4Viewer'
     | 'omni-viewer.jsonViewer'
     | 'omni-viewer.yamlViewer'
     | 'omni-viewer.jsonlViewer'
@@ -164,6 +169,14 @@ export class FileUtils {
 
         if (await this.isParquet(filePath, buffer)) {
             return this.signatureMatch('omni-viewer.parquetViewer', 'Matched the Parquet magic bytes.');
+        }
+
+        if (this.hasAsciiPrefix(buffer, 'LOGG')) {
+            return this.signatureMatch('omni-viewer.blfViewer', 'Matched the BLF LOGG signature.');
+        }
+
+        if (this.hasAsciiPrefix(buffer, 'MDF     ')) {
+            return this.signatureMatch('omni-viewer.mf4Viewer', 'Matched the MDF/MF4 signature.');
         }
 
         if (this.isCompoundFileBinary(buffer)) {
@@ -658,6 +671,30 @@ export class FileUtils {
             };
         }
 
+        if (ext === '.arxml' || this.looksLikeArxml(sample)) {
+            return {
+                viewType: 'omni-viewer.arxmlViewer',
+                reason: ext === '.arxml' ? 'Used the ARXML extension fallback.' : 'Matched AUTOSAR XML content.',
+                matchedBySignature: false
+            };
+        }
+
+        if (ext === '.a2l' || this.looksLikeA2l(lines)) {
+            return {
+                viewType: 'omni-viewer.a2lViewer',
+                reason: ext === '.a2l' ? 'Used the A2L extension fallback.' : 'Matched ASAP2/A2L block syntax.',
+                matchedBySignature: false
+            };
+        }
+
+        if (ext === '.asc' || this.looksLikeAsc(lines)) {
+            return {
+                viewType: 'omni-viewer.ascViewer',
+                reason: ext === '.asc' ? 'Used the ASC extension fallback.' : 'Matched Vector ASC log content.',
+                matchedBySignature: false
+            };
+        }
+
         if (ext === '.puml' || ext === '.plantuml' || ext === '.iuml' || this.looksLikePlantuml(lines)) {
             return {
                 viewType: 'omni-viewer.plantumlViewer',
@@ -754,6 +791,28 @@ export class FileUtils {
         const hasDbcHeader = sampleLines.some(line => /^(VERSION|NS_|BS_|BU_):?/.test(line));
 
         return hasMessage && (hasSignal || hasDbcHeader);
+    }
+
+    private static looksLikeArxml(sample: string): boolean {
+        const trimmed = sample.trimStart();
+        return (trimmed.startsWith('<?xml') || trimmed.startsWith('<AUTOSAR'))
+            && /<AUTOSAR\b/.test(sample)
+            && /<AR-PACKAGE\b|<SHORT-NAME\b/.test(sample);
+    }
+
+    private static looksLikeA2l(lines: string[]): boolean {
+        const sampleLines = lines.slice(0, 120);
+        const beginCount = sampleLines.filter(line => /^\/begin\s+[A-Za-z0-9_]+/.test(line)).length;
+        const endCount = sampleLines.filter(line => /^\/end\s+[A-Za-z0-9_]+/.test(line)).length;
+        return beginCount >= 2 && endCount >= 1 || sampleLines.some(line => /^ASAP2_VERSION\b/.test(line));
+    }
+
+    private static looksLikeAsc(lines: string[]): boolean {
+        const sampleLines = lines.slice(0, 80);
+        const hasHeader = sampleLines.some(line => /^date\s+/i.test(line))
+            && sampleLines.some(line => /^base\s+(hex|dec)/i.test(line));
+        const hasEvent = sampleLines.some(line => /^\d+(?:\.\d+)?\s+(?:CANFD|\d+\s+[0-9A-Fa-f]+x?\s+(?:Rx|Tx)\s+d\b)/.test(line));
+        return hasHeader && hasEvent;
     }
 
     private static looksLikeMermaid(lines: string[]): boolean {

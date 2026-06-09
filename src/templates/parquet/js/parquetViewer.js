@@ -11,6 +11,8 @@ class ParquetViewer {
         this.sortState = { columnIndex: null, direction: null };
         this.isTableView = true; // true for table view, false for raw view
         this.isLoadingMore = false;
+        this.columnWidths = {};
+        this.resizeState = null;
         
         this.init();
     }
@@ -163,12 +165,16 @@ class ParquetViewer {
 
         console.log('Rendering table with', this.parquetData.headers.length, 'headers and', this.parquetData.rows.length, 'rows');
 
+        this.initializeColumnWidths();
+        this.renderColgroup();
+
         // Render headers
         headerEl.innerHTML = '';
         const headerRow = document.createElement('tr');
         this.parquetData.headers.forEach((header, index) => {
             const th = document.createElement('th');
             th.title = header || ''; // Tooltip for truncated content
+            th.dataset.columnIndex = String(index);
 
             const headerContent = document.createElement('div');
             headerContent.className = 'header-content';
@@ -193,9 +199,46 @@ class ParquetViewer {
                 this.toggleSort(index);
             });
 
+            const copyColumnButton = document.createElement('button');
+            copyColumnButton.type = 'button';
+            copyColumnButton.className = 'copy-column-button';
+            copyColumnButton.setAttribute('aria-label', `Copy values from ${header || `column ${index + 1}`}`);
+            copyColumnButton.title = 'Copy column values';
+            copyColumnButton.textContent = '⧉';
+            copyColumnButton.addEventListener('click', (event) => {
+                event.stopPropagation();
+                this.copyColumnValues(index);
+            });
+
+            const resizeHandle = document.createElement('div');
+            resizeHandle.className = 'column-resizer';
+            resizeHandle.setAttribute('role', 'separator');
+            resizeHandle.setAttribute('aria-orientation', 'vertical');
+            resizeHandle.title = 'Drag to resize column';
+            resizeHandle.addEventListener('mousedown', (event) => this.startColumnResize(event, index));
+            resizeHandle.addEventListener('dblclick', (event) => {
+                event.stopPropagation();
+                this.autoFitColumn(index);
+            });
+
             headerContent.appendChild(headerLabel);
+            headerContent.appendChild(copyColumnButton);
             headerContent.appendChild(sortButton);
             th.appendChild(headerContent);
+            th.appendChild(resizeHandle);
+            th.addEventListener('contextmenu', (event) => {
+                event.preventDefault();
+                this.showContextMenu(event.clientX, event.clientY, [
+                    {
+                        label: 'Copy column values',
+                        action: () => this.copyColumnValues(index)
+                    },
+                    {
+                        label: 'Auto fit column',
+                        action: () => this.autoFitColumn(index)
+                    }
+                ]);
+            });
             headerRow.appendChild(th);
         });
         headerEl.appendChild(headerRow);
@@ -220,19 +263,33 @@ class ParquetViewer {
         pageData.forEach((row) => {
             const tr = document.createElement('tr');
             
-            row.forEach((cell) => {
+            row.forEach((cell, columnIndex) => {
                 const td = document.createElement('td');
+                const cellText = this.formatCellValue(cell);
+                td.dataset.columnIndex = String(columnIndex);
                 // Handle different data types (null, objects, arrays, etc.)
                 if (cell === null || cell === undefined) {
                     td.textContent = '';
                     td.style.color = 'var(--vscode-descriptionForeground)';
                     td.style.fontStyle = 'italic';
-                } else if (typeof cell === 'object') {
-                    td.textContent = JSON.stringify(cell);
                 } else {
-                    td.textContent = String(cell);
+                    td.textContent = cellText;
                 }
                 td.title = td.textContent; // Tooltip for truncated content
+                td.addEventListener('dblclick', () => this.copyCellValue(cell));
+                td.addEventListener('contextmenu', (event) => {
+                    event.preventDefault();
+                    this.showContextMenu(event.clientX, event.clientY, [
+                        {
+                            label: 'Copy cell value',
+                            action: () => this.copyCellValue(cell)
+                        },
+                        {
+                            label: 'Copy column values',
+                            action: () => this.copyColumnValues(columnIndex)
+                        }
+                    ]);
+                });
                 tr.appendChild(td);
             });
 
@@ -245,6 +302,105 @@ class ParquetViewer {
         });
 
         this.updatePagination();
+    }
+
+    initializeColumnWidths() {
+        this.parquetData.headers.forEach((header, index) => {
+            if (!this.columnWidths[index]) {
+                this.columnWidths[index] = this.estimateColumnWidth(index, header);
+            }
+        });
+    }
+
+    estimateColumnWidth(columnIndex, header) {
+        const headerWidth = String(header || '').length * 8 + 68;
+        const sampleWidth = (this.parquetData.rows || [])
+            .slice(0, 50)
+            .reduce((maxWidth, row) => {
+                const valueWidth = this.formatCellValue(row?.[columnIndex]).length * 7 + 24;
+                return Math.max(maxWidth, valueWidth);
+            }, 0);
+
+        return Math.min(360, Math.max(120, headerWidth, sampleWidth));
+    }
+
+    renderColgroup() {
+        const table = document.getElementById('parquetTable');
+        if (!table) return;
+
+        const existingColgroup = table.querySelector('colgroup');
+        if (existingColgroup) {
+            existingColgroup.remove();
+        }
+
+        const colgroup = document.createElement('colgroup');
+        this.parquetData.headers.forEach((_, index) => {
+            const col = document.createElement('col');
+            col.style.width = `${this.columnWidths[index]}px`;
+            colgroup.appendChild(col);
+        });
+        table.insertBefore(colgroup, table.firstChild);
+        this.updateTableWidth();
+    }
+
+    applyColumnWidth(columnIndex, width) {
+        const nextWidth = Math.max(48, Math.min(800, width));
+        this.columnWidths[columnIndex] = nextWidth;
+
+        const col = document.querySelector(`#parquetTable colgroup col:nth-child(${columnIndex + 1})`);
+        if (col) {
+            col.style.width = `${nextWidth}px`;
+        }
+
+        this.updateTableWidth();
+    }
+
+    updateTableWidth() {
+        const table = document.getElementById('parquetTable');
+        if (!table) return;
+
+        const totalWidth = this.parquetData.headers.reduce((sum, _, index) => {
+            return sum + (this.columnWidths[index] || 0);
+        }, 0);
+        table.style.width = `${totalWidth}px`;
+    }
+
+    startColumnResize(event, columnIndex) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        this.resizeState = {
+            columnIndex,
+            startX: event.clientX,
+            startWidth: this.columnWidths[columnIndex] || event.currentTarget.parentElement.offsetWidth
+        };
+
+        document.body.classList.add('is-resizing-column');
+    }
+
+    resizeColumn(event) {
+        if (!this.resizeState) return;
+
+        const delta = event.clientX - this.resizeState.startX;
+        this.applyColumnWidth(this.resizeState.columnIndex, this.resizeState.startWidth + delta);
+    }
+
+    stopColumnResize() {
+        if (!this.resizeState) return;
+
+        this.resizeState = null;
+        document.body.classList.remove('is-resizing-column');
+    }
+
+    autoFitColumn(columnIndex) {
+        const header = this.parquetData.headers[columnIndex];
+        this.applyColumnWidth(columnIndex, this.estimateColumnWidth(columnIndex, header));
+    }
+
+    formatCellValue(cell) {
+        if (cell === null || cell === undefined) return '';
+        if (typeof cell === 'object') return JSON.stringify(cell);
+        return String(cell);
     }
 
     searchTable(term) {
@@ -460,21 +616,68 @@ class ParquetViewer {
     copyToClipboard() {
         const headers = this.parquetData.headers.join('\t');
         const rows = this.filteredData.map(row => 
-            row.map(cell => {
-                if (cell === null || cell === undefined) return '';
-                if (typeof cell === 'object') return JSON.stringify(cell);
-                return String(cell);
-            }).join('\t')
+            row.map(cell => this.formatCellValue(cell)).join('\t')
         ).join('\n');
         
         const clipboardContent = `${headers}\n${rows}`;
         
-        navigator.clipboard.writeText(clipboardContent).then(() => {
-            this.showNotification('Data copied to clipboard!', 'success');
+        this.writeClipboard(clipboardContent, 'Data copied to clipboard!');
+    }
+
+    copyCellValue(cell) {
+        this.writeClipboard(this.formatCellValue(cell), 'Cell value copied to clipboard!');
+    }
+
+    copyColumnValues(columnIndex) {
+        const columnName = this.parquetData.headers[columnIndex] || `Column ${columnIndex + 1}`;
+        const values = this.filteredData
+            .map(row => this.formatCellValue(row?.[columnIndex]))
+            .join('\n');
+
+        this.writeClipboard(values, `${columnName} values copied to clipboard!`);
+    }
+
+    writeClipboard(text, successMessage) {
+        if (!navigator.clipboard?.writeText) {
+            if (this.fallbackCopyText(text)) {
+                this.showNotification(successMessage, 'success');
+                return;
+            }
+
+            this.showNotification('Failed to copy to clipboard', 'error');
+            return;
+        }
+
+        navigator.clipboard.writeText(text).then(() => {
+            this.showNotification(successMessage, 'success');
         }).catch(err => {
             console.error('Failed to copy to clipboard:', err);
+            if (this.fallbackCopyText(text)) {
+                this.showNotification(successMessage, 'success');
+                return;
+            }
+
             this.showNotification('Failed to copy to clipboard', 'error');
         });
+    }
+
+    fallbackCopyText(text) {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.setAttribute('readonly', '');
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.select();
+
+        try {
+            return document.execCommand('copy');
+        } catch (error) {
+            console.error('Fallback copy failed:', error);
+            return false;
+        } finally {
+            textArea.remove();
+        }
     }
 
     exportToJson() {
@@ -503,13 +706,7 @@ class ParquetViewer {
             return;
         }
 
-        // Copy to clipboard
-        navigator.clipboard.writeText(jsonString).then(() => {
-            this.showNotification(`JSON data copied to clipboard! (${(dataSize / 1024).toFixed(1)}KB)`, 'success');
-        }).catch(err => {
-            console.error('Failed to copy JSON to clipboard:', err);
-            this.showNotification('Failed to copy to clipboard.', 'error');
-        });
+        this.writeClipboard(jsonString, `JSON data copied to clipboard! (${(dataSize / 1024).toFixed(1)}KB)`);
     }
 
     toggleView() {
@@ -566,6 +763,39 @@ class ParquetViewer {
         
         const jsonString = JSON.stringify(rawData, null, 2);
         rawDataEl.textContent = jsonString;
+    }
+
+    showContextMenu(x, y, items) {
+        const contextMenu = document.getElementById('contextMenu');
+        if (!contextMenu) return;
+
+        contextMenu.innerHTML = '';
+        items.forEach((item) => {
+            const menuItem = document.createElement('div');
+            menuItem.className = 'context-menu-item';
+            menuItem.textContent = item.label;
+            menuItem.addEventListener('click', () => {
+                this.hideContextMenu();
+                item.action();
+            });
+            contextMenu.appendChild(menuItem);
+        });
+
+        contextMenu.style.display = 'block';
+        const menuWidth = contextMenu.offsetWidth;
+        const menuHeight = contextMenu.offsetHeight;
+        const left = Math.min(x, window.innerWidth - menuWidth - 8);
+        const top = Math.min(y, window.innerHeight - menuHeight - 8);
+
+        contextMenu.style.left = `${Math.max(8, left)}px`;
+        contextMenu.style.top = `${Math.max(8, top)}px`;
+    }
+
+    hideContextMenu() {
+        const contextMenu = document.getElementById('contextMenu');
+        if (contextMenu) {
+            contextMenu.style.display = 'none';
+        }
     }
 
     setupEventListeners() {
@@ -640,6 +870,11 @@ class ParquetViewer {
                 }
             }
         });
+
+        document.addEventListener('mousemove', (event) => this.resizeColumn(event));
+        document.addEventListener('mouseup', () => this.stopColumnResize());
+        document.addEventListener('click', () => this.hideContextMenu());
+        document.addEventListener('scroll', () => this.hideContextMenu(), true);
 
         window.addEventListener('message', (event) => {
             const message = event.data;
