@@ -4,8 +4,11 @@ import { ArxmlViewerProvider } from './arxmlViewerProvider';
 import { ArchiveViewerProvider } from './archiveViewerProvider';
 import { AscViewerProvider } from './ascViewerProvider';
 import { AudioViewerProvider } from './audioViewerProvider';
+import { AvroViewerProvider } from './avroViewerProvider';
+import { BagViewerProvider } from './bagViewerProvider';
 import { BlfViewerProvider } from './blfViewerProvider';
 import { CsvViewerProvider } from './csvViewerProvider';
+import { Db3ViewerProvider } from './db3ViewerProvider';
 import { DbcViewerProvider } from './dbcViewerProvider';
 import { ExcelViewerProvider } from './excelViewerProvider';
 import { HwpViewerProvider } from './hwpViewerProvider';
@@ -20,6 +23,8 @@ import { PdfViewerProvider } from './pdfViewerProvider';
 import { PlantumlViewerProvider } from './plantumlViewerProvider';
 import { PptViewerProvider } from './pptViewerProvider';
 import { PsdViewerProvider } from './psdViewerProvider';
+import { ReqifViewerProvider } from './reqifViewerProvider';
+import { StpViewerProvider } from './stpViewerProvider';
 import { TomlViewerProvider } from './tomlViewerProvider';
 import { VideoViewerProvider } from './videoViewerProvider';
 import { WordViewerProvider } from './wordViewerProvider';
@@ -111,6 +116,41 @@ export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
         missingMessage: 'No MF4 file selected',
         retainContextWhenHidden: true,
         createProvider: (context) => new Mf4ViewerProvider(context)
+    },
+    {
+        viewType: AvroViewerProvider.viewType,
+        command: 'omni-viewer.openAvroViewer',
+        missingMessage: 'No Avro file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new AvroViewerProvider(context)
+    },
+    {
+        viewType: BagViewerProvider.viewType,
+        command: 'omni-viewer.openBagViewer',
+        missingMessage: 'No BAG file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new BagViewerProvider(context)
+    },
+    {
+        viewType: StpViewerProvider.viewType,
+        command: 'omni-viewer.openStpViewer',
+        missingMessage: 'No STEP file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new StpViewerProvider(context)
+    },
+    {
+        viewType: Db3ViewerProvider.viewType,
+        command: 'omni-viewer.openDb3Viewer',
+        missingMessage: 'No DB3 file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new Db3ViewerProvider(context)
+    },
+    {
+        viewType: ReqifViewerProvider.viewType,
+        command: 'omni-viewer.openReqifViewer',
+        missingMessage: 'No ReqIF file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new ReqifViewerProvider(context)
     },
     {
         viewType: JsonViewerProvider.viewType,

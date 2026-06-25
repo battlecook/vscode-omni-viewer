@@ -174,8 +174,6 @@ td {
 }
 
 th {
-    position: sticky;
-    top: 43px;
     background: var(--vscode-editorGroupHeader-tabsBackground);
     color: var(--vscode-foreground);
     font-weight: 650;

@@ -2,8 +2,8 @@
   "name": "omni-viewer",
   "displayName": "omni-viewer",
   "publisher": "battlecook",
-  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, ARXML, A2L, ASC, BLF, MF4, excel, word, powerpoint, parquet, jsonl, yaml, toml, markdown, mermaid, PlantUML, hwp, PSD and PDF files",
-  "version": "0.30.0",
+  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, STEP, DB3, ReqIF, excel, word, powerpoint, parquet, jsonl, yaml, toml, markdown, mermaid, PlantUML, hwp, PSD and PDF files",
+  "version": "0.31.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
@@ -35,6 +35,14 @@
     "ASC",
     "BLF",
     "MF4",
+    "Avro",
+    "ROS bag",
+    "STEP",
+    "STP",
+    "DB3",
+    "SQLite",
+    "ReqIF",
+    "requirements",
     "CAN",
     "Excel",
     "xlsx",
@@ -296,6 +304,59 @@
         "priority": "option"
       },
       {
+        "viewType": "omni-viewer.avroViewer",
+        "displayName": "Avro Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.avro"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "omni-viewer.bagViewer",
+        "displayName": "BAG Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.bag"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "omni-viewer.stpViewer",
+        "displayName": "STEP Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.stp"
+          },
+          {
+            "filenamePattern": "*.step"
+          }
+        ],
+        "priority": "option"
+      },
+      {
+        "viewType": "omni-viewer.db3Viewer",
+        "displayName": "DB3 Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.db3"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "omni-viewer.reqifViewer",
+        "displayName": "ReqIF Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.reqif"
+          }
+        ],
+        "priority": "option"
+      },
+      {
         "viewType": "omni-viewer.jsonViewer",
         "displayName": "JSON Viewer",
         "selector": [
@@ -544,6 +605,31 @@
           "group": "navigation"
         },
         {
+          "command": "omni-viewer.openAvroViewer",
+          "when": "resourceExtname == '.avro'",
+          "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openBagViewer",
+          "when": "resourceExtname == '.bag'",
+          "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openStpViewer",
+          "when": "resourceExtname == '.stp' || resourceExtname == '.step'",
+          "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openDb3Viewer",
+          "when": "resourceExtname == '.db3'",
+          "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openReqifViewer",
+          "when": "resourceExtname == '.reqif'",
+          "group": "navigation"
+        },
+        {
           "command": "omni-viewer.openJsonViewer",
           "when": "resourceExtname == '.json'",
           "group": "navigation"
@@ -669,6 +755,31 @@
       {
         "command": "omni-viewer.openMf4Viewer",
         "title": "Open with MF4 Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openAvroViewer",
+        "title": "Open with Avro Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openBagViewer",
+        "title": "Open with BAG Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openStpViewer",
+        "title": "Open with STEP Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openDb3Viewer",
+        "title": "Open with DB3 Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openReqifViewer",
+        "title": "Open with ReqIF Viewer",
         "category": "Omni Viewer"
       },
       {

@@ -199,17 +199,6 @@ class ParquetViewer {
                 this.toggleSort(index);
             });
 
-            const copyColumnButton = document.createElement('button');
-            copyColumnButton.type = 'button';
-            copyColumnButton.className = 'copy-column-button';
-            copyColumnButton.setAttribute('aria-label', `Copy values from ${header || `column ${index + 1}`}`);
-            copyColumnButton.title = 'Copy column values';
-            copyColumnButton.textContent = '⧉';
-            copyColumnButton.addEventListener('click', (event) => {
-                event.stopPropagation();
-                this.copyColumnValues(index);
-            });
-
             const resizeHandle = document.createElement('div');
             resizeHandle.className = 'column-resizer';
             resizeHandle.setAttribute('role', 'separator');
@@ -222,7 +211,6 @@ class ParquetViewer {
             });
 
             headerContent.appendChild(headerLabel);
-            headerContent.appendChild(copyColumnButton);
             headerContent.appendChild(sortButton);
             th.appendChild(headerContent);
             th.appendChild(resizeHandle);

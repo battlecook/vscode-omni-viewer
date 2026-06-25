@@ -253,6 +253,67 @@ describe('FileUtils delimited formats', () => {
         expect(result.matchedBySignature).toBe(true);
     });
 
+    it('detects Avro object containers by signature', async () => {
+        const filePath = path.join(tempDir, 'mislabeled.bin');
+        fs.writeFileSync(filePath, Buffer.from([0x4F, 0x62, 0x6A, 0x01]));
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.avroViewer');
+        expect(result.matchedBySignature).toBe(true);
+    });
+
+    it('detects ROS bag files by header', async () => {
+        const filePath = path.join(tempDir, 'mislabeled.bin');
+        fs.writeFileSync(filePath, '#ROSBAG V2.0\n', 'ascii');
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.bagViewer');
+        expect(result.matchedBySignature).toBe(true);
+    });
+
+    it('detects SQLite DB3 files by header', async () => {
+        const filePath = path.join(tempDir, 'mislabeled.bin');
+        fs.writeFileSync(filePath, 'SQLite format 3\0', 'binary');
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.db3Viewer');
+        expect(result.matchedBySignature).toBe(true);
+    });
+
+    it('detects STEP files by extension', async () => {
+        const filePath = path.join(tempDir, 'part.stp');
+        fs.writeFileSync(filePath, [
+            'ISO-10303-21;',
+            'HEADER;',
+            "FILE_SCHEMA(('AP214'));",
+            'ENDSEC;'
+        ].join('\n'), 'utf8');
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.stpViewer');
+        expect(result.matchedBySignature).toBe(false);
+    });
+
+    it('detects ReqIF files by extension', async () => {
+        const filePath = path.join(tempDir, 'requirements.reqif');
+        fs.writeFileSync(filePath, [
+            '<?xml version="1.0"?>',
+            '<REQ-IF>',
+            '<THE-HEADER><REQ-IF-HEADER IDENTIFIER="hdr"><TITLE>Requirements</TITLE></REQ-IF-HEADER></THE-HEADER>',
+            '<CORE-CONTENT><REQ-IF-CONTENT><SPEC-OBJECTS><SPEC-OBJECT IDENTIFIER="obj"/></SPEC-OBJECTS></REQ-IF-CONTENT></CORE-CONTENT>',
+            '</REQ-IF>'
+        ].join('\n'), 'utf8');
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.reqifViewer');
+        expect(result.matchedBySignature).toBe(false);
+    });
+
     it('detects Mermaid files by extension', async () => {
         const filePath = path.join(tempDir, 'diagram.mmd');
         fs.writeFileSync(filePath, 'flowchart LR\n  A[Start] --> B[Done]\n', 'utf8');

@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.31.0] - 2026-06-26
+
+### Added
+- **Data and CAD Viewers**
+  - Added dedicated Avro, ROS BAG, STEP/STP, and DB3 viewers with custom editor registration, explorer/context menu actions, and direct `Open with` commands for each format
+  - Added Avro object container metadata inspection with codec/schema previews, sync marker hints, and header hex/ASCII previews
+  - Added ROS bag v2 header inspection with record operation hints and binary header previews
+  - Added STEP/STP parsing for ISO 10303 header fields, schema summaries, top entity counts, and entity previews
+  - Added DB3/SQLite header inspection with page metadata, schema text hints, and binary header previews
+- **ReqIF Viewer**
+  - Added a dedicated ReqIF viewer for `.reqif` files with header metadata, specifications, spec objects, relations, datatype/spec type summaries, raw preview, context menu action, and direct `Open with ReqIF Viewer` command support
+- **Viewer detection**
+  - Added signature/content detection and regression coverage for Avro `Obj\x01`, ROS bag `#ROSBAG V2`, SQLite 3 DB headers, STEP text files, and ReqIF XML files
+
+### Changed
+- **Data Explorer UI**
+  - Expanded the shared data explorer documentation and metadata to cover ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, STEP, DB3, and ReqIF formats
+- **Automotive Viewer**
+  - Adjusted table header styling so automotive/data explorer tables scroll more predictably in the shared viewer
+- **Parquet Viewer**
+  - Simplified column-copy affordances by removing the extra header copy button while keeping context menu and table interaction improvements
+
 ## [0.30.0] - 2026-06-09
 
 ### Added

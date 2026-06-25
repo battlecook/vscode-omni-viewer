@@ -40,6 +40,11 @@ export type OmniViewerViewType =
     | 'omni-viewer.ascViewer'
     | 'omni-viewer.blfViewer'
     | 'omni-viewer.mf4Viewer'
+    | 'omni-viewer.avroViewer'
+    | 'omni-viewer.bagViewer'
+    | 'omni-viewer.stpViewer'
+    | 'omni-viewer.db3Viewer'
+    | 'omni-viewer.reqifViewer'
     | 'omni-viewer.jsonViewer'
     | 'omni-viewer.yamlViewer'
     | 'omni-viewer.jsonlViewer'
@@ -177,6 +182,18 @@ export class FileUtils {
 
         if (this.hasAsciiPrefix(buffer, 'MDF     ')) {
             return this.signatureMatch('omni-viewer.mf4Viewer', 'Matched the MDF/MF4 signature.');
+        }
+
+        if (this.hasAsciiPrefix(buffer, 'Obj\x01')) {
+            return this.signatureMatch('omni-viewer.avroViewer', 'Matched the Avro object container signature.');
+        }
+
+        if (this.hasAsciiPrefix(buffer, '#ROSBAG V2.')) {
+            return this.signatureMatch('omni-viewer.bagViewer', 'Matched the ROS bag header.');
+        }
+
+        if (this.hasAsciiPrefix(buffer, 'SQLite format 3\x00')) {
+            return this.signatureMatch('omni-viewer.db3Viewer', 'Matched the SQLite 3 database header.');
         }
 
         if (this.isCompoundFileBinary(buffer)) {
@@ -679,6 +696,14 @@ export class FileUtils {
             };
         }
 
+        if (ext === '.reqif' || this.looksLikeReqif(sample)) {
+            return {
+                viewType: 'omni-viewer.reqifViewer',
+                reason: ext === '.reqif' ? 'Used the ReqIF extension fallback.' : 'Matched ReqIF XML content.',
+                matchedBySignature: false
+            };
+        }
+
         if (ext === '.a2l' || this.looksLikeA2l(lines)) {
             return {
                 viewType: 'omni-viewer.a2lViewer',
@@ -691,6 +716,16 @@ export class FileUtils {
             return {
                 viewType: 'omni-viewer.ascViewer',
                 reason: ext === '.asc' ? 'Used the ASC extension fallback.' : 'Matched Vector ASC log content.',
+                matchedBySignature: false
+            };
+        }
+
+        if (ext === '.stp' || ext === '.step' || this.looksLikeStep(lines)) {
+            return {
+                viewType: 'omni-viewer.stpViewer',
+                reason: ext === '.stp' || ext === '.step'
+                    ? 'Used the STEP extension fallback.'
+                    : 'Matched ISO 10303 STEP content.',
                 matchedBySignature: false
             };
         }
@@ -800,6 +835,13 @@ export class FileUtils {
             && /<AR-PACKAGE\b|<SHORT-NAME\b/.test(sample);
     }
 
+    private static looksLikeReqif(sample: string): boolean {
+        const trimmed = sample.trimStart();
+        return (trimmed.startsWith('<?xml') || trimmed.startsWith('<REQ-IF'))
+            && /<REQ-IF\b/.test(sample)
+            && /<REQ-IF-HEADER\b|<SPEC-OBJECT\b|<SPECIFICATION\b/.test(sample);
+    }
+
     private static looksLikeA2l(lines: string[]): boolean {
         const sampleLines = lines.slice(0, 120);
         const beginCount = sampleLines.filter(line => /^\/begin\s+[A-Za-z0-9_]+/.test(line)).length;
@@ -813,6 +855,13 @@ export class FileUtils {
             && sampleLines.some(line => /^base\s+(hex|dec)/i.test(line));
         const hasEvent = sampleLines.some(line => /^\d+(?:\.\d+)?\s+(?:CANFD|\d+\s+[0-9A-Fa-f]+x?\s+(?:Rx|Tx)\s+d\b)/.test(line));
         return hasHeader && hasEvent;
+    }
+
+    private static looksLikeStep(lines: string[]): boolean {
+        const sampleLines = lines.slice(0, 120);
+        return sampleLines.some(line => /^ISO-10303-21;$/i.test(line))
+            && sampleLines.some(line => /^HEADER;$/i.test(line))
+            && sampleLines.some(line => /^FILE_SCHEMA\s*\(/i.test(line));
     }
 
     private static looksLikeMermaid(lines: string[]): boolean {

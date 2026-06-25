@@ -238,39 +238,6 @@ body {
     flex-shrink: 0;
 }
 
-.copy-column-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    padding: 0;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    background: transparent;
-    color: var(--vscode-descriptionForeground);
-    cursor: pointer;
-    flex-shrink: 0;
-    font-size: 12px;
-    line-height: 1;
-    opacity: 0;
-}
-
-.parquet-table th:hover .copy-column-button,
-.copy-column-button:focus-visible {
-    opacity: 1;
-}
-
-.copy-column-button:hover {
-    background: var(--vscode-toolbar-hoverBackground);
-    color: var(--vscode-editor-foreground);
-}
-
-.copy-column-button:focus-visible {
-    outline: 1px solid var(--vscode-focusBorder);
-    outline-offset: 1px;
-}
-
 .sort-button:hover {
     background: var(--vscode-toolbar-hoverBackground);
     color: var(--vscode-editor-foreground);
@@ -342,7 +309,6 @@ body {
 
 .parquet-table td:hover {
     background: var(--vscode-list-activeSelectionBackground);
-    cursor: copy;
 }
 
 .parquet-table tbody tr.highlight {
