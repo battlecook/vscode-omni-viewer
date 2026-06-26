@@ -176,19 +176,29 @@ describe('AutomotiveParsers', () => {
 
     it('inspects DB3 SQLite headers and schema hints', async () => {
         const filePath = path.join(tempDir, 'sample.db3');
-        const buffer = Buffer.alloc(512);
-        buffer.write('SQLite format 3\0', 0, 'binary');
-        buffer.writeUInt16BE(4096, 16);
-        buffer.writeUInt32BE(4, 28);
-        buffer.write('CREATE TABLE messages(id INTEGER PRIMARY KEY, topic TEXT)\0', 128, 'ascii');
-        fs.writeFileSync(filePath, buffer);
+        fs.writeFileSync(filePath, createSqlitePreviewDatabase());
 
-        const model = await AutomotiveParsers.parseDb3(filePath, '512 bytes');
+        const model = await AutomotiveParsers.parseDb3(filePath, '1024 bytes');
 
         expect(model.format).toBe('DB3');
         expect(model.summary.find(item => item.label === 'Signature')?.value).toBe('SQLite format 3');
-        expect(model.summary.find(item => item.label === 'Page size')?.value).toBe(4096);
-        expect(model.tables[0].rows[0][1]).toContain('CREATE TABLE messages');
+        expect(model.summary.find(item => item.label === 'Page size')?.value).toBe(512);
+        expect(model.summary.find(item => item.label === 'Tables')?.value).toBe(1);
+        expect(model.tables[1].rows[0]).toEqual([
+            'table',
+            'messages',
+            'messages',
+            2,
+            'CREATE TABLE messages(topic TEXT, value INTEGER, payload BLOB)'
+        ]);
+        expect(model.tables[2].title).toBe('Rows: messages');
+        expect(model.tables[2].headers).toEqual(['rowid', 'topic', 'value', 'payload']);
+        expect(model.tables[2].rows[0]).toEqual([
+            1,
+            'gps',
+            42,
+            'BLOB(3 bytes) 010203'
+        ]);
     });
 
     it('summarizes ReqIF headers, specifications, objects, and relations', () => {
@@ -219,6 +229,84 @@ describe('AutomotiveParsers', () => {
         expect(model.tables[1].rows[0]).toEqual(['spec-1', 'System Spec', 'SPECIFICATION']);
         expect(model.tables[2].rows[0]).toEqual(['obj-1', 'Requirement 1', 'SPEC-OBJECT']);
     });
+
+    it('inspects classic PCAP global headers and packet records', async () => {
+        const filePath = path.join(tempDir, 'sample.pcap');
+        const packet = createEthernetIpv4UdpDnsPacket();
+        const header = Buffer.alloc(24);
+        header.writeUInt32LE(0xA1B2C3D4, 0);
+        header.writeUInt16LE(2, 4);
+        header.writeUInt16LE(4, 6);
+        header.writeInt32LE(0, 8);
+        header.writeUInt32LE(0, 12);
+        header.writeUInt32LE(65535, 16);
+        header.writeUInt32LE(1, 20);
+        const packetHeader = Buffer.alloc(16);
+        packetHeader.writeUInt32LE(10, 0);
+        packetHeader.writeUInt32LE(123, 4);
+        packetHeader.writeUInt32LE(packet.length, 8);
+        packetHeader.writeUInt32LE(packet.length, 12);
+        fs.writeFileSync(filePath, Buffer.concat([header, packetHeader, packet]));
+
+        const model = await AutomotiveParsers.parsePcap(filePath, `${24 + 16 + packet.length} bytes`);
+
+        expect(model.format).toBe('PCAP');
+        expect(model.summary.find(item => item.label === 'Version')?.value).toBe('2.4');
+        expect(model.summary.find(item => item.label === 'Packets parsed')?.value).toBe(1);
+        expect(model.tables[0].rows).toEqual(expect.arrayContaining([
+            ['Link type', '1 (Ethernet)']
+        ]));
+        expect(model.tables[1].rows[0]).toEqual([
+            1,
+            '10.000123',
+            'DNS',
+            '192.168.0.2:53000',
+            '8.8.8.8:53',
+            packet.length,
+            packet.length,
+            '0x18',
+            'Query id=0x1234, rcode=NOERROR, questions=1, answers=0, example.com A'
+        ]);
+    });
+
+    it('inspects PCAPNG sections and packet blocks', async () => {
+        const filePath = path.join(tempDir, 'sample.pcapng');
+        const section = Buffer.alloc(28);
+        section.writeUInt32LE(0x0A0D0D0A, 0);
+        section.writeUInt32LE(28, 4);
+        section.writeUInt32LE(0x1A2B3C4D, 8);
+        section.writeUInt16LE(1, 12);
+        section.writeUInt16LE(0, 14);
+        section.writeBigInt64LE(BigInt(-1), 16);
+        section.writeUInt32LE(28, 24);
+        const idb = Buffer.alloc(20);
+        idb.writeUInt32LE(1, 0);
+        idb.writeUInt32LE(20, 4);
+        idb.writeUInt16LE(1, 8);
+        idb.writeUInt16LE(0, 10);
+        idb.writeUInt32LE(65535, 12);
+        idb.writeUInt32LE(20, 16);
+        const epb = Buffer.alloc(32);
+        epb.writeUInt32LE(6, 0);
+        epb.writeUInt32LE(32, 4);
+        epb.writeUInt32LE(0, 8);
+        epb.writeUInt32LE(1, 12);
+        epb.writeUInt32LE(2, 16);
+        epb.writeUInt32LE(4, 20);
+        epb.writeUInt32LE(4, 24);
+        epb.writeUInt32LE(32, 28);
+        fs.writeFileSync(filePath, Buffer.concat([section, idb, epb]));
+
+        const model = await AutomotiveParsers.parsePcapng(filePath, '80 bytes');
+
+        expect(model.format).toBe('PCAPNG');
+        expect(model.summary.find(item => item.label === 'Sections')?.value).toBe(1);
+        expect(model.summary.find(item => item.label === 'Interfaces')?.value).toBe(1);
+        expect(model.summary.find(item => item.label === 'Enhanced packets')?.value).toBe(1);
+        expect(model.tables[1].rows).toEqual(expect.arrayContaining([
+            [3, 'Enhanced Packet', 32, 4, 4, '0x30']
+        ]));
+    });
 });
 
 function encodeAvroLong(value: number): Buffer {
@@ -235,4 +323,136 @@ function encodeAvroLong(value: number): Buffer {
 function encodeAvroBytes(value: string): Buffer {
     const bytes = Buffer.from(value, 'utf8');
     return Buffer.concat([encodeAvroLong(bytes.length), bytes]);
+}
+
+function createSqlitePreviewDatabase(): Buffer {
+    const pageSize = 512;
+    const database = Buffer.alloc(pageSize * 2);
+    database.write('SQLite format 3\0', 0, 'binary');
+    database.writeUInt16BE(pageSize, 16);
+    database[18] = 1;
+    database[19] = 1;
+    database[20] = 0;
+    database.writeUInt32BE(2, 28);
+    database.writeUInt32BE(1, 44);
+
+    const createSql = 'CREATE TABLE messages(topic TEXT, value INTEGER, payload BLOB)';
+    writeSqliteLeafTablePage(database, pageSize, 1, [
+        {
+            rowid: 1,
+            values: ['table', 'messages', 'messages', 2, createSql]
+        }
+    ]);
+    writeSqliteLeafTablePage(database, pageSize, 2, [
+        {
+            rowid: 1,
+            values: ['gps', 42, Buffer.from([1, 2, 3])]
+        }
+    ]);
+
+    return database;
+}
+
+function writeSqliteLeafTablePage(
+    database: Buffer,
+    pageSize: number,
+    pageNumber: number,
+    rows: Array<{ rowid: number; values: Array<string | number | Buffer> }>
+): void {
+    const pageOffset = (pageNumber - 1) * pageSize;
+    const headerOffset = pageNumber === 1 ? 100 : 0;
+    const page = database.subarray(pageOffset, pageOffset + pageSize);
+    page[headerOffset] = 0x0D;
+    page.writeUInt16BE(rows.length, headerOffset + 3);
+
+    let cellStart = pageSize;
+    rows.forEach((row, index) => {
+        const payload = encodeSqliteRecord(row.values);
+        const cell = Buffer.concat([
+            encodeSqliteVarint(payload.length),
+            encodeSqliteVarint(row.rowid),
+            payload
+        ]);
+        cellStart -= cell.length;
+        cell.copy(page, cellStart);
+        page.writeUInt16BE(cellStart, headerOffset + 8 + index * 2);
+    });
+
+    page.writeUInt16BE(cellStart, headerOffset + 5);
+}
+
+function encodeSqliteRecord(values: Array<string | number | Buffer>): Buffer {
+    const serialTypes: number[] = [];
+    const bodyParts: Buffer[] = [];
+
+    values.forEach(value => {
+        if (Buffer.isBuffer(value)) {
+            serialTypes.push(12 + value.length * 2);
+            bodyParts.push(value);
+        } else if (typeof value === 'number') {
+            serialTypes.push(4);
+            const bytes = Buffer.alloc(4);
+            bytes.writeInt32BE(value);
+            bodyParts.push(bytes);
+        } else {
+            const bytes = Buffer.from(value, 'utf8');
+            serialTypes.push(13 + bytes.length * 2);
+            bodyParts.push(bytes);
+        }
+    });
+
+    let headerSize = 1 + serialTypes.reduce((sum, type) => sum + encodeSqliteVarint(type).length, 0);
+    let headerSizeBytes = encodeSqliteVarint(headerSize);
+    headerSize = headerSizeBytes.length + serialTypes.reduce((sum, type) => sum + encodeSqliteVarint(type).length, 0);
+    headerSizeBytes = encodeSqliteVarint(headerSize);
+
+    return Buffer.concat([
+        headerSizeBytes,
+        ...serialTypes.map(encodeSqliteVarint),
+        ...bodyParts
+    ]);
+}
+
+function encodeSqliteVarint(value: number): Buffer {
+    if (value <= 0x7F) {
+        return Buffer.from([value]);
+    }
+
+    const groups: number[] = [];
+    let remaining = value;
+    groups.unshift(remaining & 0x7F);
+    remaining >>>= 7;
+    while (remaining > 0) {
+        groups.unshift((remaining & 0x7F) | 0x80);
+        remaining >>>= 7;
+    }
+    return Buffer.from(groups);
+}
+
+function createEthernetIpv4UdpDnsPacket(): Buffer {
+    const dnsQuestion = Buffer.from([
+        0x12, 0x34, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x07, 0x65, 0x78, 0x61,
+        0x6d, 0x70, 0x6c, 0x65, 0x03, 0x63, 0x6f, 0x6d,
+        0x00, 0x00, 0x01, 0x00, 0x01
+    ]);
+    const udp = Buffer.alloc(8);
+    udp.writeUInt16BE(53000, 0);
+    udp.writeUInt16BE(53, 2);
+    udp.writeUInt16BE(8 + dnsQuestion.length, 4);
+
+    const ipv4 = Buffer.alloc(20);
+    ipv4[0] = 0x45;
+    ipv4.writeUInt16BE(20 + udp.length + dnsQuestion.length, 2);
+    ipv4[8] = 64;
+    ipv4[9] = 17;
+    ipv4.set([192, 168, 0, 2], 12);
+    ipv4.set([8, 8, 8, 8], 16);
+
+    return Buffer.concat([
+        Buffer.from([0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x08, 0x00]),
+        ipv4,
+        udp,
+        dnsQuestion
+    ]);
 }

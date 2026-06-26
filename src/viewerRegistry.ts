@@ -19,6 +19,8 @@ import { MarkdownViewerProvider } from './markdownViewerProvider';
 import { MermaidViewerProvider } from './mermaidViewerProvider';
 import { Mf4ViewerProvider } from './mf4ViewerProvider';
 import { ParquetViewerProvider } from './parquetViewerProvider';
+import { PcapViewerProvider } from './pcapViewerProvider';
+import { PcapngViewerProvider } from './pcapngViewerProvider';
 import { PdfViewerProvider } from './pdfViewerProvider';
 import { PlantumlViewerProvider } from './plantumlViewerProvider';
 import { PptViewerProvider } from './pptViewerProvider';
@@ -151,6 +153,20 @@ export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
         missingMessage: 'No ReqIF file selected',
         retainContextWhenHidden: true,
         createProvider: (context) => new ReqifViewerProvider(context)
+    },
+    {
+        viewType: PcapViewerProvider.viewType,
+        command: 'omni-viewer.openPcapViewer',
+        missingMessage: 'No PCAP file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new PcapViewerProvider(context)
+    },
+    {
+        viewType: PcapngViewerProvider.viewType,
+        command: 'omni-viewer.openPcapngViewer',
+        missingMessage: 'No PCAPNG file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new PcapngViewerProvider(context)
     },
     {
         viewType: JsonViewerProvider.viewType,

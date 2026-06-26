@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.32.0] - 2026-06-26
+
+### Added
+- **PCAP / PCAPNG Viewers**
+  - Added dedicated PCAP and PCAPNG viewers for `.pcap` and `.pcapng` files with custom editor registration, explorer/context menu actions, and direct `Open with` command support
+  - Added classic PCAP global header inspection, packet record previews, PCAPNG section/block summaries, interface metadata/options, and header hex/ASCII previews
+  - Added signature and extension detection for classic PCAP magic variants and PCAPNG section header blocks, with regression coverage
+- **Packet decoding**
+  - Added dependency-free packet decoding for Ethernet, VLAN/QinQ, ARP, IPv4, IPv6, TCP, UDP, ICMP/ICMPv6, DNS, DHCP, NTP, TLS, HTTP-like payloads, mDNS, SSDP, MQTT, and CoAP
+  - Added packet summary details for TCP flags, sequence/ack/window values, UDP/TCP payload hex/ASCII previews, DNS record types/response codes/answers, TLS ClientHello SNI, HTTP request/response headers, and IPv4 fragmentation
+- **Packet filtering**
+  - Added packet-table filtering expressions such as `ip == 1.2.3.4`, `ip.src == 192.168.0.2`, `ip.dst == 8.8.8.8`, `tcp.port == 443`, `udp.port == 5353`, `protocol == DNS`, and `dns.qry.name contains example`, while preserving the existing plain-text table search
+
 ## [0.31.0] - 2026-06-26
 
 ### Added

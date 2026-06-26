@@ -2,8 +2,8 @@
   "name": "omni-viewer",
   "displayName": "omni-viewer",
   "publisher": "battlecook",
-  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, STEP, DB3, ReqIF, excel, word, powerpoint, parquet, jsonl, yaml, toml, markdown, mermaid, PlantUML, hwp, PSD and PDF files",
-  "version": "0.31.0",
+  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, excel, word, powerpoint, parquet, jsonl, yaml, toml, markdown, mermaid, PlantUML, hwp, PSD and PDF files",
+  "version": "0.32.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
@@ -37,6 +37,9 @@
     "MF4",
     "Avro",
     "ROS bag",
+    "PCAP",
+    "PCAPNG",
+    "packet capture",
     "STEP",
     "STP",
     "DB3",
@@ -357,6 +360,26 @@
         "priority": "option"
       },
       {
+        "viewType": "omni-viewer.pcapViewer",
+        "displayName": "PCAP Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.pcap"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "omni-viewer.pcapngViewer",
+        "displayName": "PCAPNG Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.pcapng"
+          }
+        ],
+        "priority": "default"
+      },
+      {
         "viewType": "omni-viewer.jsonViewer",
         "displayName": "JSON Viewer",
         "selector": [
@@ -630,6 +653,16 @@
           "group": "navigation"
         },
         {
+          "command": "omni-viewer.openPcapViewer",
+          "when": "resourceExtname == '.pcap'",
+          "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openPcapngViewer",
+          "when": "resourceExtname == '.pcapng'",
+          "group": "navigation"
+        },
+        {
           "command": "omni-viewer.openJsonViewer",
           "when": "resourceExtname == '.json'",
           "group": "navigation"
@@ -780,6 +813,16 @@
       {
         "command": "omni-viewer.openReqifViewer",
         "title": "Open with ReqIF Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openPcapViewer",
+        "title": "Open with PCAP Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openPcapngViewer",
+        "title": "Open with PCAPNG Viewer",
         "category": "Omni Viewer"
       },
       {

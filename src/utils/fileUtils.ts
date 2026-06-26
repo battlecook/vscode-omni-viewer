@@ -45,6 +45,8 @@ export type OmniViewerViewType =
     | 'omni-viewer.stpViewer'
     | 'omni-viewer.db3Viewer'
     | 'omni-viewer.reqifViewer'
+    | 'omni-viewer.pcapViewer'
+    | 'omni-viewer.pcapngViewer'
     | 'omni-viewer.jsonViewer'
     | 'omni-viewer.yamlViewer'
     | 'omni-viewer.jsonlViewer'
@@ -194,6 +196,30 @@ export class FileUtils {
 
         if (this.hasAsciiPrefix(buffer, 'SQLite format 3\x00')) {
             return this.signatureMatch('omni-viewer.db3Viewer', 'Matched the SQLite 3 database header.');
+        }
+
+        if (this.isPcapClassic(buffer)) {
+            return this.signatureMatch('omni-viewer.pcapViewer', 'Matched the PCAP global header magic bytes.');
+        }
+
+        if (this.isPcapng(buffer)) {
+            return this.signatureMatch('omni-viewer.pcapngViewer', 'Matched the PCAPNG section header block.');
+        }
+
+        if (ext === '.pcap') {
+            return {
+                viewType: 'omni-viewer.pcapViewer',
+                reason: 'Used the PCAP extension fallback.',
+                matchedBySignature: false
+            };
+        }
+
+        if (ext === '.pcapng') {
+            return {
+                viewType: 'omni-viewer.pcapngViewer',
+                reason: 'Used the PCAPNG extension fallback.',
+                matchedBySignature: false
+            };
         }
 
         if (this.isCompoundFileBinary(buffer)) {
@@ -450,6 +476,17 @@ export class FileUtils {
 
     private static isTarArchive(buffer: Buffer): boolean {
         return buffer.length >= 262 && buffer.subarray(257, 262).toString('ascii') === 'ustar';
+    }
+
+    private static isPcapClassic(buffer: Buffer): boolean {
+        return this.matchesBytes(buffer, [0xD4, 0xC3, 0xB2, 0xA1])
+            || this.matchesBytes(buffer, [0xA1, 0xB2, 0xC3, 0xD4])
+            || this.matchesBytes(buffer, [0x4D, 0x3C, 0xB2, 0xA1])
+            || this.matchesBytes(buffer, [0xA1, 0xB2, 0x3C, 0x4D]);
+    }
+
+    private static isPcapng(buffer: Buffer): boolean {
+        return this.matchesBytes(buffer, [0x0A, 0x0D, 0x0D, 0x0A]);
     }
 
     private static isArchiveExtension(filePath: string): boolean {

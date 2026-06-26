@@ -1,6 +1,6 @@
 # VSCode Omni Viewer
 
-A comprehensive audio, image, PSD, video, CSV, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, STEP, DB3, ReqIF, Excel, Word, PowerPoint, PDF, Parquet, JSONL, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
+A comprehensive audio, image, PSD, video, CSV, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, Excel, Word, PowerPoint, PDF, Parquet, JSONL, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-red)](https://github.com/sponsors/battlecook)
 
@@ -106,7 +106,7 @@ Note: `.ts` files share an extension with TypeScript source files, so automatic 
 
 ## 🚘 Data Explorer Viewer Features
 
-### ARXML, A2L, ASC, BLF, MF4, Avro, BAG, STEP, DB3, and ReqIF Explorer
+### ARXML, A2L, ASC, BLF, MF4, Avro, BAG, PCAP, PCAPNG, STEP, DB3, and ReqIF Explorer
 - **ARXML Structure View**: Summarizes AUTOSAR packages, named CAN-related elements, and references
 - **A2L Block View**: Lists ASAP2 blocks and counts key sections such as `MEASUREMENT`, `CHARACTERISTIC`, and `IF_DATA`
 - **ASC Log Preview**: Parses Vector ASCII CAN/CAN FD events into a searchable table
@@ -114,8 +114,10 @@ Note: `.ts` files share an extension with TypeScript source files, so automatic 
 - **MF4 Header Preview**: Detects ASAM MDF 4 files and summarizes known MDF block markers
 - **Avro Metadata Preview**: Reads Avro object container metadata, codec, schema preview, and header bytes
 - **ROS Bag Preview**: Detects ROS bag v2 files and summarizes record operation hints with a binary preview
+- **PCAP Preview**: Detects classic PCAP files and summarizes global headers, link type, timestamp resolution, and packet records
+- **PCAPNG Preview**: Detects PCAPNG section headers and summarizes sections, interfaces, packet blocks, and block sizes
 - **STEP Model Summary**: Extracts ISO 10303 header fields and top entity counts from `.stp`/`.step` CAD exchange files
-- **DB3 SQLite Preview**: Detects SQLite 3 databases and shows page metadata plus schema text hints
+- **DB3 SQLite Preview**: Detects SQLite 3 databases, reads `sqlite_master`, lists schema entries, and previews rows from table b-tree pages
 - **ReqIF Summary**: Extracts ReqIF header metadata, specifications, spec objects, relations, datatypes, and spec types
 - **Search & Raw Preview**: Search across extracted tables and inspect the original text preview for text-based formats
 
@@ -127,8 +129,10 @@ Note: `.ts` files share an extension with TypeScript source files, so automatic 
 - MF4 (ASAM MDF 4 header and block marker preview)
 - AVRO (Apache Avro object container metadata preview)
 - BAG (ROS bag v2 header and record hint preview)
+- PCAP (classic packet capture global header and packet record preview)
+- PCAPNG (packet capture next-generation section and block preview)
 - STP/STEP (ISO 10303 STEP model summary)
-- DB3 (SQLite 3 database header and schema hint preview)
+- DB3 (SQLite 3 database schema and row preview)
 - REQIF (Requirements Interchange Format summary)
 
 ## 📊 Excel Viewer Features

@@ -35,7 +35,7 @@ class AutomotiveViewer {
 
     bindEvents() {
         this.elements.searchInput.addEventListener('input', () => {
-            this.query = this.elements.searchInput.value.trim().toLowerCase();
+            this.query = this.elements.searchInput.value.trim();
             this.renderActiveView();
         });
         this.elements.copyBtn.addEventListener('click', async () => {
@@ -108,7 +108,7 @@ class AutomotiveViewer {
             return;
         }
 
-        const rows = this.filterRows(table.rows || []);
+        const rows = this.filterRows(table.rows || [], table);
         const visibleRows = rows.slice(0, 1000);
         const caption = rows.length > visibleRows.length
             ? `${visibleRows.length} / ${rows.length} matching rows shown`
@@ -125,11 +125,113 @@ class AutomotiveViewer {
         ].join('');
     }
 
-    filterRows(rows) {
+    filterRows(rows, table) {
         if (!this.query) {
             return rows;
         }
-        return rows.filter(row => row.some(cell => String(cell ?? '').toLowerCase().includes(this.query)));
+        const packetFilter = this.parsePacketFilter(this.query, table);
+        if (packetFilter) {
+            return rows.filter(row => this.matchesPacketFilter(row, table, packetFilter));
+        }
+
+        const query = this.query.toLowerCase();
+        return rows.filter(row => row.some(cell => String(cell ?? '').toLowerCase().includes(query)));
+    }
+
+    parsePacketFilter(query, table) {
+        const headers = table.headers || [];
+        const isPacketTable = headers.includes('Protocol') && headers.includes('Source') && headers.includes('Destination') && headers.includes('Info');
+        if (!isPacketTable) {
+            return null;
+        }
+
+        const match = /^([a-z0-9_.-]+)\s*(==|!=|~=|contains|=)\s*(.+)$/i.exec(query);
+        if (!match) {
+            return null;
+        }
+
+        return {
+            field: match[1].toLowerCase(),
+            operator: match[2] === '=' ? '==' : match[2].toLowerCase(),
+            value: match[3].replace(/^["']|["']$/g, '').toLowerCase()
+        };
+    }
+
+    matchesPacketFilter(row, table, filter) {
+        const rowData = this.packetRowData(row, table);
+        const values = this.packetFilterValues(rowData, filter.field);
+        if (values.length === 0) {
+            return false;
+        }
+
+        const matched = values.some(value => {
+            const normalized = String(value ?? '').toLowerCase();
+            if (filter.operator === 'contains' || filter.operator === '~=') {
+                return normalized.includes(filter.value);
+            }
+            return normalized === filter.value || normalized.includes(filter.value);
+        });
+
+        return filter.operator === '!=' ? !matched : matched;
+    }
+
+    packetRowData(row, table) {
+        const data = {};
+        (table.headers || []).forEach((header, index) => {
+            data[header.toLowerCase()] = String(row[index] ?? '');
+        });
+
+        const sourceParts = this.splitEndpoint(data.source || '');
+        const destinationParts = this.splitEndpoint(data.destination || '');
+        data.src_ip = sourceParts.host;
+        data.src_port = sourceParts.port;
+        data.dst_ip = destinationParts.host;
+        data.dst_port = destinationParts.port;
+        data.ip_values = [sourceParts.host, destinationParts.host].filter(Boolean);
+        data.port_values = [sourceParts.port, destinationParts.port].filter(Boolean);
+        return data;
+    }
+
+    splitEndpoint(value) {
+        const match = /^(.+):(\d+)$/.exec(value);
+        return match ? { host: match[1], port: match[2] } : { host: value, port: '' };
+    }
+
+    packetFilterValues(rowData, field) {
+        switch (field) {
+            case 'protocol':
+            case 'proto':
+                return [rowData.protocol];
+            case 'ip':
+            case 'ip.addr':
+                return rowData.ip_values;
+            case 'src':
+            case 'src.ip':
+            case 'ip.src':
+                return [rowData.src_ip];
+            case 'dst':
+            case 'dst.ip':
+            case 'ip.dst':
+                return [rowData.dst_ip];
+            case 'port':
+            case 'tcp.port':
+            case 'udp.port':
+                return rowData.port_values;
+            case 'src.port':
+            case 'tcp.srcport':
+            case 'udp.srcport':
+                return [rowData.src_port];
+            case 'dst.port':
+            case 'tcp.dstport':
+            case 'udp.dstport':
+                return [rowData.dst_port];
+            case 'dns.qry.name':
+            case 'http.host':
+            case 'info':
+                return [rowData.info];
+            default:
+                return [rowData[field.replace('.', ' ')] || rowData[field] || ''];
+        }
     }
 
     renderRow(row) {

@@ -283,6 +283,26 @@ describe('FileUtils delimited formats', () => {
         expect(result.matchedBySignature).toBe(true);
     });
 
+    it('detects classic PCAP files by magic bytes', async () => {
+        const filePath = path.join(tempDir, 'mislabeled.bin');
+        fs.writeFileSync(filePath, Buffer.from([0xD4, 0xC3, 0xB2, 0xA1, 0x02, 0x00, 0x04, 0x00]));
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.pcapViewer');
+        expect(result.matchedBySignature).toBe(true);
+    });
+
+    it('detects PCAPNG files by section header block', async () => {
+        const filePath = path.join(tempDir, 'mislabeled.bin');
+        fs.writeFileSync(filePath, Buffer.from([0x0A, 0x0D, 0x0D, 0x0A, 0x1C, 0x00, 0x00, 0x00]));
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.pcapngViewer');
+        expect(result.matchedBySignature).toBe(true);
+    });
+
     it('detects STEP files by extension', async () => {
         const filePath = path.join(tempDir, 'part.stp');
         fs.writeFileSync(filePath, [
