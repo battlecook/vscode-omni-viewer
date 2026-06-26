@@ -55,6 +55,7 @@ export type OmniViewerViewType =
     | 'omni-viewer.mermaidViewer'
     | 'omni-viewer.plantumlViewer'
     | 'omni-viewer.parquetViewer'
+    | 'omni-viewer.hdf5Viewer'
     | 'omni-viewer.hwpViewer'
     | 'omni-viewer.psdViewer'
     | 'omni-viewer.excelViewer'
@@ -176,6 +177,10 @@ export class FileUtils {
 
         if (await this.isParquet(filePath, buffer)) {
             return this.signatureMatch('omni-viewer.parquetViewer', 'Matched the Parquet magic bytes.');
+        }
+
+        if (this.matchesBytes(buffer, [0x89, 0x48, 0x44, 0x46, 0x0d, 0x0a, 0x1a, 0x0a])) {
+            return this.signatureMatch('omni-viewer.hdf5Viewer', 'Matched the HDF5 signature.');
         }
 
         if (this.hasAsciiPrefix(buffer, 'LOGG')) {

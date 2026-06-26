@@ -11,6 +11,7 @@ import { CsvViewerProvider } from './csvViewerProvider';
 import { Db3ViewerProvider } from './db3ViewerProvider';
 import { DbcViewerProvider } from './dbcViewerProvider';
 import { ExcelViewerProvider } from './excelViewerProvider';
+import { Hdf5ViewerProvider } from './hdf5ViewerProvider';
 import { HwpViewerProvider } from './hwpViewerProvider';
 import { ImageViewerProvider } from './imageViewerProvider';
 import { JsonViewerProvider } from './jsonViewerProvider';
@@ -223,6 +224,13 @@ export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
         missingMessage: 'No Parquet file selected',
         retainContextWhenHidden: true,
         createProvider: (context) => new ParquetViewerProvider(context)
+    },
+    {
+        viewType: Hdf5ViewerProvider.viewType,
+        command: 'omni-viewer.openHdf5Viewer',
+        missingMessage: 'No HDF5 file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new Hdf5ViewerProvider(context)
     },
     {
         viewType: HwpViewerProvider.viewType,

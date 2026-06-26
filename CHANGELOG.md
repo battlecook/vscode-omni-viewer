@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.33.0] - 2026-06-27
+
+### Added
+- **HDF5 Viewer**
+  - Added a dedicated HDF5 viewer for `.h5`, `.hdf5`, and `.he5` files with custom editor registration, explorer/context menu actions, and direct `Open with HDF5 Viewer` command support
+  - Added signature-based HDF5 routing and regression coverage for HDF5 files
+  - Added dependency-free HDF5 metadata inspection that reads file metadata by random access without loading large dataset payloads into memory
+  - Added HDF5 superblock summaries, group and dataset tables, dataset shape/type details, structure tree previews, and header hex/ASCII previews
+  - Added support for superblock versions 0-3, including classic symbol-table groups and version-2 object headers with compact links
+
+### Changed
+- **Data Explorer warnings**
+  - Reduced informational parser warnings for successfully recognized BLF, MF4, Avro, ROS bag, SQLite DB3, PCAP, and PCAPNG files so warning panels focus on invalid, truncated, or unsupported structures
+
 ## [0.32.0] - 2026-06-26
 
 ### Added

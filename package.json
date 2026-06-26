@@ -2,8 +2,8 @@
   "name": "omni-viewer",
   "displayName": "omni-viewer",
   "publisher": "battlecook",
-  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, excel, word, powerpoint, parquet, jsonl, yaml, toml, markdown, mermaid, PlantUML, hwp, PSD and PDF files",
-  "version": "0.32.0",
+  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, excel, word, powerpoint, parquet, HDF5, jsonl, yaml, toml, markdown, mermaid, PlantUML, hwp, PSD and PDF files",
+  "version": "0.33.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
@@ -62,6 +62,9 @@
     "Mermaid",
     "PlantUML",
     "Parquet",
+    "HDF5",
+    "h5",
+    "hdf5",
     "HWP",
     "PSD",
     "한글",
@@ -481,6 +484,22 @@
         "priority": "default"
       },
       {
+        "viewType": "omni-viewer.hdf5Viewer",
+        "displayName": "HDF5 Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.h5"
+          },
+          {
+            "filenamePattern": "*.hdf5"
+          },
+          {
+            "filenamePattern": "*.he5"
+          }
+        ],
+        "priority": "default"
+      },
+      {
         "viewType": "omni-viewer.hwpViewer",
         "displayName": "HWP Viewer",
         "selector": [
@@ -703,6 +722,11 @@
           "group": "navigation"
         },
         {
+          "command": "omni-viewer.openHdf5Viewer",
+          "when": "resourceExtname == '.h5' || resourceExtname == '.hdf5' || resourceExtname == '.he5'",
+          "group": "navigation"
+        },
+        {
           "command": "omni-viewer.openHwpViewer",
           "when": "resourceExtname == '.hwp' || resourceExtname == '.hwpx'",
           "group": "navigation"
@@ -863,6 +887,11 @@
       {
         "command": "omni-viewer.openParquetViewer",
         "title": "Open with Parquet Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openHdf5Viewer",
+        "title": "Open with HDF5 Viewer",
         "category": "Omni Viewer"
       },
       {

@@ -230,7 +230,7 @@ export class AutomotiveParsers {
                 }
             ],
             warnings: signature === 'LOGG'
-                ? ['BLF binary payload preview is available. Full object decoding will require a dedicated BLF object parser.']
+                ? []
                 : ['The file does not start with the expected BLF LOGG signature.']
         };
     }
@@ -265,7 +265,7 @@ export class AutomotiveParsers {
                 }
             ],
             warnings: magic === 'MDF'
-                ? ['MF4 metadata and header preview are available. Full sample decoding will require an MDF block graph reader.']
+                ? []
                 : ['The file does not start with the expected MDF signature.']
         };
     }
@@ -302,7 +302,7 @@ export class AutomotiveParsers {
             ],
             rawPreview: schema ? this.prettyJsonPreview(schema) : undefined,
             warnings: isObjectContainer
-                ? ['Avro container metadata and header preview are available. Full block decoding will require Avro schema-based record decoding.']
+                ? []
                 : ['The file does not start with the expected Avro object container magic bytes.']
         };
     }
@@ -343,7 +343,7 @@ export class AutomotiveParsers {
                 }
             ],
             warnings: isRosBag
-                ? ['ROS bag structure hints and binary preview are available. Full topic/message decoding will require a ROS bag record reader.']
+                ? []
                 : ['The file does not start with the expected ROS bag header.']
         };
     }
@@ -455,10 +455,7 @@ export class AutomotiveParsers {
                 }
             ],
             warnings: isSqlite
-                ? [
-                    'SQLite table previews are decoded directly from table b-tree pages without external dependencies. Complex SQL queries, indexes, WAL replay, and full overflow recovery are not supported.',
-                    ...sqlite.warnings
-                ]
+                ? [...sqlite.warnings]
                 : ['The file does not start with the expected SQLite 3 database header.']
         };
     }
@@ -567,7 +564,7 @@ export class AutomotiveParsers {
                 }
             ],
             warnings: [
-                ...(header ? ['Lightweight packet decoding is available for Ethernet, ARP, IPv4, IPv6, TCP, UDP, ICMP, DNS, and HTTP-like payloads.'] : ['The file does not start with a supported PCAP magic value.']),
+                ...(header ? [] : ['The file does not start with a supported PCAP magic value.']),
                 ...(packets.truncated ? [`Packet parsing stopped near offset 0x${packets.invalidOffset.toString(16)} because a record was truncated or invalid.`] : [])
             ]
         };
@@ -624,7 +621,7 @@ export class AutomotiveParsers {
                 }
             ],
             warnings: [
-                ...(blocks.isPcapng ? ['Lightweight packet decoding is available for Ethernet, ARP, IPv4, IPv6, TCP, UDP, ICMP, DNS, and HTTP-like payloads.'] : ['The file does not start with the expected PCAPNG Section Header Block.']),
+                ...(blocks.isPcapng ? [] : ['The file does not start with the expected PCAPNG Section Header Block.']),
                 ...(blocks.truncated ? [`Block parsing stopped near offset 0x${blocks.invalidOffset.toString(16)} because a block was truncated or invalid.`] : []),
                 ...(blocks.totalBlocks > blocks.rows.length ? ['Large PCAPNG file: block table is limited to the first 5,000 blocks.'] : [])
             ]

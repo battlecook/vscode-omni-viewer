@@ -1,6 +1,6 @@
 # VSCode Omni Viewer
 
-A comprehensive audio, image, PSD, video, CSV, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, Excel, Word, PowerPoint, PDF, Parquet, JSONL, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
+A comprehensive audio, image, PSD, video, CSV, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, Excel, Word, PowerPoint, PDF, Parquet, HDF5, JSONL, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-red)](https://github.com/sponsors/battlecook)
 
@@ -256,6 +256,15 @@ Note: `.ts` files share an extension with TypeScript source files, so automatic 
 
 ### Supported Parquet Formats
 - Parquet
+
+## 🧬 HDF5 Viewer Features
+
+### Hierarchical Data Format 5 (.h5, .hdf5, .he5)
+- **Structure Tree**: Walks the file hierarchy and lists every group and dataset path
+- **Dataset Details**: Shows each dataset's shape (dimensions) and datatype (e.g. Float64, Integer32)
+- **Superblock Summary**: Reports superblock version, offset/length sizes, and root group address
+- **Format Coverage**: Reads superblock versions 0–3, including classic symbol-table groups and version-2 object headers with compact links
+- **Header Preview**: Hex/ASCII dump of the file header for inspection
 
 ## 🧭 Smart File Detection
 
