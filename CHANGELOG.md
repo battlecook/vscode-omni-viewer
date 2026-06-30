@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.34.0] - 2026-07-01
+
+### Added
+- **MAT Viewer**
+  - Added a dedicated MAT viewer for `.mat` MATLAB files with custom editor registration, explorer/context menu actions, and direct `Open with MAT Viewer` command support
+  - Added MATLAB MAT-file parsing for Level 4 and v5/v6/v7 files, including variable names, classes, dimensions, storage types, byte sizes, attributes, numeric previews, text previews, endian detection, and header hex/ASCII previews
+  - Added MAT v7.3 handling by routing HDF5-backed `.mat` files through the existing HDF5 metadata reader while preserving MAT-specific labeling and warnings
+  - Added MAT file detection for classic MAT headers, HDF5-backed MAT files, and `.mat` extension fallback cases, with regression coverage
+- **Proto Viewer**
+  - Added a dedicated Protocol Buffer schema viewer for `.proto` files with custom editor registration, explorer/context menu actions, and direct `Open with Proto Viewer` command support
+  - Added Proto schema parsing for syntax, packages, imports, messages, nested messages, enums, services, RPCs, fields, oneofs, reserved ranges, comments, references, and duplicate field-number warnings
+  - Added an interactive Proto workbench with source highlighting, search, message tree, type navigation, relationship and reverse-reference views, JSON example generation, breaking-change comparison, import graph, gRPC service explorer, documentation rendering, and panel copy support
+  - Added Proto content detection for schema-like text files in addition to `.proto` extension routing, with parser regression coverage
+
 ## [0.33.0] - 2026-06-27
 
 ### Added

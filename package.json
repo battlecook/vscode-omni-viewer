@@ -2,8 +2,8 @@
   "name": "omni-viewer",
   "displayName": "omni-viewer",
   "publisher": "battlecook",
-  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, excel, word, powerpoint, parquet, HDF5, jsonl, yaml, toml, markdown, mermaid, PlantUML, hwp, PSD and PDF files",
-  "version": "0.33.0",
+  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, excel, word, powerpoint, parquet, HDF5, MAT, jsonl, yaml, toml, markdown, mermaid, PlantUML, hwp, PSD and PDF files",
+  "version": "0.34.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
@@ -65,6 +65,9 @@
     "HDF5",
     "h5",
     "hdf5",
+    "MAT",
+    "mat",
+    "MATLAB",
     "HWP",
     "PSD",
     "한글",
@@ -474,6 +477,16 @@
         "priority": "option"
       },
       {
+        "viewType": "omni-viewer.protoViewer",
+        "displayName": "Proto Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.proto"
+          }
+        ],
+        "priority": "option"
+      },
+      {
         "viewType": "omni-viewer.parquetViewer",
         "displayName": "Parquet Viewer",
         "selector": [
@@ -495,6 +508,16 @@
           },
           {
             "filenamePattern": "*.he5"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "omni-viewer.matViewer",
+        "displayName": "MAT Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.mat"
           }
         ],
         "priority": "default"
@@ -717,6 +740,11 @@
           "group": "navigation"
         },
         {
+          "command": "omni-viewer.openProtoViewer",
+          "when": "resourceExtname == '.proto'",
+          "group": "navigation"
+        },
+        {
           "command": "omni-viewer.openParquetViewer",
           "when": "resourceExtname == '.parquet'",
           "group": "navigation"
@@ -724,6 +752,11 @@
         {
           "command": "omni-viewer.openHdf5Viewer",
           "when": "resourceExtname == '.h5' || resourceExtname == '.hdf5' || resourceExtname == '.he5'",
+          "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openMatViewer",
+          "when": "resourceExtname == '.mat'",
           "group": "navigation"
         },
         {
@@ -885,6 +918,11 @@
         "category": "Omni Viewer"
       },
       {
+        "command": "omni-viewer.openProtoViewer",
+        "title": "Open with Proto Viewer",
+        "category": "Omni Viewer"
+      },
+      {
         "command": "omni-viewer.openParquetViewer",
         "title": "Open with Parquet Viewer",
         "category": "Omni Viewer"
@@ -892,6 +930,11 @@
       {
         "command": "omni-viewer.openHdf5Viewer",
         "title": "Open with HDF5 Viewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openMatViewer",
+        "title": "Open with MAT Viewer",
         "category": "Omni Viewer"
       },
       {

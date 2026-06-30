@@ -577,6 +577,32 @@ describe('FileUtils delimited formats', () => {
         expect(result.matchedBySignature).toBe(true);
     });
 
+    it('keeps HDF5-backed .mat files on the MAT viewer', async () => {
+        const filePath = path.join(tempDir, 'sample.mat');
+        fs.writeFileSync(filePath, Buffer.from([0x89, 0x48, 0x44, 0x46, 0x0d, 0x0a, 0x1a, 0x0a]));
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.matViewer');
+        expect(result.matchedBySignature).toBe(true);
+    });
+
+    it('detects classic MAT files by extension fallback', async () => {
+        const filePath = path.join(tempDir, 'legacy.mat');
+        const header = Buffer.alloc(20);
+        header.writeInt32LE(0, 0);
+        header.writeInt32LE(0, 4);
+        header.writeInt32LE(0, 8);
+        header.writeInt32LE(0, 12);
+        header.writeInt32LE(1, 16);
+        fs.writeFileSync(filePath, Buffer.concat([header, Buffer.from([0])]));
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.matViewer');
+        expect(result.matchedBySignature).toBe(false);
+    });
+
     it('falls back to JSONL content sniffing for text files', async () => {
         const filePath = path.join(tempDir, 'records.txt');
         fs.writeFileSync(filePath, '{"id":1}\n{"id":2}\n', 'utf8');

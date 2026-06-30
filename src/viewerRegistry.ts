@@ -16,6 +16,7 @@ import { HwpViewerProvider } from './hwpViewerProvider';
 import { ImageViewerProvider } from './imageViewerProvider';
 import { JsonViewerProvider } from './jsonViewerProvider';
 import { JsonlViewerProvider } from './jsonlViewerProvider';
+import { MatViewerProvider } from './matViewerProvider';
 import { MarkdownViewerProvider } from './markdownViewerProvider';
 import { MermaidViewerProvider } from './mermaidViewerProvider';
 import { Mf4ViewerProvider } from './mf4ViewerProvider';
@@ -25,6 +26,7 @@ import { PcapngViewerProvider } from './pcapngViewerProvider';
 import { PdfViewerProvider } from './pdfViewerProvider';
 import { PlantumlViewerProvider } from './plantumlViewerProvider';
 import { PptViewerProvider } from './pptViewerProvider';
+import { ProtoViewerProvider } from './protoViewerProvider';
 import { PsdViewerProvider } from './psdViewerProvider';
 import { ReqifViewerProvider } from './reqifViewerProvider';
 import { StpViewerProvider } from './stpViewerProvider';
@@ -219,6 +221,13 @@ export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
         createProvider: (context) => new PlantumlViewerProvider(context)
     },
     {
+        viewType: ProtoViewerProvider.viewType,
+        command: 'omni-viewer.openProtoViewer',
+        missingMessage: 'No Proto file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new ProtoViewerProvider(context)
+    },
+    {
         viewType: ParquetViewerProvider.viewType,
         command: 'omni-viewer.openParquetViewer',
         missingMessage: 'No Parquet file selected',
@@ -231,6 +240,13 @@ export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
         missingMessage: 'No HDF5 file selected',
         retainContextWhenHidden: true,
         createProvider: (context) => new Hdf5ViewerProvider(context)
+    },
+    {
+        viewType: MatViewerProvider.viewType,
+        command: 'omni-viewer.openMatViewer',
+        missingMessage: 'No MAT file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new MatViewerProvider(context)
     },
     {
         viewType: HwpViewerProvider.viewType,

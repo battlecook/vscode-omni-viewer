@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Proto Viewer - {{fileName}}</title>
+    <link rel="stylesheet" href="css/protoViewer.css">
+</head>
+<body>
+    <div class="viewer-shell">
+        <header class="viewer-header">
+            <div>
+                <div class="viewer-title">{{fileName}}</div>
+                <div id="summaryText" class="viewer-subtitle">Protocol Buffer schema workspace</div>
+            </div>
+            <div id="statusBadge" class="status-badge">Ready</div>
+            {{omniShareButtons}}
+        </header>
+
+        <section class="toolbar">
+            <input id="searchInput" class="search-input" type="search" placeholder="Search message, field, enum, RPC" spellcheck="false">
+            <button type="button" class="toolbar-btn is-active" data-panel="tree">Message Tree</button>
+            <button type="button" class="toolbar-btn" data-panel="types">Types</button>
+            <button type="button" class="toolbar-btn" data-panel="relationships">Relationships</button>
+            <button type="button" class="toolbar-btn" data-panel="reverse">Who Uses This?</button>
+            <button type="button" class="toolbar-btn" data-panel="json">JSON Example</button>
+            <button type="button" class="toolbar-btn" data-panel="breaking">Breaking Changes</button>
+            <button type="button" class="toolbar-btn" data-panel="imports">Imports</button>
+            <button type="button" class="toolbar-btn" data-panel="grpc">gRPC</button>
+            <button type="button" class="toolbar-btn" data-panel="docs">Docs</button>
+        </section>
+
+        <main class="workspace">
+            <section class="source-panel">
+                <div class="panel-header">
+                    <span>Source</span>
+                    <span id="sourceCaption" class="panel-caption">Cursor sync enabled</span>
+                </div>
+                <pre id="sourceView" class="source-view" tabindex="0"></pre>
+            </section>
+
+            <section class="work-panel">
+                <div class="panel-header">
+                    <span id="panelTitle">Message Tree</span>
+                    <div class="panel-actions">
+                        <span id="panelCaption" class="panel-caption">Messages, fields, enums, and services</span>
+                        <button type="button" id="copyPanelBtn" class="toolbar-btn small">Copy</button>
+                    </div>
+                </div>
+                <div id="treePanel" class="panel-surface"></div>
+                <div id="typesPanel" class="panel-surface is-hidden"></div>
+                <div id="relationshipsPanel" class="panel-surface is-hidden"></div>
+                <div id="reversePanel" class="panel-surface is-hidden"></div>
+                <div id="jsonPanel" class="panel-surface is-hidden"></div>
+                <div id="breakingPanel" class="panel-surface is-hidden"></div>
+                <div id="importsPanel" class="panel-surface is-hidden"></div>
+                <div id="grpcPanel" class="panel-surface is-hidden"></div>
+                <div id="docsPanel" class="panel-surface is-hidden"></div>
+            </section>
+        </main>
+
+        <section id="warningPanel" class="warning-panel is-hidden"></section>
+    </div>
+
+    <script>
+        window.protoSource = {{protoSource}};
+        window.protoModel = {{protoModel}};
+    </script>
+    <script src="js/protoViewer.js"></script>
+</body>
+</html>

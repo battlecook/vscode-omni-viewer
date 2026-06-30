@@ -54,8 +54,10 @@ export type OmniViewerViewType =
     | 'omni-viewer.markdownViewer'
     | 'omni-viewer.mermaidViewer'
     | 'omni-viewer.plantumlViewer'
+    | 'omni-viewer.protoViewer'
     | 'omni-viewer.parquetViewer'
     | 'omni-viewer.hdf5Viewer'
+    | 'omni-viewer.matViewer'
     | 'omni-viewer.hwpViewer'
     | 'omni-viewer.psdViewer'
     | 'omni-viewer.excelViewer'
@@ -179,6 +181,10 @@ export class FileUtils {
             return this.signatureMatch('omni-viewer.parquetViewer', 'Matched the Parquet magic bytes.');
         }
 
+        if (this.isMatFile(buffer, ext)) {
+            return this.signatureMatch('omni-viewer.matViewer', 'Matched the MATLAB MAT-file signature or extension.');
+        }
+
         if (this.matchesBytes(buffer, [0x89, 0x48, 0x44, 0x46, 0x0d, 0x0a, 0x1a, 0x0a])) {
             return this.signatureMatch('omni-viewer.hdf5Viewer', 'Matched the HDF5 signature.');
         }
@@ -289,6 +295,14 @@ export class FileUtils {
             return {
                 viewType: 'omni-viewer.audioViewer',
                 reason: 'Used the raw audio extension fallback.',
+                matchedBySignature: false
+            };
+        }
+
+        if (ext === '.mat') {
+            return {
+                viewType: 'omni-viewer.matViewer',
+                reason: 'Used the MAT extension fallback.',
                 matchedBySignature: false
             };
         }
@@ -584,6 +598,18 @@ export class FileUtils {
         }
     }
 
+    private static isMatFile(buffer: Buffer, ext: string): boolean {
+        if (ext !== '.mat') {
+            return false;
+        }
+        if (this.matchesBytes(buffer, [0x89, 0x48, 0x44, 0x46, 0x0d, 0x0a, 0x1a, 0x0a])) {
+            return true;
+        }
+        const headerText = buffer.subarray(0, Math.min(buffer.length, 116)).toString('latin1');
+        const endian = buffer.length >= 128 ? buffer.subarray(126, 128).toString('ascii') : '';
+        return /^MATLAB\s+(?:5\.0|7\.)\s+MAT-file/i.test(headerText) || endian === 'IM' || endian === 'MI';
+    }
+
     private static isCompoundFileBinary(buffer: Buffer): boolean {
         return this.matchesBytes(buffer, [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]);
     }
@@ -782,6 +808,16 @@ export class FileUtils {
             };
         }
 
+        if (ext === '.proto' || this.looksLikeProto(lines)) {
+            return {
+                viewType: 'omni-viewer.protoViewer',
+                reason: ext === '.proto'
+                    ? 'Used the Proto extension fallback.'
+                    : 'Matched Protocol Buffer schema syntax.',
+                matchedBySignature: false
+            };
+        }
+
         if (ext === '.mmd' || ext === '.mermaid' || this.looksLikeMermaid(lines)) {
             return {
                 viewType: 'omni-viewer.mermaidViewer',
@@ -928,6 +964,13 @@ export class FileUtils {
         }
 
         return /^@start(?:uml|mindmap|wbs|gantt|salt|ditaa|jcckit|json|yaml|ebnf|regex|chen|wire|creole|dot|math|latex|files|board|archimate)\b/i.test(firstMeaningfulLine);
+    }
+
+    private static looksLikeProto(lines: string[]): boolean {
+        const sampleLines = lines.slice(0, 80);
+        return sampleLines.some(line => /^syntax\s*=\s*"proto[23]"\s*;/.test(line))
+            || sampleLines.some(line => /^package\s+[\w.]+\s*;/.test(line))
+            && sampleLines.some(line => /^(message|enum|service)\s+[A-Za-z_]\w*\s*\{/.test(line));
     }
 
     private static parseDelimitedLine(line: string, delimiter: string): string[] {
