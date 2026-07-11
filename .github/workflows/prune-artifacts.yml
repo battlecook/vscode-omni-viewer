@@ -29,7 +29,21 @@ jobs:
               (left, right) => new Date(right.created_at) - new Date(left.created_at),
             );
 
-            for (const artifact of artifacts.slice(5)) {
+            const retainedByWorkflow = new Map();
+
+            for (const artifact of artifacts) {
+              const { data: run } = await github.rest.actions.getWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: artifact.workflow_run.id,
+              });
+              const retained = retainedByWorkflow.get(run.workflow_id) ?? 0;
+
+              if (retained < 5) {
+                retainedByWorkflow.set(run.workflow_id, retained + 1);
+                continue;
+              }
+
               core.info(`Deleting artifact ${artifact.id}: ${artifact.name}`);
               await github.rest.actions.deleteArtifact({
                 owner: context.repo.owner,
