@@ -73,6 +73,7 @@ jobs:
       with:
         name: vsix
         path: '*.vsix'
+        retention-days: 7
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
