@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shapefile Viewer - {{fileName}}</title>
+    <link rel="stylesheet" href="../../../node_modules/leaflet/dist/leaflet.css">
+    <link rel="stylesheet" href="css/shpViewer.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="title">
+                <span class="title-mark">SHP</span>
+                <span class="file-name">{{fileName}}</span>
+            </div>
+            <div class="file-info" id="fileInfo"></div>
+            {{omniShareButtons}}
+        </header>
+
+        <section class="status-strip" id="statusStrip"></section>
+
+        <main class="content">
+            <section class="map-pane">
+                <div id="map"></div>
+                <div id="emptyMap" class="empty-map" hidden>No displayable geometry found.</div>
+            </section>
+
+            <aside class="sidebar">
+                <div class="panel">
+                    <div class="panel-title">Dataset</div>
+                    <div id="datasetSummary" class="summary"></div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-title">Files</div>
+                    <div id="fileList" class="file-list"></div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-title">Properties</div>
+                    <div id="propertiesPanel" class="properties-panel">Select a feature on the map.</div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-title">Loaded Features</div>
+                    <div class="table-wrap">
+                        <table class="feature-table">
+                            <thead id="featureTableHead"></thead>
+                            <tbody id="featureTableBody"></tbody>
+                        </table>
+                    </div>
+                    <button id="loadMoreButton" class="load-more" type="button">Load Next 10,000 Features</button>
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    <script id="shp-data" type="application/json">{{shpData}}</script>
+    <script src="../../../node_modules/leaflet/dist/leaflet.js"></script>
+    <script src="js/shpViewer.js"></script>
+</body>
+</html>

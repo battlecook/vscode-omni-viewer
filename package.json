@@ -2,7 +2,7 @@
   "name": "omni-viewer",
   "displayName": "omni-viewer",
   "publisher": "battlecook",
-  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, excel, word, powerpoint, parquet, HDF5, MAT, jsonl, yaml, toml, markdown, mermaid, PlantUML, hwp, PSD and PDF files",
+  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, excel, word, powerpoint, parquet, Shapefile, HDF5, MAT, jsonl, yaml, toml, markdown, mermaid, PlantUML, hwp, PSD and PDF files",
   "version": "0.34.0",
   "repository": {
     "type": "git",
@@ -62,6 +62,9 @@
     "Mermaid",
     "PlantUML",
     "Parquet",
+    "Shapefile",
+    "SHP",
+    "GIS",
     "HDF5",
     "h5",
     "hdf5",
@@ -497,6 +500,16 @@
         "priority": "default"
       },
       {
+        "viewType": "omni-viewer.shpViewer",
+        "displayName": "Shapefile Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.shp"
+          }
+        ],
+        "priority": "default"
+      },
+      {
         "viewType": "omni-viewer.hdf5Viewer",
         "displayName": "HDF5 Viewer",
         "selector": [
@@ -750,6 +763,11 @@
           "group": "navigation"
         },
         {
+          "command": "omni-viewer.openShpViewer",
+          "when": "resourceExtname == '.shp'",
+          "group": "navigation"
+        },
+        {
           "command": "omni-viewer.openHdf5Viewer",
           "when": "resourceExtname == '.h5' || resourceExtname == '.hdf5' || resourceExtname == '.he5'",
           "group": "navigation"
@@ -928,6 +946,11 @@
         "category": "Omni Viewer"
       },
       {
+        "command": "omni-viewer.openShpViewer",
+        "title": "Open with Shapefile Viewer",
+        "category": "Omni Viewer"
+      },
+      {
         "command": "omni-viewer.openHdf5Viewer",
         "title": "Open with HDF5 Viewer",
         "category": "Omni Viewer"
@@ -1027,12 +1050,15 @@
     "hyparquet": "^1.21.0",
     "hyparquet-compressors": "^1.1.1",
     "jszip": "^3.10.1",
+    "leaflet": "^1.9.4",
     "marked": "^16.4.2",
     "mermaid": "^11.15.0",
     "music-metadata": "^11.8.3",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.10.38",
+    "proj4": "^2.20.9",
     "puml-canvas-js": "0.5.0",
+    "shapefile": "^0.6.6",
     "wavesurfer.js": "^7.12.3",
     "xlsx": "^0.18.5",
     "yaml": "^2.8.3"

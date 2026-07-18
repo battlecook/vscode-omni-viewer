@@ -714,6 +714,21 @@ describe('FileUtils delimited formats', () => {
         expect(result.matchedBySignature).toBe(true);
     });
 
+    it('detects SHP files by shapefile header', async () => {
+        const filePath = path.join(tempDir, 'roads.shp');
+        const header = Buffer.alloc(100);
+        header.writeInt32BE(9994, 0);
+        header.writeInt32BE(50, 24);
+        header.writeInt32LE(1000, 28);
+        header.writeInt32LE(3, 32);
+        fs.writeFileSync(filePath, header);
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.shpViewer');
+        expect(result.matchedBySignature).toBe(true);
+    });
+
     it('keeps .doc files on the Word viewer even when embedded workbook metadata exists', async () => {
         const filePath = path.join(tempDir, 'embedded-chart.doc');
         const header = Buffer.from([0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]);

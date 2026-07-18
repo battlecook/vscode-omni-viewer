@@ -29,6 +29,7 @@ import { PptViewerProvider } from './pptViewerProvider';
 import { ProtoViewerProvider } from './protoViewerProvider';
 import { PsdViewerProvider } from './psdViewerProvider';
 import { ReqifViewerProvider } from './reqifViewerProvider';
+import { ShpViewerProvider } from './shpViewerProvider';
 import { StpViewerProvider } from './stpViewerProvider';
 import { TomlViewerProvider } from './tomlViewerProvider';
 import { VideoViewerProvider } from './videoViewerProvider';
@@ -233,6 +234,13 @@ export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
         missingMessage: 'No Parquet file selected',
         retainContextWhenHidden: true,
         createProvider: (context) => new ParquetViewerProvider(context)
+    },
+    {
+        viewType: ShpViewerProvider.viewType,
+        command: 'omni-viewer.openShpViewer',
+        missingMessage: 'No Shapefile selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new ShpViewerProvider(context)
     },
     {
         viewType: Hdf5ViewerProvider.viewType,

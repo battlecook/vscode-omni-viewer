@@ -27,6 +27,7 @@ import {
 } from './fileUtils/tabular';
 import { readArchiveFile, readArchiveEntryPreview, ArchivePreviewData, ArchiveEntryPreviewData } from './fileUtils/archive';
 import { readWordFile as readWordDocument } from './fileUtils/word';
+import { readShapefile as readGisShapefile, ShapefileData, ShapefileReadOptions } from './fileUtils/gis';
 
 export type OmniViewerViewType =
     | 'omni-viewer.audioViewer'
@@ -56,6 +57,7 @@ export type OmniViewerViewType =
     | 'omni-viewer.plantumlViewer'
     | 'omni-viewer.protoViewer'
     | 'omni-viewer.parquetViewer'
+    | 'omni-viewer.shpViewer'
     | 'omni-viewer.hdf5Viewer'
     | 'omni-viewer.matViewer'
     | 'omni-viewer.hwpViewer'
@@ -181,6 +183,10 @@ export class FileUtils {
             return this.signatureMatch('omni-viewer.parquetViewer', 'Matched the Parquet magic bytes.');
         }
 
+        if (this.isShapefile(buffer, ext)) {
+            return this.signatureMatch('omni-viewer.shpViewer', 'Matched the ESRI Shapefile header.');
+        }
+
         if (this.isMatFile(buffer, ext)) {
             return this.signatureMatch('omni-viewer.matViewer', 'Matched the MATLAB MAT-file signature or extension.');
         }
@@ -303,6 +309,14 @@ export class FileUtils {
             return {
                 viewType: 'omni-viewer.matViewer',
                 reason: 'Used the MAT extension fallback.',
+                matchedBySignature: false
+            };
+        }
+
+        if (ext === '.shp') {
+            return {
+                viewType: 'omni-viewer.shpViewer',
+                reason: 'Used the Shapefile extension fallback.',
                 matchedBySignature: false
             };
         }
@@ -608,6 +622,17 @@ export class FileUtils {
         const headerText = buffer.subarray(0, Math.min(buffer.length, 116)).toString('latin1');
         const endian = buffer.length >= 128 ? buffer.subarray(126, 128).toString('ascii') : '';
         return /^MATLAB\s+(?:5\.0|7\.)\s+MAT-file/i.test(headerText) || endian === 'IM' || endian === 'MI';
+    }
+
+    private static isShapefile(buffer: Buffer, ext: string): boolean {
+        if (ext !== '.shp' || buffer.length < 100) {
+            return false;
+        }
+
+        const fileCode = buffer.readInt32BE(0);
+        const version = buffer.readInt32LE(28);
+        const shapeType = buffer.readInt32LE(32);
+        return fileCode === 9994 && version === 1000 && shapeType >= 0 && shapeType <= 31;
     }
 
     private static isCompoundFileBinary(buffer: Buffer): boolean {
@@ -1040,6 +1065,10 @@ export class FileUtils {
 
     public static async readParquetFile(filePath: string, options: ParquetReadOptions = {}): Promise<ParquetFileData> {
         return readParquetRows(filePath, options);
+    }
+
+    public static async readShapefile(filePath: string, options: ShapefileReadOptions = {}): Promise<ShapefileData> {
+        return readGisShapefile(filePath, options);
     }
 
     public static async readExcelFile(filePath: string): Promise<{
