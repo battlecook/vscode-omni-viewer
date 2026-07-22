@@ -318,6 +318,22 @@ describe('FileUtils delimited formats', () => {
         expect(result.matchedBySignature).toBe(false);
     });
 
+    it('detects Safetensors files by extension', async () => {
+        const filePath = path.join(tempDir, 'model.safetensors');
+        const header = Buffer.from(JSON.stringify({
+            weight: { dtype: 'F32', shape: [2], data_offsets: [0, 8] }
+        }), 'utf8');
+        const prefix = Buffer.alloc(8);
+        prefix.writeBigUInt64LE(BigInt(header.length));
+        fs.writeFileSync(filePath, Buffer.concat([prefix, header, Buffer.alloc(8)]));
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.safetensorsViewer');
+        expect(result.matchedBySignature).toBe(false);
+        expect(result.reason).toContain('Safetensors extension');
+    });
+
     it('detects ReqIF files by extension', async () => {
         const filePath = path.join(tempDir, 'requirements.reqif');
         fs.writeFileSync(filePath, [

@@ -1,6 +1,6 @@
 # VSCode Omni Viewer
 
-A comprehensive audio, image, PSD, video, CSV, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, Excel, Word, PowerPoint, PDF, Parquet, HDF5, JSONL, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
+A comprehensive audio, image, PSD, video, CSV, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, Excel, Word, PowerPoint, PDF, Parquet, HDF5, Safetensors, JSONL, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-red)](https://github.com/sponsors/battlecook)
 
@@ -265,6 +265,17 @@ Note: `.ts` files share an extension with TypeScript source files, so automatic 
 - **Superblock Summary**: Reports superblock version, offset/length sizes, and root group address
 - **Format Coverage**: Reads superblock versions 0–3, including classic symbol-table groups and version-2 object headers with compact links
 - **Header Preview**: Hex/ASCII dump of the file header for inspection
+
+## 🧠 Safetensors Viewer Features
+
+### Model Tensor Metadata (.safetensors)
+- **Tensor Inventory**: Lists tensor names, data types, shapes, parameter counts, and byte sizes
+- **Model Summary**: Shows total tensor and parameter counts, data types, metadata keys, and file size
+- **Metadata View**: Displays the optional Safetensors metadata map in a searchable table
+- **Validation Warnings**: Reports malformed headers, unsupported data types, and inconsistent tensor byte ranges
+- **Search and Export**: Filters tensor/metadata rows and copies the parsed model as JSON
+- **Efficient Large-File Access**: Reads only the Safetensors prefix and JSON header instead of loading tensor payloads
+- **Powered by**: `omni-viewer-core` 0.7.0 for random-access Safetensors parsing
 
 ## 🧭 Smart File Detection
 

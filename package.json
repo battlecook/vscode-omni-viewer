@@ -2,8 +2,8 @@
   "name": "omni-viewer",
   "displayName": "omni-viewer",
   "publisher": "battlecook",
-  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, excel, word, powerpoint, parquet, Shapefile, HDF5, MAT, jsonl, yaml, toml, markdown, mermaid, PlantUML, hwp, PSD and PDF files",
-  "version": "0.34.0",
+  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, excel, word, powerpoint, parquet, Shapefile, HDF5, MAT, Safetensors, jsonl, yaml, toml, markdown, mermaid, PlantUML, hwp, PSD and PDF files",
+  "version": "0.35.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
@@ -71,6 +71,8 @@
     "MAT",
     "mat",
     "MATLAB",
+    "Safetensors",
+    "safetensors",
     "HWP",
     "PSD",
     "한글",
@@ -536,6 +538,16 @@
         "priority": "default"
       },
       {
+        "viewType": "omni-viewer.safetensorsViewer",
+        "displayName": "Safetensors Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.safetensors"
+          }
+        ],
+        "priority": "default"
+      },
+      {
         "viewType": "omni-viewer.hwpViewer",
         "displayName": "HWP Viewer",
         "selector": [
@@ -778,6 +790,11 @@
           "group": "navigation"
         },
         {
+          "command": "omni-viewer.openSafetensorsViewer",
+          "when": "resourceExtname == '.safetensors'",
+          "group": "navigation"
+        },
+        {
           "command": "omni-viewer.openHwpViewer",
           "when": "resourceExtname == '.hwp' || resourceExtname == '.hwpx'",
           "group": "navigation"
@@ -961,6 +978,11 @@
         "category": "Omni Viewer"
       },
       {
+        "command": "omni-viewer.openSafetensorsViewer",
+        "title": "Open with Safetensors Viewer",
+        "category": "Omni Viewer"
+      },
+      {
         "command": "omni-viewer.openHwpViewer",
         "title": "Open with HWP Viewer",
         "category": "Omni Viewer"
@@ -1044,23 +1066,24 @@
     "@rhwp/core": "^0.7.3",
     "ag-psd": "^30.1.0",
     "docx-preview": "^0.3.7",
-    "dompurify": "^3.4.5",
+    "dompurify": "^3.4.12",
     "highlight.js": "^11.11.1",
     "hwp.js": "^0.0.3",
-    "hyparquet": "^1.21.0",
+    "hyparquet": "^1.26.2",
     "hyparquet-compressors": "^1.1.1",
     "jszip": "^3.10.1",
     "leaflet": "^1.9.4",
     "marked": "^16.4.2",
     "mermaid": "^11.15.0",
     "music-metadata": "^11.8.3",
+    "omni-viewer-core": "0.7.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.10.38",
     "proj4": "^2.20.9",
     "puml-canvas-js": "0.5.0",
     "shapefile": "^0.6.6",
     "wavesurfer.js": "^7.12.3",
-    "xlsx": "^0.18.5",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "yaml": "^2.8.3"
   }
 }

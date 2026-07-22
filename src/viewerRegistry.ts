@@ -29,6 +29,7 @@ import { PptViewerProvider } from './pptViewerProvider';
 import { ProtoViewerProvider } from './protoViewerProvider';
 import { PsdViewerProvider } from './psdViewerProvider';
 import { ReqifViewerProvider } from './reqifViewerProvider';
+import { SafetensorsViewerProvider } from './safetensorsViewerProvider';
 import { ShpViewerProvider } from './shpViewerProvider';
 import { StpViewerProvider } from './stpViewerProvider';
 import { TomlViewerProvider } from './tomlViewerProvider';
@@ -255,6 +256,13 @@ export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
         missingMessage: 'No MAT file selected',
         retainContextWhenHidden: true,
         createProvider: (context) => new MatViewerProvider(context)
+    },
+    {
+        viewType: SafetensorsViewerProvider.viewType,
+        command: 'omni-viewer.openSafetensorsViewer',
+        missingMessage: 'No Safetensors file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new SafetensorsViewerProvider(context)
     },
     {
         viewType: HwpViewerProvider.viewType,

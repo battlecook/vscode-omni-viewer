@@ -1,7 +1,14 @@
 {
   "compilerOptions": {
     "module": "commonjs",
+    "moduleResolution": "node",
     "target": "ES2020",
+    "baseUrl": ".",
+    "paths": {
+      "omni-viewer-core/parsers/safetensors": [
+        "node_modules/omni-viewer-core/dist/parsers/safetensors/index.d.ts"
+      ]
+    },
     "outDir": "out",
     "lib": [
       "ES2020"

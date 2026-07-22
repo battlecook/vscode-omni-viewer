@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.35.0] - 2026-07-22
+
+### Added
+- **Safetensors Viewer**
+  - Added a dedicated `.safetensors` viewer with tensor, dtype, shape, parameter, file-size, and model metadata summaries
+  - Added searchable tensor and metadata tables, structure preview, validation warnings, JSON copy support, custom editor registration, explorer actions, and direct `Open with Safetensors Viewer` command support
+  - Added `omni-viewer-core` 0.7.0 and use its random-access Safetensors parser so tensor payloads are not loaded into memory
+
 ## [0.34.0] - 2026-07-01
 
 ### Added

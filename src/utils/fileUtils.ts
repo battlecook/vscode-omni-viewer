@@ -60,6 +60,7 @@ export type OmniViewerViewType =
     | 'omni-viewer.shpViewer'
     | 'omni-viewer.hdf5Viewer'
     | 'omni-viewer.matViewer'
+    | 'omni-viewer.safetensorsViewer'
     | 'omni-viewer.hwpViewer'
     | 'omni-viewer.psdViewer'
     | 'omni-viewer.excelViewer'
@@ -309,6 +310,14 @@ export class FileUtils {
             return {
                 viewType: 'omni-viewer.matViewer',
                 reason: 'Used the MAT extension fallback.',
+                matchedBySignature: false
+            };
+        }
+
+        if (ext === '.safetensors') {
+            return {
+                viewType: 'omni-viewer.safetensorsViewer',
+                reason: 'Used the Safetensors extension fallback.',
                 matchedBySignature: false
             };
         }
