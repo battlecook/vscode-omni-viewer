@@ -509,41 +509,102 @@ class CsvViewer {
 
     escapeDelimitedValue(value) {
         const stringValue = value || '';
-        if (stringValue.includes(this.delimiter) || stringValue.includes('"') || stringValue.includes('\n')) {
+        if (
+            stringValue.includes(this.delimiter)
+            || stringValue.includes('"')
+            || stringValue.includes('\n')
+            || stringValue.trim() !== stringValue
+        ) {
             return `"${stringValue.replace(/"/g, '""')}"`;
         }
         return stringValue;
     }
 
     parseDelimitedLine(line) {
+        // Keep this implementation aligned with scanDelimitedLine/buildClosingQuoteLookup
+        // in src/utils/fileUtils/tabular.ts. Shared fixtures in csvViewer.test.ts
+        // compare both runtimes and fail if their results drift.
         const result = [];
         let current = '';
-        let inQuotes = false;
-        
+        let closingQuoteIndex = -1;
+        let fieldWasQuoted = false;
+        let afterClosingQuote = false;
+        const closingQuoteFrom = new Int32Array(line.length + 2);
+        closingQuoteFrom.fill(-1);
+        let nextNonPaddingIndex = line.length;
+
+        const pushCurrentField = () => {
+            result.push(fieldWasQuoted ? current : current.trim());
+            current = '';
+            closingQuoteIndex = -1;
+            fieldWasQuoted = false;
+            afterClosingQuote = false;
+        };
+
+        for (let i = line.length - 1; i >= 0; i--) {
+            const char = line[i];
+
+            if (char !== '"') {
+                closingQuoteFrom[i] = closingQuoteFrom[i + 1];
+            } else if (line[i + 1] === '"') {
+                closingQuoteFrom[i] = closingQuoteFrom[i + 2];
+            } else if (
+                nextNonPaddingIndex === line.length
+                || line[nextNonPaddingIndex] === this.delimiter
+            ) {
+                closingQuoteFrom[i] = i;
+            } else {
+                closingQuoteFrom[i] = closingQuoteFrom[i + 1];
+            }
+
+            if (char === this.delimiter || !/\s/.test(char)) {
+                nextNonPaddingIndex = i;
+            }
+        }
+
         for (let i = 0; i < line.length; i++) {
             const char = line[i];
-            
-            if (char === '"') {
-                if (inQuotes && line[i + 1] === '"') {
+
+            if (closingQuoteIndex !== -1 && i < closingQuoteIndex) {
+                if (char === '"' && line[i + 1] === '"' && i + 1 < closingQuoteIndex) {
                     // Escaped quote
                     current += '"';
-                    i++; // Skip next quote
-                } else {
-                    // Toggle quote state
-                    inQuotes = !inQuotes;
+                    i++;
+                    continue;
                 }
-            } else if (char === this.delimiter && !inQuotes) {
+
+                current += char;
+                continue;
+            }
+
+            if (i === closingQuoteIndex) {
+                closingQuoteIndex = -1;
+                afterClosingQuote = true;
+                continue;
+            }
+
+            if (char === this.delimiter) {
                 // End of field
-                result.push(current);
-                current = '';
+                pushCurrentField();
+            } else if (afterClosingQuote && /\s/.test(char)) {
+                continue;
+            } else if (char === '"' && current.trim().length === 0 && !fieldWasQuoted) {
+                const matchingQuoteIndex = closingQuoteFrom[i + 1];
+                if (matchingQuoteIndex === -1) {
+                    current += char;
+                } else {
+                    current = '';
+                    closingQuoteIndex = matchingQuoteIndex;
+                    fieldWasQuoted = true;
+                }
             } else {
                 current += char;
             }
         }
-        
+
         // Add the last field
-        result.push(current);
-        
+        pushCurrentField();
+
         return result;
     }
 
@@ -1228,8 +1289,16 @@ class CsvViewer {
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
+            const target = e.target;
+            const isEditingText = target instanceof HTMLElement
+                && (target.matches('input, textarea') || target.isContentEditable);
+
+            if (isEditingText) {
+                return;
+            }
+
             if (e.ctrlKey || e.metaKey) {
-                switch (e.key) {
+                switch (e.key.toLowerCase()) {
                     case 'f':
                         e.preventDefault();
                         if (searchInput) searchInput.focus();
@@ -1237,14 +1306,6 @@ class CsvViewer {
                     case 'c':
                         e.preventDefault();
                         this.copyToClipboard();
-                        break;
-                    case 'v':
-                        e.preventDefault();
-                        if (this.isTableView) {
-                            this.toggleView();
-                        } else {
-                            this.pasteFromClipboard();
-                        }
                         break;
                     case 'j':
                         e.preventDefault();
@@ -1342,22 +1403,29 @@ class CsvViewer {
     }
 
     finishCellEdit(td, colIndex, newValue, originalRowIndex) {
+        let valueChanged = false;
+
         // Update the original data using the provided original row index
         if (originalRowIndex !== -1 && originalRowIndex < this.csvData.rows.length) {
-            this.csvData.rows[originalRowIndex][colIndex] = newValue;
+            const originalValue = this.csvData.rows[originalRowIndex][colIndex];
+            valueChanged = originalValue !== newValue;
+
+            if (valueChanged) {
+                this.csvData.rows[originalRowIndex][colIndex] = newValue;
+            }
         } else {
             console.warn('Invalid original row index:', originalRowIndex);
         }
-
-        this.rebuildFilteredRows();
 
         // Update the cell display
         td.innerHTML = '';
         td.textContent = newValue;
         td.title = newValue;
 
-        // Save changes immediately
-        this.saveChanges();
+        if (valueChanged) {
+            this.rebuildFilteredRows();
+            this.saveChanges();
+        }
     }
 
     cancelCellEdit(td, originalValue) {
@@ -1425,12 +1493,17 @@ class CsvViewer {
     }
 
     finishHeaderEdit(colIndex, newValue) {
+        const valueChanged = this.csvData.headers[colIndex] !== newValue;
+
         // Update the header data
-        this.csvData.headers[colIndex] = newValue;
+        if (valueChanged) {
+            this.csvData.headers[colIndex] = newValue;
+        }
         this.renderTable();
 
-        // Save changes immediately
-        this.saveChanges();
+        if (valueChanged) {
+            this.saveChanges();
+        }
     }
 
     cancelHeaderEdit() {

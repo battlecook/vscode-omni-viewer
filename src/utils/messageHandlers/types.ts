@@ -12,4 +12,9 @@ export interface WebviewMessage {
     startTime?: string;
     endTime?: string;
     content?: string;
+    requestId?: string;
+    name?: string;
+    dataBase64?: string;
+    accept?: string[];
+    maxBytes?: number;
 }

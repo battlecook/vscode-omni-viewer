@@ -125,7 +125,12 @@ export class TextMessageHandlers {
             }
 
             const stringValue = String(value);
-            if (stringValue.includes(delimiter) || stringValue.includes('"') || stringValue.includes('\n')) {
+            if (
+                stringValue.includes(delimiter)
+                || stringValue.includes('"')
+                || stringValue.includes('\n')
+                || stringValue.trim() !== stringValue
+            ) {
                 return `"${stringValue.replace(/"/g, '""')}"`;
             }
 

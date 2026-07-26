@@ -63,6 +63,49 @@ describe('FileUtils delimited formats', () => {
         expect(result.rows).toEqual([['Report', 'Line A\tLine B']]);
     });
 
+    it('preserves quotes that appear inside an unquoted TSV cell', async () => {
+        const filePath = path.join(tempDir, 'literal-quote.tsv');
+        fs.writeFileSync(filePath, 'name\tsize\textra\npipe\t4"\tkept\nitem\t"leading\tkept\n', 'utf8');
+
+        const result = await FileUtils.readCsvFile(filePath);
+
+        expect(result.delimiter).toBe('\t');
+        expect(result.rows).toEqual([
+            ['pipe', '4"', 'kept'],
+            ['item', '"leading', 'kept']
+        ]);
+    });
+
+    it('preserves escaped quotes inside a quoted TSV cell', async () => {
+        const filePath = path.join(tempDir, 'escaped-quote.tsv');
+        fs.writeFileSync(filePath, 'name\tnote\nitem\t"""quoted"""\n', 'utf8');
+
+        const result = await FileUtils.readCsvFile(filePath);
+
+        expect(result.rows).toEqual([['item', '"quoted"']]);
+    });
+
+    it('continues delimiter detection after an unmatched opening quote', () => {
+        const filePath = path.join(tempDir, 'unmatched-quote.txt');
+        const lines = ['a,b,"c,d', '1,2,3,4'];
+
+        expect(FileUtils.getDelimitedFileDelimiter(filePath, lines)).toBe(',');
+    });
+
+    it('parses quoted CSV fields after a BOM or field padding', async () => {
+        const filePath = path.join(tempDir, 'padded-quotes.csv');
+        fs.writeFileSync(
+            filePath,
+            '\uFEFF"name,part",note,status\nitem, "a,b",kept\n',
+            'utf8'
+        );
+
+        const result = await FileUtils.readCsvFile(filePath);
+
+        expect(result.headers).toEqual(['name,part', 'note', 'status']);
+        expect(result.rows).toEqual([['item', 'a,b', 'kept']]);
+    });
+
     it('detects semicolon-delimited CSV files', async () => {
         const filePath = path.join(tempDir, 'email.csv');
         fs.writeFileSync(
@@ -79,6 +122,21 @@ describe('FileUtils delimited formats', () => {
             ['laura@example.com', '2070', 'Laura', 'Grey'],
             ['craig@example.com', '4081', 'Craig', 'Johnson']
         ]);
+    });
+
+    it('ignores quoted commas when detecting a semicolon delimiter', async () => {
+        const filePath = path.join(tempDir, 'quoted-names.csv');
+        fs.writeFileSync(
+            filePath,
+            'id;"last, first"\n1;"Doe, John"\n',
+            'utf8'
+        );
+
+        const result = await FileUtils.readCsvFile(filePath);
+
+        expect(result.delimiter).toBe(';');
+        expect(result.headers).toEqual(['id', 'last, first']);
+        expect(result.rows).toEqual([['1', 'Doe, John']]);
     });
 
     it('reads large parquet files through asyncBufferFromFile and limits the first chunk', async () => {

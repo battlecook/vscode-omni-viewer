@@ -275,7 +275,7 @@ Note: `.ts` files share an extension with TypeScript source files, so automatic 
 - **Validation Warnings**: Reports malformed headers, unsupported data types, and inconsistent tensor byte ranges
 - **Search and Export**: Filters tensor/metadata rows and copies the parsed model as JSON
 - **Efficient Large-File Access**: Reads only the Safetensors prefix and JSON header instead of loading tensor payloads
-- **Powered by**: `omni-viewer-core` 0.7.0 for random-access Safetensors parsing
+- **Powered by**: `omni-viewer-core` 0.9.0 for random-access Safetensors parsing
 
 ## 🧭 Smart File Detection
 

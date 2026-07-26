@@ -4,6 +4,8 @@ import * as XLSX from 'xlsx';
 import { getFileSize } from './media';
 
 const DEFAULT_DELIMITER = ',';
+const DELIMITER_CANDIDATES = [',', ';', '\t', '|'];
+const DELIMITER_CANDIDATE_SET = new Set(DELIMITER_CANDIDATES);
 const PARQUET_PREVIEW_FILE_SIZE_MB = 50;
 const PARQUET_PREVIEW_ROW_COUNT = 10000;
 
@@ -390,12 +392,12 @@ function detectDelimiter(lines: string[]): string | null {
         return null;
     }
 
-    const candidates = [',', ';', '\t', '|'];
+    const countsByLine = sampleLines.map((line) => countDelimiterOccurrences(line));
     let bestDelimiter: string | null = null;
     let bestScore = 0;
 
-    for (const candidate of candidates) {
-        const counts = sampleLines.map((line) => countDelimiterOccurrences(line, candidate));
+    for (const candidate of DELIMITER_CANDIDATES) {
+        const counts = countsByLine.map((countsForLine) => countsForLine.get(candidate) ?? 0);
         const positiveCounts = counts.filter((count) => count > 0);
         if (positiveCounts.length === 0) {
             continue;
@@ -411,49 +413,159 @@ function detectDelimiter(lines: string[]): string | null {
     return bestDelimiter;
 }
 
-function countDelimiterOccurrences(line: string, delimiter: string): number {
-    let count = 0;
-    let inQuotes = false;
+function buildClosingQuoteLookup(
+    line: string,
+    isDelimiter: (char: string) => boolean
+): Int32Array {
+    const closingQuoteFrom = new Int32Array(line.length + 2);
+    closingQuoteFrom.fill(-1);
+    let nextNonPaddingIndex = line.length;
 
-    for (let i = 0; i < line.length; i++) {
+    for (let i = line.length - 1; i >= 0; i--) {
         const char = line[i];
-        if (char === '"') {
-            if (inQuotes && line[i + 1] === '"') {
-                i++;
-            } else {
-                inQuotes = !inQuotes;
-            }
-        } else if (char === delimiter && !inQuotes) {
-            count++;
+
+        if (char !== '"') {
+            closingQuoteFrom[i] = closingQuoteFrom[i + 1];
+        } else if (line[i + 1] === '"') {
+            closingQuoteFrom[i] = closingQuoteFrom[i + 2];
+        } else if (
+            nextNonPaddingIndex === line.length
+            || isDelimiter(line[nextNonPaddingIndex])
+        ) {
+            closingQuoteFrom[i] = i;
+        } else {
+            closingQuoteFrom[i] = closingQuoteFrom[i + 1];
+        }
+
+        if (isDelimiter(char) || !/\s/.test(char)) {
+            nextNonPaddingIndex = i;
         }
     }
 
-    return count;
+    return closingQuoteFrom;
 }
 
-function parseDelimitedLine(line: string, delimiter: string): string[] {
-    const result: string[] = [];
-    let current = '';
-    let inQuotes = false;
+function countDelimiterOccurrences(line: string): Map<string, number> {
+    const counts = new Map(DELIMITER_CANDIDATES.map((candidate) => [candidate, 0]));
+    const closingQuoteFrom = buildClosingQuoteLookup(
+        line,
+        (char) => DELIMITER_CANDIDATE_SET.has(char)
+    );
+    let closingQuoteIndex = -1;
+    let hasNonPaddingContent = false;
 
     for (let i = 0; i < line.length; i++) {
+        if (closingQuoteIndex !== -1 && i < closingQuoteIndex) {
+            continue;
+        }
+
+        if (i === closingQuoteIndex) {
+            closingQuoteIndex = -1;
+            hasNonPaddingContent = true;
+            continue;
+        }
+
         const char = line[i];
-        if (char === '"') {
-            if (inQuotes && line[i + 1] === '"') {
-                current += '"';
-                i++;
+        if (DELIMITER_CANDIDATE_SET.has(char)) {
+            counts.set(char, (counts.get(char) ?? 0) + 1);
+            hasNonPaddingContent = false;
+        } else if (char === '"' && !hasNonPaddingContent) {
+            const matchingQuoteIndex = closingQuoteFrom[i + 1];
+            if (matchingQuoteIndex === -1) {
+                hasNonPaddingContent = true;
             } else {
-                inQuotes = !inQuotes;
+                closingQuoteIndex = matchingQuoteIndex;
             }
-        } else if (char === delimiter && !inQuotes) {
-            result.push(current.trim());
-            current = '';
-        } else {
-            current += char;
+        } else if (!/\s/.test(char)) {
+            hasNonPaddingContent = true;
         }
     }
 
-    result.push(current.trim());
+    return counts;
+}
+
+// Keep this scanner and quote lookup aligned with CsvViewer.parseDelimitedLine in the webview.
+// Shared parity fixtures in csvViewer.test.ts fail when the two runtimes drift.
+function scanDelimitedLine(
+    line: string,
+    delimiter: string,
+    onField?: (value: string) => void
+): void {
+    let current = '';
+    let hasNonPaddingContent = false;
+    let closingQuoteIndex = -1;
+    let fieldWasQuoted = false;
+    let afterClosingQuote = false;
+    const closingQuoteFrom = buildClosingQuoteLookup(
+        line,
+        (char) => char === delimiter
+    );
+
+    const appendCurrent = (char: string) => {
+        if (!/\s/.test(char)) {
+            hasNonPaddingContent = true;
+        }
+        if (onField) {
+            current += char;
+        }
+    };
+
+    const pushCurrentField = () => {
+        if (onField) {
+            onField(fieldWasQuoted ? current : current.trim());
+        }
+
+        current = '';
+        hasNonPaddingContent = false;
+        closingQuoteIndex = -1;
+        fieldWasQuoted = false;
+        afterClosingQuote = false;
+    };
+
+    for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+
+        if (closingQuoteIndex !== -1 && i < closingQuoteIndex) {
+            if (char === '"' && line[i + 1] === '"' && i + 1 < closingQuoteIndex) {
+                appendCurrent('"');
+                i++;
+                continue;
+            }
+
+            appendCurrent(char);
+            continue;
+        }
+
+        if (i === closingQuoteIndex) {
+            closingQuoteIndex = -1;
+            afterClosingQuote = true;
+            continue;
+        }
+
+        if (char === delimiter) {
+            pushCurrentField();
+        } else if (afterClosingQuote && /\s/.test(char)) {
+            continue;
+        } else if (char === '"' && !hasNonPaddingContent && !fieldWasQuoted) {
+            const matchingQuoteIndex = closingQuoteFrom[i + 1];
+            if (matchingQuoteIndex === -1) {
+                appendCurrent(char);
+            } else {
+                current = '';
+                closingQuoteIndex = matchingQuoteIndex;
+                fieldWasQuoted = true;
+            }
+        } else {
+            appendCurrent(char);
+        }
+    }
+
+    pushCurrentField();
+}
+
+export function parseDelimitedLine(line: string, delimiter: string): string[] {
+    const result: string[] = [];
+    scanDelimitedLine(line, delimiter, (value) => result.push(value));
     return result;
 }
 

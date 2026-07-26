@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.36.0] - 2026-07-26
+
+### Changed
+- **PDF Viewer**
+  - Rebuilt the PDF viewer on top of `omni-viewer-core` (bundled from `pdfViewerMain.js` via webpack), replacing the large custom `pdfViewer.js`/`pdfViewer.css` implementation with inline styles
+  - Added a host bridge for editor-native file dialogs so the viewer can save the current PDF, save a new PDF to a user-chosen location, and open PDFs through `showOpenDialog`/`showSaveDialog`, with each request tracked by `requestId`
+  - Added VS Code locale (`vscode.env.language`) forwarding so the viewer can localize its UI
+- **CSV Viewer**
+  - Improved delimited-line parsing to correctly handle whitespace around quoted fields, keeping the client (`csvViewer.js`) and server (`tabular.ts`) parsers aligned with shared regression fixtures
+  - Quoted values with leading or trailing whitespace on export so they round-trip without data loss
+  - Reworked delimiter detection to count all candidate delimiters in a single pass while respecting quoted regions
+- **Dependencies**
+  - Bumped `omni-viewer-core` to `^0.9.0` and `puml-canvas-js` to `^0.10.0`
+
 ## [0.35.0] - 2026-07-22
 
 ### Added

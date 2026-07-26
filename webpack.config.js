@@ -132,6 +132,53 @@ module.exports = [
       })
     ]
   },
+  // JavaScript files configuration for PDF viewer (omni-viewer-core)
+  {
+    mode: 'production',
+    target: 'web',
+    entry: {
+      'templates/pdf/js/pdfViewer': './src/templates/pdf/js/pdfViewerMain.js'
+    },
+    output: {
+      path: path.resolve(__dirname, 'src/templates/pdf/js'),
+      filename: 'pdfViewer.js',
+      libraryTarget: 'var',
+      library: 'PdfViewer'
+    },
+    resolve: {
+      extensions: ['.js'],
+      fallback: {
+        fs: false,
+        path: false
+      }
+    },
+    module: {
+      rules: [
+        {
+          test: /\.js$/,
+          exclude: /node_modules/,
+          use: {
+            loader: 'babel-loader',
+            options: {
+              presets: ['@babel/preset-env']
+            }
+          }
+        }
+      ]
+    },
+    optimization: {
+      splitChunks: false,
+      runtimeChunk: false,
+      minimize: true,
+      usedExports: true,
+      sideEffects: false
+    },
+    plugins: [
+      new webpack.optimize.LimitChunkCountPlugin({
+        maxChunks: 1
+      })
+    ]
+  },
   // JavaScript files configuration for Mermaid viewer
   {
     mode: 'production',

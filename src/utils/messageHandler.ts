@@ -57,15 +57,17 @@ export class MessageHandler {
             case 'downloadFile':
                 await MediaMessageHandlers.handleDownloadFile(message, documentUri);
                 break;
-            case 'savePdf':
-            case 'savePdfAs':
-                await PdfMessageHandlers.handleSavePdf(message, documentUri, webview);
+            case 'pdfHostSave':
+                await PdfMessageHandlers.handleHostSave(message, documentUri, webview);
                 break;
-            case 'selectMergePdf':
-                await PdfMessageHandlers.handleSelectMergePdf(documentUri, webview);
+            case 'pdfHostWriteback':
+                await PdfMessageHandlers.handleHostWriteback(message, documentUri, webview);
                 break;
-            case 'resetMergePdfCache':
-                PdfMessageHandlers.resetMergedPdfCache(documentUri);
+            case 'pdfHostPickFile':
+                await PdfMessageHandlers.handleHostPickFile(message, documentUri, webview);
+                break;
+            case 'pdfHostClipboard':
+                await PdfMessageHandlers.handleHostClipboard(message, documentUri, webview);
                 break;
             case 'omniViewerShare':
                 await shareFileCommand(documentUri);

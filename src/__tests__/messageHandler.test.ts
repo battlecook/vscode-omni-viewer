@@ -44,6 +44,25 @@ describe('MessageHandler delimited save formatting', () => {
         expect(output).toBe('name\tnote\nAlice\t"A\tB"\nBob\tHello, world');
     });
 
+    it('escapes a literal quote when saving TSV data', () => {
+        const output = MessageHandler.convertToDelimitedString(
+            ['name', 'size'],
+            [['pipe', '4"']],
+            '\t'
+        );
+
+        expect(output).toBe('name\tsize\npipe\t"4"""');
+    });
+
+    it('quotes leading and trailing whitespace when saving delimited data', () => {
+        const output = MessageHandler.convertToDelimitedString(
+            [' name ', 'value'],
+            [['item', ' a ']]
+        );
+
+        expect(output).toBe('" name ",value\nitem," a "');
+    });
+
     it('uses the current audio file directory as the default save path for region export', async () => {
         const sourceUri = {
             scheme: 'file',

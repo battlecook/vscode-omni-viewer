@@ -49,7 +49,8 @@ export class PdfViewerProvider implements vscode.CustomReadonlyEditorProvider {
                 fileName: pdfFileName,
                 pdfBase64: pdfBase64,
                 pdfJsScriptUri: pdfJsScriptUri.toString(),
-                pdfJsWorkerUri: pdfJsWorkerUri.toString()
+                pdfJsWorkerUri: pdfJsWorkerUri.toString(),
+                locale: vscode.env.language || 'en'
             });
 
             webviewPanel.webview.html = html;

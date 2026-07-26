@@ -1,250 +1,161 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { WebviewMessage } from './types';
 
+/**
+ * Host-side services for the omni-viewer-core PDF viewer.
+ *
+ * The core viewer runs in the webview and performs all PDF editing itself
+ * (pdf-lib is bundled into the webview). The extension host only provides the
+ * platform capabilities the viewer requests over a small request/response
+ * bridge: save-as, in-place writeback, file picking (merge) and clipboard.
+ * Each request carries a `requestId`; the reply is posted back as
+ * `pdfHostResponse` with the same id.
+ */
 export class PdfMessageHandlers {
-    private static readonly mergedPdfCache = new Map<string, string[]>();
-
-    public static setupDocumentCacheKey(documentUri?: vscode.Uri): string | null {
-        return documentUri ? documentUri.toString() : null;
-    }
-
-    public static resetMergedPdfCache(documentUri?: vscode.Uri): void {
-        const key = this.setupDocumentCacheKey(documentUri);
-        if (key) {
-            this.mergedPdfCache.delete(key);
+    private static reply(
+        webview: vscode.Webview | undefined,
+        requestId: string | undefined,
+        ok: boolean,
+        result?: unknown,
+        error?: string
+    ): void {
+        if (!webview || !requestId) {
+            return;
         }
+        void webview.postMessage({ type: 'pdfHostResponse', requestId, ok, result, error });
     }
 
-    public static async handleSelectMergePdf(documentUri?: vscode.Uri, webview?: vscode.Webview): Promise<void> {
-        try {
-            if (!documentUri || !webview) {
-                throw new Error('No active PDF document');
-            }
-
-            const selectedUris = await vscode.window.showOpenDialog({
-                canSelectFiles: true,
-                canSelectFolders: false,
-                canSelectMany: false,
-                filters: { 'PDF files': ['pdf'] }
-            });
-
-            if (!selectedUris || selectedUris.length === 0) {
-                return;
-            }
-
-            const mergeUri = selectedUris[0];
-            const mergeBytes = await vscode.workspace.fs.readFile(mergeUri);
-            const mergeBase64 = Buffer.from(mergeBytes).toString('base64');
-            const cacheKey = this.setupDocumentCacheKey(documentUri);
-            if (cacheKey) {
-                this.mergedPdfCache.set(cacheKey, [mergeBase64]);
-            }
-
-            const mergedFileName = path.basename(mergeUri.fsPath);
-            const maxWebviewBase64Bytes = 1_500_000;
-
-            if (mergeBytes.length <= maxWebviewBase64Bytes) {
-                await webview.postMessage({
-                    type: 'selectedMergePdf',
-                    data: {
-                        base64: mergeBase64,
-                        fileName: mergedFileName
-                    }
-                });
-                return;
-            }
-
-            await webview.postMessage({
-                type: 'selectedMergePdfMeta',
-                data: { fileName: mergedFileName }
-            });
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-            vscode.window.showErrorMessage(`Failed to select merge PDF: ${errorMessage}`);
-            console.error('Error selecting merge PDF:', error);
-        }
-    }
-
-    public static async handleSavePdf(
+    /** FileSaveService.saveFile — write a brand new PDF chosen by the user. */
+    public static async handleHostSave(
         message: WebviewMessage,
         documentUri?: vscode.Uri,
         webview?: vscode.Webview
     ): Promise<void> {
+        const requestId = message.requestId;
         try {
-            if (!documentUri || !message.data) {
-                throw new Error('No document or annotation data');
+            if (!documentUri) {
+                throw new Error('No active PDF document');
+            }
+            if (typeof message.dataBase64 !== 'string') {
+                throw new Error('Missing PDF data');
             }
 
-            const isSaveAs = message.data.saveAs === true || message.command === 'savePdfAs' || message.type === 'savePdfAs';
-            let targetUri = documentUri;
-            if (isSaveAs) {
-                const sourcePath = documentUri.fsPath;
-                const sourceExt = path.extname(sourcePath) || '.pdf';
-                const sourceBase = path.basename(sourcePath, sourceExt);
-                const defaultPath = path.join(path.dirname(sourcePath), `${sourceBase}-edited.pdf`);
-                const saveAsUri = await vscode.window.showSaveDialog({
-                    defaultUri: vscode.Uri.file(defaultPath),
-                    filters: { 'PDF files': ['pdf'] }
-                });
+            const suggestedName = typeof message.name === 'string' && message.name
+                ? message.name
+                : 'document.pdf';
+            const defaultPath = path.join(path.dirname(documentUri.fsPath), suggestedName);
+            const target = await vscode.window.showSaveDialog({
+                defaultUri: vscode.Uri.file(defaultPath),
+                filters: { 'PDF files': ['pdf'] }
+            });
 
-                if (!saveAsUri) {
-                    return;
-                }
-                targetUri = saveAsUri;
+            if (!target) {
+                this.reply(webview, requestId, true, { status: 'cancelled' });
+                return;
             }
 
-            const pdfBytes = await vscode.workspace.fs.readFile(documentUri);
-            const baseDoc = await PDFDocument.load(pdfBytes);
-            const sourceDocs: PDFDocument[] = [baseDoc];
-            const cacheKey = this.setupDocumentCacheKey(documentUri);
-            const cachedExtraPdfs = cacheKey ? (this.mergedPdfCache.get(cacheKey) || []) : [];
-            const extraPdfBase64List: string[] = Array.isArray(message.data.extraPdfBase64List)
-                ? message.data.extraPdfBase64List
-                : (message.data.hasMerge ? cachedExtraPdfs : []);
+            const bytes = Buffer.from(message.dataBase64, 'base64');
+            await vscode.workspace.fs.writeFile(target, new Uint8Array(bytes));
+            vscode.window.showInformationMessage(`PDF saved: ${path.basename(target.fsPath)}`);
+            this.reply(webview, requestId, true, {
+                status: 'saved',
+                fileName: path.basename(target.fsPath),
+                uri: target.toString()
+            });
 
-            for (const extraBase64 of extraPdfBase64List) {
-                if (!extraBase64) {
-                    continue;
-                }
-                const extraBytes = Buffer.from(extraBase64, 'base64');
-                sourceDocs.push(await PDFDocument.load(extraBytes));
-            }
-
-            const mergedDoc = await PDFDocument.create();
-            for (const srcDoc of sourceDocs) {
-                const pageIndices = srcDoc.getPages().map((_, index) => index);
-                const copiedPages = await mergedDoc.copyPages(srcDoc, pageIndices);
-                copiedPages.forEach((copiedPage) => mergedDoc.addPage(copiedPage));
-            }
-
-            let workingDoc = mergedDoc;
-            const totalPages = mergedDoc.getPageCount();
-            const requestedPageOrder: number[] = Array.isArray(message.data.pageOrder) ? message.data.pageOrder : [];
-            if (requestedPageOrder.length > 0) {
-                const seen = new Set<number>();
-                const normalizedOrder: number[] = [];
-                for (const rawIndex of requestedPageOrder) {
-                    const pageIndex = Number(rawIndex);
-                    if (!Number.isInteger(pageIndex) || pageIndex < 0 || pageIndex >= totalPages || seen.has(pageIndex)) {
-                        continue;
-                    }
-                    seen.add(pageIndex);
-                    normalizedOrder.push(pageIndex);
-                }
-
-                if (normalizedOrder.length === 0) {
-                    throw new Error('No valid pages left to save.');
-                }
-
-                if (message.data.hasMerge === true && message.data.previewIncludesMergedPages !== true) {
-                    for (let i = 0; i < totalPages; i++) {
-                        if (!seen.has(i)) {
-                            normalizedOrder.push(i);
-                        }
-                    }
-                }
-
-                const reorderedDoc = await PDFDocument.create();
-                const reorderedPages = await reorderedDoc.copyPages(mergedDoc, normalizedOrder);
-                reorderedPages.forEach((copiedPage) => reorderedDoc.addPage(copiedPage));
-                workingDoc = reorderedDoc;
-            }
-
-            const helvetica = await workingDoc.embedFont(StandardFonts.Helvetica);
-            const pages = workingDoc.getPages();
-            const texts = Array.isArray(message.data.texts) ? message.data.texts : [];
-            const textStamps = Array.isArray(message.data.textStamps) ? message.data.textStamps : [];
-            const signatures = Array.isArray(message.data.signatures) ? message.data.signatures : [];
-
-            if (textStamps.length > 0) {
-                for (const stamp of textStamps) {
-                    if (stamp.pageIndex < 0 || stamp.pageIndex >= pages.length) {
-                        continue;
-                    }
-                    const page = pages[stamp.pageIndex];
-                    const pngImage = await workingDoc.embedPng(Buffer.from(stamp.imageBase64, 'base64'));
-                    page.drawImage(pngImage, {
-                        x: stamp.x,
-                        y: stamp.y,
-                        width: stamp.width,
-                        height: stamp.height
-                    });
-                }
-            } else {
-                for (const text of texts) {
-                    if (text.pageIndex < 0 || text.pageIndex >= pages.length) {
-                        continue;
-                    }
-                    const page = pages[text.pageIndex];
-                    const textColor = this.hexToRgb(text.color);
-                    page.drawText(text.text, {
-                        x: text.x,
-                        y: text.y,
-                        size: text.fontSize || 12,
-                        font: helvetica,
-                        color: rgb(textColor.r, textColor.g, textColor.b)
-                    });
-                }
-            }
-
-            for (const sig of signatures) {
-                if (sig.pageIndex < 0 || sig.pageIndex >= pages.length) {
-                    continue;
-                }
-                const page = pages[sig.pageIndex];
-                const pngImage = await workingDoc.embedPng(Buffer.from(sig.imageBase64, 'base64'));
-                page.drawImage(pngImage, {
-                    x: sig.x,
-                    y: sig.y,
-                    width: sig.width,
-                    height: sig.height
-                });
-            }
-
-            const savedBytes = await workingDoc.save();
-            await vscode.workspace.fs.writeFile(targetUri, new Uint8Array(savedBytes));
-            vscode.window.showInformationMessage(`PDF saved: ${path.basename(targetUri.fsPath)}`);
-            this.resetMergedPdfCache(documentUri);
-
-            if (webview) {
-                await webview.postMessage({
-                    type: 'pdfSaved',
-                    data: {
-                        base64: Buffer.from(savedBytes).toString('base64'),
-                        fileName: path.basename(targetUri.fsPath)
-                    }
-                });
-            }
-
-            await vscode.commands.executeCommand('vscode.openWith', targetUri, 'omni-viewer.pdfViewer');
+            await vscode.commands.executeCommand('vscode.openWith', target, 'omni-viewer.pdfViewer');
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
             vscode.window.showErrorMessage(`Failed to save PDF: ${errorMessage}`);
-            console.error('Error saving PDF:', error);
+            this.reply(webview, requestId, false, undefined, errorMessage);
         }
     }
 
-    private static hexToRgb(hex?: string): { r: number; g: number; b: number } {
-        if (!hex || typeof hex !== 'string') {
-            return { r: 0, g: 0, b: 0 };
+    /** FileWritebackService.write — overwrite the currently open PDF in place. */
+    public static async handleHostWriteback(
+        message: WebviewMessage,
+        documentUri?: vscode.Uri,
+        webview?: vscode.Webview
+    ): Promise<void> {
+        const requestId = message.requestId;
+        try {
+            if (!documentUri) {
+                throw new Error('No active PDF document');
+            }
+            if (typeof message.dataBase64 !== 'string') {
+                throw new Error('Missing PDF data');
+            }
+
+            const bytes = Buffer.from(message.dataBase64, 'base64');
+            await vscode.workspace.fs.writeFile(documentUri, new Uint8Array(bytes));
+            vscode.window.showInformationMessage(`PDF saved: ${path.basename(documentUri.fsPath)}`);
+            this.reply(webview, requestId, true, { status: 'saved' });
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+            vscode.window.showErrorMessage(`Failed to save PDF: ${errorMessage}`);
+            this.reply(webview, requestId, false, undefined, errorMessage);
         }
+    }
 
-        const normalized = hex.trim().replace('#', '');
-        const fullHex = normalized.length === 3
-            ? normalized.split('').map((char) => char + char).join('')
-            : normalized;
+    /** FilePickService.pickFile — choose a second PDF to merge. */
+    public static async handleHostPickFile(
+        message: WebviewMessage,
+        _documentUri?: vscode.Uri,
+        webview?: vscode.Webview
+    ): Promise<void> {
+        const requestId = message.requestId;
+        try {
+            const accept = Array.isArray(message.accept) ? message.accept : ['.pdf'];
+            const extensions = Array.from(new Set(
+                accept
+                    .map((entry) => String(entry).trim().toLowerCase())
+                    .map((entry) => (entry === 'application/pdf' ? 'pdf' : entry.replace(/^\./, '')))
+                    .filter((entry) => /^[a-z0-9]+$/.test(entry))
+            ));
 
-        if (!/^[0-9a-fA-F]{6}$/.test(fullHex)) {
-            return { r: 0, g: 0, b: 0 };
+            const selected = await vscode.window.showOpenDialog({
+                canSelectFiles: true,
+                canSelectFolders: false,
+                canSelectMany: false,
+                filters: { 'PDF files': extensions.length > 0 ? extensions : ['pdf'] }
+            });
+
+            if (!selected || selected.length === 0) {
+                this.reply(webview, requestId, true, undefined);
+                return;
+            }
+
+            const picked = selected[0];
+            const bytes = await vscode.workspace.fs.readFile(picked);
+            if (typeof message.maxBytes === 'number' && bytes.length > message.maxBytes) {
+                throw new Error(`Selected file is too large (limit ${message.maxBytes} bytes).`);
+            }
+
+            this.reply(webview, requestId, true, {
+                fileName: path.basename(picked.fsPath),
+                dataBase64: Buffer.from(bytes).toString('base64'),
+                mimeType: 'application/pdf'
+            });
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+            this.reply(webview, requestId, false, undefined, errorMessage);
         }
+    }
 
-        const intVal = parseInt(fullHex, 16);
-        return {
-            r: ((intVal >> 16) & 255) / 255,
-            g: ((intVal >> 8) & 255) / 255,
-            b: (intVal & 255) / 255
-        };
+    /** ClipboardService.writeText — fallback when the webview clipboard is blocked. */
+    public static async handleHostClipboard(
+        message: WebviewMessage,
+        _documentUri?: vscode.Uri,
+        webview?: vscode.Webview
+    ): Promise<void> {
+        const requestId = message.requestId;
+        try {
+            await vscode.env.clipboard.writeText(String(message.text ?? ''));
+            this.reply(webview, requestId, true, undefined);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+            this.reply(webview, requestId, false, undefined, errorMessage);
+        }
     }
 }
