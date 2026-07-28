@@ -16,7 +16,10 @@ class CsvViewer {
         this.isPasting = false; // Flag to prevent double processing during paste
         this.columnWidths = [];
         this.resizeState = null;
-        
+        this.undoStack = []; // Snapshots of csvData taken before each edit
+        this.redoStack = [];
+        this.maxHistorySize = 50;
+
         this.init();
     }
 
@@ -715,6 +718,7 @@ class CsvViewer {
     }
 
     addRow() {
+        this.pushHistorySnapshot();
         const newRow = new Array(this.csvData.headers.length).fill('');
         this.csvData.rows.push(newRow);
         this.csvData.totalRows++;
@@ -726,6 +730,7 @@ class CsvViewer {
     }
 
     addColumn() {
+        this.pushHistorySnapshot();
         const columnName = `Column${this.csvData.headers.length + 1}`;
         this.csvData.headers.push(columnName);
         this.csvData.totalColumns++;
@@ -748,7 +753,8 @@ class CsvViewer {
             this.showNotification('Cannot delete the last row', 'error');
             return;
         }
-        
+
+        this.pushHistorySnapshot();
         this.csvData.rows.pop();
         this.csvData.totalRows--;
         this.rebuildFilteredRows();
@@ -763,7 +769,8 @@ class CsvViewer {
             this.showNotification('Cannot delete the last column', 'error');
             return;
         }
-        
+
+        this.pushHistorySnapshot();
         this.csvData.headers.pop();
         this.csvData.totalColumns--;
         this.columnWidths.pop();
@@ -787,6 +794,7 @@ class CsvViewer {
             return;
         }
 
+        this.pushHistorySnapshot();
         const newRow = new Array(this.csvData.headers.length).fill('');
         this.csvData.rows.splice(targetInfo.rowIndex, 0, newRow);
         this.csvData.totalRows++;
@@ -804,6 +812,7 @@ class CsvViewer {
             return;
         }
 
+        this.pushHistorySnapshot();
         const newRow = new Array(this.csvData.headers.length).fill('');
         this.csvData.rows.splice(targetInfo.rowIndex + 1, 0, newRow);
         this.csvData.totalRows++;
@@ -821,6 +830,7 @@ class CsvViewer {
             return;
         }
 
+        this.pushHistorySnapshot();
         const columnName = `Column${this.csvData.headers.length + 1}`;
         this.csvData.headers.splice(targetInfo.colIndex, 0, columnName);
         this.csvData.totalColumns++;
@@ -845,6 +855,7 @@ class CsvViewer {
             return;
         }
 
+        this.pushHistorySnapshot();
         const columnName = `Column${this.csvData.headers.length + 1}`;
         this.csvData.headers.splice(targetInfo.colIndex + 1, 0, columnName);
         this.csvData.totalColumns++;
@@ -896,6 +907,77 @@ class CsvViewer {
         } else {
             this.renderRawData();
         }
+    }
+
+    isSameTableData(headers, rows) {
+        if (this.csvData.headers.length !== headers.length) return false;
+        if (this.csvData.rows.length !== rows.length) return false;
+
+        if (this.csvData.headers.some((header, index) => header !== headers[index])) {
+            return false;
+        }
+
+        return this.csvData.rows.every((row, rowIndex) => {
+            const other = rows[rowIndex];
+            return row.length === other.length && row.every((cell, colIndex) => cell === other[colIndex]);
+        });
+    }
+
+    createHistorySnapshot() {
+        return {
+            headers: [...this.csvData.headers],
+            rows: this.csvData.rows.map(row => [...row]),
+            totalRows: this.csvData.totalRows,
+            totalColumns: this.csvData.totalColumns,
+            columnWidths: [...this.columnWidths]
+        };
+    }
+
+    // Call this right before any mutation of csvData so the pre-edit state can be restored
+    pushHistorySnapshot() {
+        if (!this.csvData) return;
+
+        this.undoStack.push(this.createHistorySnapshot());
+        if (this.undoStack.length > this.maxHistorySize) {
+            this.undoStack.shift();
+        }
+        this.redoStack = [];
+    }
+
+    applyHistorySnapshot(snapshot) {
+        this.csvData.headers = [...snapshot.headers];
+        this.csvData.rows = snapshot.rows.map(row => [...row]);
+        this.csvData.totalRows = snapshot.totalRows;
+        this.csvData.totalColumns = snapshot.totalColumns;
+        this.columnWidths = [...snapshot.columnWidths];
+
+        this.syncColumnWidths();
+        this.rebuildFilteredRows();
+        this.updateFileInfo();
+        this.refreshView();
+        this.saveChanges();
+    }
+
+    undoChange() {
+        if (this.undoStack.length === 0) {
+            this.showNotification('Nothing to undo', 'info');
+            return;
+        }
+
+        this.redoStack.push(this.createHistorySnapshot());
+        this.applyHistorySnapshot(this.undoStack.pop());
+        this.showNotification('Undo', 'success');
+    }
+
+    redoChange() {
+        if (this.redoStack.length === 0) {
+            this.showNotification('Nothing to redo', 'info');
+            return;
+        }
+
+        this.undoStack.push(this.createHistorySnapshot());
+        this.applyHistorySnapshot(this.redoStack.pop());
+        this.showNotification('Redo', 'success');
     }
 
     restoreViewState() {
@@ -1311,7 +1393,18 @@ class CsvViewer {
                         e.preventDefault();
                         this.exportToJson();
                         break;
-
+                    case 'z':
+                        e.preventDefault();
+                        if (e.shiftKey) {
+                            this.redoChange();
+                        } else {
+                            this.undoChange();
+                        }
+                        break;
+                    case 'y':
+                        e.preventDefault();
+                        this.redoChange();
+                        break;
                 }
             }
         });
@@ -1411,6 +1504,7 @@ class CsvViewer {
             valueChanged = originalValue !== newValue;
 
             if (valueChanged) {
+                this.pushHistorySnapshot();
                 this.csvData.rows[originalRowIndex][colIndex] = newValue;
             }
         } else {
@@ -1497,6 +1591,7 @@ class CsvViewer {
 
         // Update the header data
         if (valueChanged) {
+            this.pushHistorySnapshot();
             this.csvData.headers[colIndex] = newValue;
         }
         this.renderTable();
@@ -1607,6 +1702,12 @@ class CsvViewer {
                 sampleRows: newRows.slice(0, 3),
                 lastRow: newRows[newRows.length - 1]
             });
+
+            // The debounced save also fires when nothing actually changed, so only
+            // record history when the parsed data really differs
+            if (!this.isSameTableData(headers, newRows)) {
+                this.pushHistorySnapshot();
+            }
 
             // IMPORTANT: Completely replace the data, don't append
             this.csvData.headers = [...headers]; // Create new array

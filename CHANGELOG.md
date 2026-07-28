@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.37.0] - 2026-07-29
+
+### Added
+- **CSV Viewer**
+  - Added undo/redo for table edits with `Ctrl/Cmd+Z`, `Ctrl/Cmd+Shift+Z`, and `Ctrl/Cmd+Y`, covering cell edits, header renames, row/column add and delete, and raw text edits
+  - Kept a bounded history of the last 50 edits, cleared the redo stack when a new edit is made, and skipped history entries for edits that change nothing
+
+### Changed
+- **Commands**
+  - Renamed every per-format `Open with ... Viewer` command title to a single `Open With OmniViewer` entry
+- **Dependencies**
+  - Bumped `omni-viewer-core` to `^0.10.0` and rebuilt the bundled PDF viewer against it
+
+### Fixed
+- **Parquet Viewer**
+  - Fixed the pagination controls being clipped out of view, which left files with more than 100 rows stuck on the first page ([#17](https://github.com/battlecook/vscode-omni-viewer/issues/17))
+
 ## [0.36.0] - 2026-07-26
 
 ### Changed

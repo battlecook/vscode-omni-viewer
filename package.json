@@ -3,7 +3,7 @@
   "displayName": "omni-viewer",
   "publisher": "battlecook",
   "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, excel, word, powerpoint, parquet, Shapefile, HDF5, MAT, Safetensors, jsonl, yaml, toml, markdown, mermaid, PlantUML, hwp, PSD and PDF files",
-  "version": "0.36.0",
+  "version": "0.37.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
@@ -829,182 +829,182 @@
     "commands": [
       {
         "command": "omni-viewer.openArchiveViewer",
-        "title": "Open with Archive Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openAudioViewer",
-        "title": "Open with Audio Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openVideoViewer",
-        "title": "Open with Video Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openImageViewer",
-        "title": "Open with Image Editor",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openCsvViewer",
-        "title": "Open with CSV Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openDbcViewer",
-        "title": "Open with DBC Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openArxmlViewer",
-        "title": "Open with ARXML Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openA2lViewer",
-        "title": "Open with A2L Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openAscViewer",
-        "title": "Open with ASC Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openBlfViewer",
-        "title": "Open with BLF Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openMf4Viewer",
-        "title": "Open with MF4 Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openAvroViewer",
-        "title": "Open with Avro Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openBagViewer",
-        "title": "Open with BAG Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openStpViewer",
-        "title": "Open with STEP Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openDb3Viewer",
-        "title": "Open with DB3 Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openReqifViewer",
-        "title": "Open with ReqIF Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openPcapViewer",
-        "title": "Open with PCAP Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openPcapngViewer",
-        "title": "Open with PCAPNG Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openJsonViewer",
-        "title": "Open with Json Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openYamlViewer",
-        "title": "Open with YAML Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openJsonlViewer",
-        "title": "Open with JSONL Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openTomlViewer",
-        "title": "Open with TOML Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openMarkdownViewer",
-        "title": "Open with MD Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openMermaidViewer",
-        "title": "Open with Mermaid Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openPlantumlViewer",
-        "title": "Open with PlantUML Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openProtoViewer",
-        "title": "Open with Proto Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openParquetViewer",
-        "title": "Open with Parquet Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openShpViewer",
-        "title": "Open with Shapefile Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openHdf5Viewer",
-        "title": "Open with HDF5 Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openMatViewer",
-        "title": "Open with MAT Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openSafetensorsViewer",
-        "title": "Open with Safetensors Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openHwpViewer",
-        "title": "Open with HWP Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openPsdViewer",
-        "title": "Open with PSD Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openExcelViewer",
-        "title": "Open with Excel Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openWordViewer",
-        "title": "Open with Word Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
         "command": "omni-viewer.openPptViewer",
-        "title": "Open with PowerPoint Viewer",
+        "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
       {
@@ -1076,7 +1076,7 @@
     "marked": "^16.4.2",
     "mermaid": "^11.15.0",
     "music-metadata": "^11.8.3",
-    "omni-viewer-core": "^0.9.0",
+    "omni-viewer-core": "^0.10.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.10.38",
     "proj4": "^2.20.9",

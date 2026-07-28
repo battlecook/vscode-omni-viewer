@@ -150,6 +150,9 @@ body {
     flex: 1;
     overflow: hidden;
     position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 .loading {
@@ -177,6 +180,8 @@ body {
     height: 100%;
     overflow: auto;
     position: relative;
+    flex: 1;
+    min-height: 0;
 }
 
 .parquet-table {
