@@ -5,6 +5,8 @@ node_modules/**
 !node_modules/ag-psd/**
 !node_modules/pdfjs-dist/
 !node_modules/pdfjs-dist/**
+!node_modules/katex/dist/katex.min.css
+!node_modules/katex/dist/fonts/*.woff2
 .git/**
 .gitignore
 README.md

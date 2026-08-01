@@ -16,6 +16,7 @@ import { HwpViewerProvider } from './hwpViewerProvider';
 import { ImageViewerProvider } from './imageViewerProvider';
 import { JsonViewerProvider } from './jsonViewerProvider';
 import { JsonlViewerProvider } from './jsonlViewerProvider';
+import { LatexViewerProvider } from './latexViewerProvider';
 import { MatViewerProvider } from './matViewerProvider';
 import { MarkdownViewerProvider } from './markdownViewerProvider';
 import { MermaidViewerProvider } from './mermaidViewerProvider';
@@ -207,6 +208,13 @@ export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
         missingMessage: 'No Markdown file selected',
         retainContextWhenHidden: true,
         createProvider: (context) => new MarkdownViewerProvider(context)
+    },
+    {
+        viewType: LatexViewerProvider.viewType,
+        command: 'omni-viewer.openLatexViewer',
+        missingMessage: 'No LaTeX file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new LatexViewerProvider(context)
     },
     {
         viewType: MermaidViewerProvider.viewType,

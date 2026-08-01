@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { LatexMessageHandlers } from './messageHandlers/latexMessageHandlers';
 import { MediaMessageHandlers } from './messageHandlers/mediaMessageHandlers';
 import { PdfMessageHandlers } from './messageHandlers/pdfMessageHandlers';
 import { TextMessageHandlers } from './messageHandlers/textMessageHandlers';
@@ -68,6 +69,18 @@ export class MessageHandler {
                 break;
             case 'pdfHostClipboard':
                 await PdfMessageHandlers.handleHostClipboard(message, documentUri, webview);
+                break;
+            case 'latexHostWriteback':
+                await LatexMessageHandlers.handleHostWriteback(message, documentUri, webview);
+                break;
+            case 'latexHostSave':
+                await LatexMessageHandlers.handleHostSave(message, documentUri, webview);
+                break;
+            case 'latexHostClipboard':
+                await LatexMessageHandlers.handleHostClipboard(message, documentUri, webview);
+                break;
+            case 'latexHostOpenExternal':
+                await LatexMessageHandlers.handleHostOpenExternal(message, documentUri, webview);
                 break;
             case 'omniViewerShare':
                 await shareFileCommand(documentUri);

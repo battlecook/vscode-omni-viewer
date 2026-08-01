@@ -53,6 +53,7 @@ export type OmniViewerViewType =
     | 'omni-viewer.jsonlViewer'
     | 'omni-viewer.tomlViewer'
     | 'omni-viewer.markdownViewer'
+    | 'omni-viewer.latexViewer'
     | 'omni-viewer.mermaidViewer'
     | 'omni-viewer.plantumlViewer'
     | 'omni-viewer.protoViewer'
@@ -746,6 +747,16 @@ export class FileUtils {
             return {
                 viewType: 'omni-viewer.markdownViewer',
                 reason: 'Used the Markdown extension fallback.',
+                matchedBySignature: false
+            };
+        }
+
+        // Checked before the content heuristics below: a LaTeX preamble carries
+        // `key = value` and `%` lines that the TOML and DBC probes would claim.
+        if (ext === '.tex' || ext === '.latex' || ext === '.ltx') {
+            return {
+                viewType: 'omni-viewer.latexViewer',
+                reason: 'Used the LaTeX extension fallback.',
                 matchedBySignature: false
             };
         }

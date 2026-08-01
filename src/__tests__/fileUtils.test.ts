@@ -392,6 +392,42 @@ describe('FileUtils delimited formats', () => {
         expect(result.reason).toContain('Safetensors extension');
     });
 
+    it('detects LaTeX files by extension', async () => {
+        const filePath = path.join(tempDir, 'paper.tex');
+        fs.writeFileSync(filePath, [
+            '\\documentclass[12pt]{article}',
+            '\\begin{document}',
+            '\\section{Introduction}',
+            'Energy is $E = mc^2$.',
+            '\\end{document}'
+        ].join('\n'), 'utf8');
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.latexViewer');
+        expect(result.matchedBySignature).toBe(false);
+        expect(result.reason).toContain('LaTeX extension');
+    });
+
+    it('keeps a LaTeX preamble away from the TOML and DBC text probes', async () => {
+        // `key = value` lines and `%` comments are exactly what those probes
+        // look for, so extension order decides the outcome here.
+        const filePath = path.join(tempDir, 'settings.ltx');
+        fs.writeFileSync(filePath, [
+            '% geometry setup',
+            '\\documentclass{report}',
+            '\\usepackage[margin = 1in]{geometry}',
+            'BO_ 100 Message: 8 Vector__XXX',
+            '\\begin{document}',
+            '\\chapter{Setup}',
+            '\\end{document}'
+        ].join('\n'), 'utf8');
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.latexViewer');
+    });
+
     it('detects ReqIF files by extension', async () => {
         const filePath = path.join(tempDir, 'requirements.reqif');
         fs.writeFileSync(filePath, [

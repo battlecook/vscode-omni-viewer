@@ -179,6 +179,53 @@ module.exports = [
       })
     ]
   },
+  // JavaScript files configuration for LaTeX viewer (omni-viewer-core)
+  {
+    mode: 'production',
+    target: 'web',
+    entry: {
+      'templates/latex/js/latexViewer': './src/templates/latex/js/latexViewerMain.js'
+    },
+    output: {
+      path: path.resolve(__dirname, 'src/templates/latex/js'),
+      filename: 'latexViewer.js',
+      libraryTarget: 'var',
+      library: 'LatexViewer'
+    },
+    resolve: {
+      extensions: ['.js'],
+      fallback: {
+        fs: false,
+        path: false
+      }
+    },
+    module: {
+      rules: [
+        {
+          test: /\.js$/,
+          exclude: /node_modules/,
+          use: {
+            loader: 'babel-loader',
+            options: {
+              presets: ['@babel/preset-env']
+            }
+          }
+        }
+      ]
+    },
+    optimization: {
+      splitChunks: false,
+      runtimeChunk: false,
+      minimize: true,
+      usedExports: true,
+      sideEffects: false
+    },
+    plugins: [
+      new webpack.optimize.LimitChunkCountPlugin({
+        maxChunks: 1
+      })
+    ]
+  },
   // JavaScript files configuration for Mermaid viewer
   {
     mode: 'production',

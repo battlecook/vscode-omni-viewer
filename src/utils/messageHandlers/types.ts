@@ -17,4 +17,5 @@ export interface WebviewMessage {
     dataBase64?: string;
     accept?: string[];
     maxBytes?: number;
+    url?: string;
 }

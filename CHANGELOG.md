@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.38.0] - 2026-08-01
+
+### Added
+- **LaTeX Viewer**
+  - Added a LaTeX custom editor for `.tex`, `.latex`, and `.ltx` built on `omni-viewer-core`, with the viewer mounted in the webview (`latexViewerMain.js` bundled by webpack) and the extension host providing only platform services
+  - Rendered a section outline, prose, lists, tables (`tabular`/`array`/`longtable` with column alignment and `\multicolumn`), theorem environments, and floats with captions
+  - Rendered inline and display math with KaTeX, progressively as formulas approach the viewport, with preamble macros (`\newcommand`, `\DeclareMathOperator`, `\let`) passed to the engine; KaTeX output is sanitized before insertion
+  - Kept the preview honest about being a partial render: TikZ, `\includegraphics`, and `\input` targets are shown as their own source with a badge instead of being dropped, and external files are never read
+  - Added Preview/Split/Source views with source editing, undo/redo, save in place, and save-as through a `latexHost*` request/response bridge (`latexMessageHandlers.ts`), plus clipboard and external-link services
+  - Mapped the viewer's `--omni-*` custom properties to VS Code theme colors so the document follows light and dark themes
+  - Bundled KaTeX and DOMPurify into the webview script; KaTeX's stylesheet and woff2 fonts ship from `node_modules` and are linked into the viewer's shadow root so relative font URLs resolve
+
+### Changed
+- **File Detection**
+  - Routed `.tex`, `.latex`, and `.ltx` to the LaTeX viewer ahead of the TOML and DBC content probes, which would otherwise claim a LaTeX preamble
+- **Dependencies**
+  - Bumped `omni-viewer-core` to `^0.11.1`, added `katex` as a direct dependency, and rebuilt the bundled PDF viewer against the updated core (localization catalog additions only; the PDF viewer itself is unchanged)
+
 ## [0.37.0] - 2026-07-29
 
 ### Added

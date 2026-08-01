@@ -1,6 +1,6 @@
 # VSCode Omni Viewer
 
-A comprehensive audio, image, PSD, video, CSV, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, Excel, Word, PowerPoint, PDF, Parquet, HDF5, Safetensors, JSONL, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
+A comprehensive audio, image, PSD, video, CSV, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, Excel, Word, PowerPoint, PDF, Parquet, HDF5, Safetensors, JSONL, LaTeX, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-red)](https://github.com/sponsors/battlecook)
 
@@ -223,6 +223,24 @@ Note: `.ts` files share an extension with TypeScript source files, so automatic 
 
 ### Supported PlantUML Formats
 - PUML, PlantUML, IUML
+
+## 📐 LaTeX Viewer Features
+
+### Structure and Math Preview (Not a TeX Compiler)
+- **Partial Render by Design**: Shows document structure and formulas, not typeset output — no TeX engine is involved, and the preview says so on screen
+- **Section Outline**: Navigate `\part` … `\subparagraph` from a sidebar; selecting an entry scrolls the preview
+- **Math Rendering**: Inline (`$…$`, `\(…\)`) and display (`$$…$$`, `\[…\]`, `equation`, `align`, `gather`, …) formulas rendered with KaTeX, progressively as they approach the viewport
+- **Preamble Macros**: `\newcommand`, `\DeclareMathOperator`, and `\let` definitions are passed to the math engine
+- **Tables and Theorems**: `tabular`/`array`/`longtable` with column alignment and `\multicolumn`, plus `\newtheorem` environments
+- **Cross-References**: `\ref` becomes a control that scrolls to the labelled block; `\url`/`\href` open externally
+- **Nothing Silently Dropped**: TikZ, `\includegraphics`, and `\input` targets stay visible as their own source with a badge explaining why they were not rendered
+- **Preview / Split / Source Views**: Edit the source with undo/redo and save in place (`Ctrl/Cmd+S`) or to a copy
+- **Powered by**: [omni-viewer-core](https://github.com/battlecook/omni-viewer-core) for parsing and rendering, with [KaTeX](https://katex.org/) for formulas
+
+### Supported LaTeX Formats
+- TEX, LATEX, LTX
+
+Note: external file references are not resolved, and BibTeX, cross-reference numbering, and TikZ drawing are out of scope.
 
 ## 📄 JSONL Viewer Features
 
