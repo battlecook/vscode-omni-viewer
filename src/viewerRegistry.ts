@@ -11,6 +11,7 @@ import { CsvViewerProvider } from './csvViewerProvider';
 import { Db3ViewerProvider } from './db3ViewerProvider';
 import { DbcViewerProvider } from './dbcViewerProvider';
 import { ExcelViewerProvider } from './excelViewerProvider';
+import { GgufViewerProvider } from './ggufViewerProvider';
 import { Hdf5ViewerProvider } from './hdf5ViewerProvider';
 import { HwpViewerProvider } from './hwpViewerProvider';
 import { ImageViewerProvider } from './imageViewerProvider';
@@ -21,6 +22,7 @@ import { MatViewerProvider } from './matViewerProvider';
 import { MarkdownViewerProvider } from './markdownViewerProvider';
 import { MermaidViewerProvider } from './mermaidViewerProvider';
 import { Mf4ViewerProvider } from './mf4ViewerProvider';
+import { OnnxViewerProvider } from './onnxViewerProvider';
 import { ParquetViewerProvider } from './parquetViewerProvider';
 import { PcapViewerProvider } from './pcapViewerProvider';
 import { PcapngViewerProvider } from './pcapngViewerProvider';
@@ -271,6 +273,20 @@ export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
         missingMessage: 'No Safetensors file selected',
         retainContextWhenHidden: true,
         createProvider: (context) => new SafetensorsViewerProvider(context)
+    },
+    {
+        viewType: OnnxViewerProvider.viewType,
+        command: 'omni-viewer.openOnnxViewer',
+        missingMessage: 'No ONNX file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new OnnxViewerProvider(context)
+    },
+    {
+        viewType: GgufViewerProvider.viewType,
+        command: 'omni-viewer.openGgufViewer',
+        missingMessage: 'No GGUF file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new GgufViewerProvider(context)
     },
     {
         viewType: HwpViewerProvider.viewType,

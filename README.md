@@ -1,6 +1,6 @@
 # VSCode Omni Viewer
 
-A comprehensive audio, image, PSD, video, CSV, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, Excel, Word, PowerPoint, PDF, Parquet, HDF5, Safetensors, JSONL, LaTeX, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
+A comprehensive audio, image, PSD, video, CSV, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, Excel, Word, PowerPoint, PDF, Parquet, HDF5, Safetensors, ONNX, GGUF, JSONL, LaTeX, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-red)](https://github.com/sponsors/battlecook)
 
@@ -294,6 +294,29 @@ Note: external file references are not resolved, and BibTeX, cross-reference num
 - **Search and Export**: Filters tensor/metadata rows and copies the parsed model as JSON
 - **Efficient Large-File Access**: Reads only the Safetensors prefix and JSON header instead of loading tensor payloads
 - **Powered by**: `omni-viewer-core` 0.9.0 for random-access Safetensors parsing
+
+## 🕸️ ONNX Viewer Features
+
+### Neural Network Graph (.onnx)
+- **Model Summary**: Shows node, initializer, input, output, and function counts alongside the IR version, producer, and file size
+- **Graph View**: Lists the computation graph's inputs, outputs, and value info with resolved tensor types, shapes, and dimension denotations
+- **Node Inspector**: Shows each node's operator, domain, inputs, outputs, and attributes, including nested subgraphs and attribute tensors
+- **Tensor Inventory**: Lists initializers with data type, shape, element count, byte size, and embedded/external storage location
+- **Opsets and Metadata**: Reports imported opset domains and versions plus the model's metadata properties
+- **Validation Warnings**: Reports truncated, malformed, or unsupported protobuf structures instead of failing silently
+- **Weights Stay on Disk**: Parses the ModelProto for topology and metadata only — tensor payloads are skipped, never decoded into memory
+- **Powered by**: `omni-viewer-core` 0.13.0 for the dependency-free ONNX protobuf reader and viewer
+
+## 🦙 GGUF Viewer Features
+
+### Quantized Model Metadata (.gguf)
+- **Model Summary**: Shows GGUF version, architecture, tensor and parameter counts, quantization type, and metadata key count
+- **Tensor Inventory**: Lists tensor names, dtypes, shapes, element counts, and both relative and absolute data offsets
+- **Metadata Table**: Displays every metadata key with its GGUF value type, with previews in place of oversized arrays and strings
+- **Structure View**: Shows byte order, tensor data offset, and the parsed file layout
+- **Validation Warnings**: Reports header, EOF, and admission-limit problems for malformed or hostile files
+- **Efficient Large-File Access**: Range-reads only the metadata and tensor-index prefix — a multi-gigabyte model opens without reading its weights
+- **Powered by**: `omni-viewer-core` 0.13.0 for GGUF parsing and the viewer
 
 ## 🧭 Smart File Detection
 

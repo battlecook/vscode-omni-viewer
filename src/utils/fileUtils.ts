@@ -62,6 +62,8 @@ export type OmniViewerViewType =
     | 'omni-viewer.hdf5Viewer'
     | 'omni-viewer.matViewer'
     | 'omni-viewer.safetensorsViewer'
+    | 'omni-viewer.onnxViewer'
+    | 'omni-viewer.ggufViewer'
     | 'omni-viewer.hwpViewer'
     | 'omni-viewer.psdViewer'
     | 'omni-viewer.excelViewer'
@@ -197,6 +199,10 @@ export class FileUtils {
             return this.signatureMatch('omni-viewer.hdf5Viewer', 'Matched the HDF5 signature.');
         }
 
+        if (this.hasAsciiPrefix(buffer, 'GGUF')) {
+            return this.signatureMatch('omni-viewer.ggufViewer', 'Matched the GGUF magic bytes.');
+        }
+
         if (this.hasAsciiPrefix(buffer, 'LOGG')) {
             return this.signatureMatch('omni-viewer.blfViewer', 'Matched the BLF LOGG signature.');
         }
@@ -319,6 +325,14 @@ export class FileUtils {
             return {
                 viewType: 'omni-viewer.safetensorsViewer',
                 reason: 'Used the Safetensors extension fallback.',
+                matchedBySignature: false
+            };
+        }
+
+        if (ext === '.onnx') {
+            return {
+                viewType: 'omni-viewer.onnxViewer',
+                reason: 'Used the ONNX extension fallback.',
                 matchedBySignature: false
             };
         }

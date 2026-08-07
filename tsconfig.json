@@ -7,6 +7,12 @@
     "paths": {
       "omni-viewer-core/parsers/safetensors": [
         "node_modules/omni-viewer-core/dist/parsers/safetensors/index.d.ts"
+      ],
+      "omni-viewer-core/parsers/onnx": [
+        "node_modules/omni-viewer-core/dist/parsers/onnx/index.d.ts"
+      ],
+      "omni-viewer-core/parsers/gguf/node": [
+        "node_modules/omni-viewer-core/dist/parsers/gguf/node.d.ts"
       ]
     },
     "outDir": "out",

@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.39.0] - 2026-08-07
+
+### Added
+- **ONNX Viewer**
+  - Added an ONNX custom editor for `.onnx` built on `omni-viewer-core`, with the viewer mounted in the webview (`onnxViewerMain.js` bundled by webpack) and the extension host parsing the model and providing platform services
+  - Showed a model summary (nodes, initializers, inputs, outputs, functions, IR version) plus Graph, Nodes, Tensors, Inputs & Outputs, and Model Info tabs
+  - Listed each node's operator, domain, inputs, outputs, and attributes — including nested subgraphs and attribute tensors — and each initializer's dtype, shape, element count, byte size, and embedded/external storage
+  - Reported imported opset domains/versions, model metadata properties, and validation warnings for truncated or malformed protobuf structures
+  - Parsed the ModelProto for topology and metadata only: tensor payloads are skipped, so weights are never decoded into memory or sent to the webview
+- **GGUF Viewer**
+  - Added a GGUF custom editor for `.gguf` built on `omni-viewer-core`, using the core's Node range reader on the host so only the metadata and tensor-index prefix is read — a multi-gigabyte model opens without touching its weights
+  - Showed GGUF version, architecture, tensor and parameter counts, quantization type, and byte order, with Tensors, Metadata, and Structure tabs
+  - Listed tensor names, dtypes, shapes, element counts, and relative/absolute offsets, and every metadata key with its GGUF value type, previewing oversized arrays and strings instead of materializing them
+  - Reported header, EOF, and admission-limit warnings for malformed or hostile files
+  - Cancelled in-flight range reads when the editor tab closes
+- Added searchable tables, JSON copy support, custom editor registration, explorer actions, and `Open With OmniViewer` commands for both viewers, with `--omni-*` custom properties mapped to VS Code theme colors so both follow light and dark themes
+
+### Changed
+- **File Detection**
+  - Routed files whose header starts with the `GGUF` magic bytes to the GGUF viewer, and `.onnx` files to the ONNX viewer via an extension fallback (ONNX protobuf has no magic number)
+- **Dependencies**
+  - Bumped `omni-viewer-core` to `^0.13.0`, which brings in `@huggingface/gguf` for GGUF parsing, and rebuilt the bundled PDF and LaTeX viewers against it (localization catalog additions only; those viewers are otherwise unchanged)
+
 ## [0.38.0] - 2026-08-01
 
 ### Added

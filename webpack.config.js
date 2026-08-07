@@ -226,6 +226,100 @@ module.exports = [
       })
     ]
   },
+  // JavaScript files configuration for ONNX viewer (omni-viewer-core)
+  {
+    mode: 'production',
+    target: 'web',
+    entry: {
+      'templates/onnx/js/onnxViewer': './src/templates/onnx/js/onnxViewerMain.js'
+    },
+    output: {
+      path: path.resolve(__dirname, 'src/templates/onnx/js'),
+      filename: 'onnxViewer.js',
+      libraryTarget: 'var',
+      library: 'OnnxViewer'
+    },
+    resolve: {
+      extensions: ['.js'],
+      fallback: {
+        fs: false,
+        path: false
+      }
+    },
+    module: {
+      rules: [
+        {
+          test: /\.js$/,
+          exclude: /node_modules/,
+          use: {
+            loader: 'babel-loader',
+            options: {
+              presets: ['@babel/preset-env']
+            }
+          }
+        }
+      ]
+    },
+    optimization: {
+      splitChunks: false,
+      runtimeChunk: false,
+      minimize: true,
+      usedExports: true,
+      sideEffects: false
+    },
+    plugins: [
+      new webpack.optimize.LimitChunkCountPlugin({
+        maxChunks: 1
+      })
+    ]
+  },
+  // JavaScript files configuration for GGUF viewer (omni-viewer-core)
+  {
+    mode: 'production',
+    target: 'web',
+    entry: {
+      'templates/gguf/js/ggufViewer': './src/templates/gguf/js/ggufViewerMain.js'
+    },
+    output: {
+      path: path.resolve(__dirname, 'src/templates/gguf/js'),
+      filename: 'ggufViewer.js',
+      libraryTarget: 'var',
+      library: 'GgufViewer'
+    },
+    resolve: {
+      extensions: ['.js'],
+      fallback: {
+        fs: false,
+        path: false
+      }
+    },
+    module: {
+      rules: [
+        {
+          test: /\.js$/,
+          exclude: /node_modules/,
+          use: {
+            loader: 'babel-loader',
+            options: {
+              presets: ['@babel/preset-env']
+            }
+          }
+        }
+      ]
+    },
+    optimization: {
+      splitChunks: false,
+      runtimeChunk: false,
+      minimize: true,
+      usedExports: true,
+      sideEffects: false
+    },
+    plugins: [
+      new webpack.optimize.LimitChunkCountPlugin({
+        maxChunks: 1
+      })
+    ]
+  },
   // JavaScript files configuration for Mermaid viewer
   {
     mode: 'production',

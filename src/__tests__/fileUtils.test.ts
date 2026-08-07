@@ -392,6 +392,38 @@ describe('FileUtils delimited formats', () => {
         expect(result.reason).toContain('Safetensors extension');
     });
 
+    it('detects ONNX files by extension', async () => {
+        const filePath = path.join(tempDir, 'model.onnx');
+        // Minimal ModelProto: field 1 (ir_version) varint, field 2 (producer_name) string.
+        fs.writeFileSync(filePath, Buffer.from([
+            0x08, 0x08,
+            0x12, 0x05, 0x6f, 0x6d, 0x6e, 0x69, 0x21
+        ]));
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.onnxViewer');
+        expect(result.matchedBySignature).toBe(false);
+        expect(result.reason).toContain('ONNX extension');
+    });
+
+    it('detects GGUF files by signature', async () => {
+        // Named .bin on purpose: the magic bytes alone must route the file.
+        const filePath = path.join(tempDir, 'model.bin');
+        const header = Buffer.alloc(24);
+        header.write('GGUF', 0, 'ascii');
+        header.writeUInt32LE(3, 4);
+        header.writeBigUInt64LE(0n, 8);
+        header.writeBigUInt64LE(0n, 16);
+        fs.writeFileSync(filePath, header);
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.ggufViewer');
+        expect(result.matchedBySignature).toBe(true);
+        expect(result.reason).toContain('GGUF magic bytes');
+    });
+
     it('detects LaTeX files by extension', async () => {
         const filePath = path.join(tempDir, 'paper.tex');
         fs.writeFileSync(filePath, [
