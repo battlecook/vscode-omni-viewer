@@ -15,7 +15,11 @@ export class BagViewerProvider implements vscode.CustomReadonlyEditorProvider {
         return createReadonlyDocument(uri);
     }
 
-    public async resolveCustomEditor(document: vscode.CustomDocument, webviewPanel: vscode.WebviewPanel): Promise<void> {
+    public async resolveCustomEditor(
+        document: vscode.CustomDocument,
+        webviewPanel: vscode.WebviewPanel,
+        _token: vscode.CancellationToken
+    ): Promise<void> {
         configureWebview(this.context, webviewPanel);
         registerRefreshableViewer(document.uri, BagViewerProvider.viewType, webviewPanel, async () => {
             await this.resolveCustomEditor(document, webviewPanel, refreshCancellationToken);

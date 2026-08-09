@@ -562,7 +562,6 @@ export class PptxXmlParser {
         const geom = localGeom ? this.applyTransform(localGeom, parentTx) : null;
         const placeholderKey = this.getPlaceholderKey(picXml);
         const picName = picXml.match(/<p:cNvPr[^>]*name="([^"]+)"/)?.[1] || '';
-        const picDescr = picXml.match(/<p:cNvPr[^>]*descr="([^"]+)"/)?.[1] || '';
 
         if (sourcePriority < 3 && !placeholderKey && /placeholder/i.test(picName)) {
             return null;

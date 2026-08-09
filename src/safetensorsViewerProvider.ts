@@ -34,6 +34,10 @@ export class SafetensorsViewerProvider implements vscode.CustomReadonlyEditorPro
         const filePath = document.uri.fsPath;
         const fileName = path.basename(filePath);
 
+        // Range reads keep running after the tab closes unless they are cancelled.
+        const abort = new AbortController();
+        const disposeListener = webviewPanel.onDidDispose(() => abort.abort());
+
         try {
             if (await rerouteIfNeeded(document.uri, SafetensorsViewerProvider.viewType, webviewPanel)) {
                 return;
@@ -51,18 +55,24 @@ export class SafetensorsViewerProvider implements vscode.CustomReadonlyEditorPro
                         return buffer.subarray(0, bytesRead);
                     }
                 }, {
-                    fileSize: await FileUtils.getFileSize(filePath)
+                    fileSize: await FileUtils.getFileSize(filePath),
+                    signal: abort.signal
                 });
             } finally {
                 await handle.close();
             }
             webviewPanel.webview.html = await TemplateUtils.loadTemplate(
                 this.context,
-                'automotive/automotiveViewer.html',
+                'safetensors/safetensorsViewer.html',
                 {
                     fileName,
-                    viewerData: TemplateUtils.escapeJsonForHtmlScriptTag(JSON.stringify(model))
-                }
+                    safetensorsData: TemplateUtils.escapeJsonForHtmlScriptTag(JSON.stringify({
+                        fileName,
+                        locale: vscode.env.language || 'en',
+                        model
+                    }))
+                },
+                webviewPanel.webview
             );
             MessageHandler.setupMessageListener(webviewPanel.webview, document.uri);
         } catch (error) {
@@ -72,6 +82,8 @@ export class SafetensorsViewerProvider implements vscode.CustomReadonlyEditorPro
                 message: 'Unable to inspect the Safetensors file due to an error:',
                 icon: 'ST'
             });
+        } finally {
+            disposeListener.dispose();
         }
     }
 }

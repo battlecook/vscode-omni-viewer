@@ -3,7 +3,6 @@ import type {
     CfbParseResult,
     PptColorScheme,
     PptPictureAsset,
-    PptPresentationMetrics,
     PptRecord,
     PptShapeBounds,
     PptSlideLayoutInfo,
@@ -1949,7 +1948,7 @@ export class PptBinaryParser {
 
     private static extractLineShapesFromRecord(
         record: PptRecord,
-        presentationMetrics: { widthPx: number; heightPx: number; rawWidth: number; rawHeight: number } | null
+        _presentationMetrics: { widthPx: number; heightPx: number; rawWidth: number; rawHeight: number } | null
     ): Array<{ color: string; widthPx: number }> {
         const lines: Array<{ color: string; widthPx: number }> = [];
 
@@ -2416,7 +2415,7 @@ export class PptBinaryParser {
             .map((value) => value.trim())
             .filter((value) => value.length >= 2)
             .filter((value) => /[가-힣]/.test(value))
-            .filter((value) => !/(rrect|화살표|arrow|\-윤고딕)/i.test(value))
+            .filter((value) => !/(rrect|화살표|arrow|-윤고딕)/i.test(value))
             .filter((value) => !/^(HY|한컴|굴림|돋움|바탕|궁서)/i.test(value))
             .filter((value) => !/(고딕|명조|체)$/.test(value));
 

@@ -253,7 +253,7 @@ export function applyMathPlayLetterLayoutImpl(
 export function applyActivityListTableLayoutImpl(
     elements: PptSlideModel['elements'],
     slideWidth: number,
-    slideHeight: number
+    _slideHeight: number
 ): void {
     // Remove known noise text
     for (let index = elements.length - 1; index >= 0; index--) {

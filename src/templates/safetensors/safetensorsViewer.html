@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Safetensors Viewer - {{fileName}}</title>
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            background: var(--vscode-editor-background, #1e1e1e);
+            color: var(--vscode-foreground, #d4d4d4);
+            font-family: var(--vscode-font-family, sans-serif);
+        }
+        .omni-safetensors-shell-bar {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            padding: 6px 10px;
+            flex-shrink: 0;
+        }
+        /*
+         * The core viewer styles itself from --omni-* custom properties, which
+         * pierce the shadow boundary. Mapping them to the VS Code theme here is
+         * what keeps the model readable in a light theme — the core defaults
+         * are dark.
+         */
+        #safetensors-root {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: auto;
+            --omni-fg: var(--vscode-foreground, #d4d4d4);
+            --omni-bg: var(--vscode-editor-background, #1e1e1e);
+            --omni-editor-bg: var(--vscode-editor-background, #1e1e1e);
+            --omni-panel-bg: var(--vscode-editorWidget-background, rgba(127, 127, 127, 0.05));
+            --omni-border: var(--vscode-widget-border, var(--vscode-panel-border, #454545));
+            --omni-muted: var(--vscode-descriptionForeground, #aaa);
+            --omni-link: var(--vscode-textLink-foreground, #4fc1ff);
+            --omni-focus: var(--vscode-focusBorder, #007fd4);
+            --omni-error: var(--vscode-errorForeground, #f44747);
+            --omni-warning: var(--vscode-editorWarning-foreground, #cca700);
+            --omni-success: var(--vscode-charts-green, #3fb950);
+            --omni-button-secondary-bg: var(--vscode-button-secondaryBackground, rgba(127, 127, 127, 0.16));
+            --omni-font-family: var(--vscode-font-family, system-ui, sans-serif);
+            --omni-font-size: var(--vscode-font-size, 13px);
+            --omni-mono: var(--vscode-editor-font-family, monospace);
+        }
+    </style>
+</head>
+<body>
+    <div class="omni-safetensors-shell-bar">
+        {{omniShareButtons}}
+    </div>
+    <div id="safetensors-root"></div>
+
+    <script id="safetensors-data" type="application/json">{{safetensorsData}}</script>
+    <script src="js/safetensorsViewer.js" data-omni-no-inline></script>
+</body>
+</html>

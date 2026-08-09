@@ -320,6 +320,53 @@ module.exports = [
       })
     ]
   },
+  // JavaScript files configuration for Safetensors viewer
+  {
+    mode: 'production',
+    target: 'web',
+    entry: {
+      'templates/safetensors/js/safetensorsViewer': './src/templates/safetensors/js/safetensorsViewerMain.js'
+    },
+    output: {
+      path: path.resolve(__dirname, 'src/templates/safetensors/js'),
+      filename: 'safetensorsViewer.js',
+      libraryTarget: 'var',
+      library: 'SafetensorsViewer'
+    },
+    resolve: {
+      extensions: ['.js'],
+      fallback: {
+        fs: false,
+        path: false
+      }
+    },
+    module: {
+      rules: [
+        {
+          test: /\.js$/,
+          exclude: /node_modules/,
+          use: {
+            loader: 'babel-loader',
+            options: {
+              presets: ['@babel/preset-env']
+            }
+          }
+        }
+      ]
+    },
+    optimization: {
+      splitChunks: false,
+      runtimeChunk: false,
+      minimize: true,
+      usedExports: true,
+      sideEffects: false
+    },
+    plugins: [
+      new webpack.optimize.LimitChunkCountPlugin({
+        maxChunks: 1
+      })
+    ]
+  },
   // JavaScript files configuration for Mermaid viewer
   {
     mode: 'production',

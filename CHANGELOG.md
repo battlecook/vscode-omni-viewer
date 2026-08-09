@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.40.0] - 2026-08-09
+
+### Changed
+- **Safetensors Viewer**
+  - Rebuilt the viewer on `omni-viewer-core`'s mounted Safetensors viewer, with the webview entry (`safetensorsViewerMain.js`) bundled by webpack into a dedicated `safetensors/safetensorsViewer.html` template instead of reusing the automotive table template
+  - Passed the editor locale into the core catalog so the viewer is localized, and mapped its `--omni-*` custom properties to VS Code theme colors so it follows light and dark themes
+  - Kept the host-side range reader as the only thing that touches the file: just the header is read and only the JSON-safe document model crosses into the webview, so tensor payloads are still never decoded into memory
+  - Cancelled in-flight range reads when the editor tab closes
+- **Dependencies**
+  - Bumped `omni-viewer-core` to `^0.14.0` and rebuilt the bundled PDF, LaTeX, ONNX, and GGUF viewers against it
+- **Lint**
+  - Turned off the base `no-unused-vars` rule in favour of the `@typescript-eslint` version, which understands type-only imports, interfaces, and overload signatures, and turned off `no-control-regex` because the legacy binary parsers (`.doc`, `.ppt`, `.hwp`) match record-delimiting control characters on purpose
+
+### Fixed
+- **Viewer Providers**
+  - Restored the `CancellationToken` parameter on `resolveCustomEditor` in the read-only providers (A2L, ARXML, ASC, Avro, BAG, BLF, DB3, HDF5, MF4, PCAP, PCAPNG, ReqIF, Safetensors, STP), which their refresh path was already passing a token to
+  - Removed unused locals, parameters, and an unreachable helper from the DOC, PPT, and PPTX parsers, and fixed a redundant escape in the PPT font-name filter
+
 ## [0.39.0] - 2026-08-07
 
 ### Added

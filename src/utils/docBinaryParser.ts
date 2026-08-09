@@ -1703,11 +1703,6 @@ export class DocBinaryParser {
         const backgroundColors = new Map<string, number>();
         const highlightColors = new Map<string, number>();
 
-        const resolveSectionIndex = (cp: number | undefined): number | undefined => {
-            const boundary = resolveSectionBoundary(cp);
-            return boundary?.sectionIndex;
-        };
-
         const resolveSectionBoundary = (cp: number | undefined): SectionBoundary | undefined => {
             if (cp === undefined || sectionBoundaries.length === 0) {
                 return undefined;
@@ -4496,7 +4491,7 @@ export class DocBinaryParser {
         return letters >= Math.max(3, Math.floor(text.length * 0.25));
     }
 
-    private static normalizeImageLabel(label: string | undefined, fallbackIndex?: number): string {
+    private static normalizeImageLabel(label: string | undefined, _fallbackIndex?: number): string {
         const normalized = this.normalizeParagraphText(String(label || ''));
         if (!normalized) {
             return '';
