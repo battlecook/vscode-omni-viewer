@@ -63,6 +63,7 @@ export type OmniViewerViewType =
     | 'omni-viewer.matViewer'
     | 'omni-viewer.safetensorsViewer'
     | 'omni-viewer.onnxViewer'
+    | 'omni-viewer.tfliteViewer'
     | 'omni-viewer.ggufViewer'
     | 'omni-viewer.hwpViewer'
     | 'omni-viewer.psdViewer'
@@ -199,6 +200,10 @@ export class FileUtils {
             return this.signatureMatch('omni-viewer.hdf5Viewer', 'Matched the HDF5 signature.');
         }
 
+        if (this.hasAsciiPrefix(buffer.subarray(4), 'TFL3')) {
+            return this.signatureMatch('omni-viewer.tfliteViewer', 'Matched the TFLite FlatBuffer identifier.');
+        }
+
         if (this.hasAsciiPrefix(buffer, 'GGUF')) {
             return this.signatureMatch('omni-viewer.ggufViewer', 'Matched the GGUF magic bytes.');
         }
@@ -333,6 +338,14 @@ export class FileUtils {
             return {
                 viewType: 'omni-viewer.onnxViewer',
                 reason: 'Used the ONNX extension fallback.',
+                matchedBySignature: false
+            };
+        }
+
+        if (ext === '.tflite' || ext === '.lite') {
+            return {
+                viewType: 'omni-viewer.tfliteViewer',
+                reason: 'Used the TFLite/LiteRT extension fallback.',
                 matchedBySignature: false
             };
         }

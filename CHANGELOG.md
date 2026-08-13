@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.41.0] - 2026-08-13
+
+### Added
+- **TFLite / LiteRT Viewer**
+  - Added a custom editor for `.tflite` and `.lite` models built on `omni-viewer-core`, with FlatBuffer parsing isolated in a worker and the viewer mounted in a dedicated webview bundle
+  - Added model summaries plus Graph, Operators, Tensors, Inputs & Outputs, Buffers, and Model Info views covering subgraphs, control-flow references, operator options, quantization, sparsity, signatures, metadata, and external buffers
+  - Reported malformed FlatBuffers, custom operators, Select TensorFlow fallbacks, and externally stored buffer payloads while leaving tensor data undecoded
+  - Added `TFL3` signature detection, extension fallback routing, custom editor registration, explorer actions, and `Open With OmniViewer` commands for TFLite and LiteRT files
+  - Capped in-memory inspection at 512 MB and cancelled worker parsing when the editor load is cancelled or its panel closes
+
+### Changed
+- **Dependencies**
+  - Bumped `omni-viewer-core` to `^0.15.0` and rebuilt the bundled PDF, LaTeX, ONNX, GGUF, and Safetensors viewers against the updated localization catalog
+
+### Fixed
+- **Webview Security**
+  - Escaped dynamic filenames and error content before inserting them into HTML, restricted error pages with a deny-by-default content security policy, and applied each template's CSP nonce to injected share styles and scripts
+
 ## [0.40.0] - 2026-08-09
 
 ### Changed

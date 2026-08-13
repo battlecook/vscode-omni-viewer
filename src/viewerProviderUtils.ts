@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { TemplateUtils } from './utils/templateUtils';
 import { FileUtils, OmniViewerViewType } from './utils/fileUtils';
+import { escapeHtml } from './utils/htmlEscaping';
 
 export interface ViewerErrorContent {
     title: string;
@@ -150,14 +151,20 @@ export function renderErrorHtml(
     errorMessage: string,
     content: ViewerErrorContent
 ): string {
-    const lang = content.lang || 'en';
+    const lang = escapeHtml(content.lang || 'en');
+    const safeTitle = escapeHtml(content.title);
+    const safeFileName = escapeHtml(fileName);
+    const safeIcon = escapeHtml(content.icon);
+    const safeMessage = escapeHtml(content.message);
+    const safeErrorMessage = escapeHtml(errorMessage);
 
     return `<!DOCTYPE html>
 <html lang="${lang}">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline';">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${content.title} - ${fileName}</title>
+    <title>${safeTitle} - ${safeFileName}</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -201,11 +208,11 @@ export function renderErrorHtml(
 </head>
 <body>
     <div class="error-container">
-        <div class="error-icon">${content.icon}</div>
-        <div class="error-title">${content.title}</div>
-        <div class="error-message">${content.message}</div>
-        <div class="file-name">${fileName}</div>
-        <div class="error-message">${errorMessage}</div>
+        <div class="error-icon">${safeIcon}</div>
+        <div class="error-title">${safeTitle}</div>
+        <div class="error-message">${safeMessage}</div>
+        <div class="file-name">${safeFileName}</div>
+        <div class="error-message">${safeErrorMessage}</div>
     </div>
 </body>
 </html>`;

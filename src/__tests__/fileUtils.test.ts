@@ -407,6 +407,32 @@ describe('FileUtils delimited formats', () => {
         expect(result.reason).toContain('ONNX extension');
     });
 
+    it('detects TFLite models by FlatBuffer identifier', async () => {
+        // FlatBuffers place their four-byte file identifier at bytes 4-7.
+        const filePath = path.join(tempDir, 'model.bin');
+        const header = Buffer.alloc(12);
+        header.writeUInt32LE(8, 0);
+        header.write('TFL3', 4, 'ascii');
+        fs.writeFileSync(filePath, header);
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.tfliteViewer');
+        expect(result.matchedBySignature).toBe(true);
+        expect(result.reason).toContain('TFLite FlatBuffer identifier');
+    });
+
+    it('detects LiteRT .lite models by extension', async () => {
+        const filePath = path.join(tempDir, 'model.lite');
+        fs.writeFileSync(filePath, Buffer.from('not-enough-data-for-a-flatbuffer'));
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.tfliteViewer');
+        expect(result.matchedBySignature).toBe(false);
+        expect(result.reason).toContain('TFLite/LiteRT extension');
+    });
+
     it('detects GGUF files by signature', async () => {
         // Named .bin on purpose: the magic bytes alone must route the file.
         const filePath = path.join(tempDir, 'model.bin');

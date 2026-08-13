@@ -1,6 +1,6 @@
 # VSCode Omni Viewer
 
-A comprehensive audio, image, PSD, video, CSV, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, Excel, Word, PowerPoint, PDF, Parquet, HDF5, Safetensors, ONNX, GGUF, JSONL, LaTeX, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
+A comprehensive audio, image, PSD, video, CSV, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, Excel, Word, PowerPoint, PDF, Parquet, HDF5, Safetensors, ONNX, TFLite/LiteRT, GGUF, JSONL, LaTeX, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-red)](https://github.com/sponsors/battlecook)
 
@@ -293,7 +293,7 @@ Note: external file references are not resolved, and BibTeX, cross-reference num
 - **Validation Warnings**: Reports malformed headers, unsupported data types, and inconsistent tensor byte ranges
 - **Search and Export**: Filters tensor/metadata rows and copies the parsed model as JSON
 - **Efficient Large-File Access**: Reads only the Safetensors prefix and JSON header instead of loading tensor payloads
-- **Powered by**: `omni-viewer-core` 0.9.0 for random-access Safetensors parsing
+- **Powered by**: `omni-viewer-core` 0.15.0 for random-access Safetensors parsing
 
 ## 🕸️ ONNX Viewer Features
 
@@ -305,7 +305,19 @@ Note: external file references are not resolved, and BibTeX, cross-reference num
 - **Opsets and Metadata**: Reports imported opset domains and versions plus the model's metadata properties
 - **Validation Warnings**: Reports truncated, malformed, or unsupported protobuf structures instead of failing silently
 - **Weights Stay on Disk**: Parses the ModelProto for topology and metadata only — tensor payloads are skipped, never decoded into memory
-- **Powered by**: `omni-viewer-core` 0.13.0 for the dependency-free ONNX protobuf reader and viewer
+- **Powered by**: `omni-viewer-core` 0.15.0 for the dependency-free ONNX protobuf reader and viewer
+
+## 📱 TFLite / LiteRT Viewer Features
+
+### TensorFlow Lite Model Graph (.tflite, .lite)
+- **Model Summary**: Shows schema/runtime version, subgraph, operator, tensor, buffer, signature, and constant-weight counts
+- **Subgraph Graph**: Visualizes operator and tensor flow for each subgraph, including control-flow references
+- **Tensor Inspector**: Displays types, shapes, buffer locations, quantization parameters, sparsity, and byte-size information
+- **Operator Details**: Shows builtin and custom operator codes, versions, inputs/outputs, intermediates, and decoded options
+- **Model Metadata**: Lists signatures, metadata entries, external buffers, and model information in searchable panels
+- **Validation Warnings**: Surfaces malformed FlatBuffers, custom operators, Select TensorFlow fallbacks, and externally stored buffers
+- **Weights Stay Unparsed**: Reads the `TFL3` FlatBuffer structure without decoding tensor payloads
+- **Powered by**: `omni-viewer-core` 0.15.0 for dependency-free TFLite/LiteRT parsing and rendering
 
 ## 🦙 GGUF Viewer Features
 
@@ -316,7 +328,7 @@ Note: external file references are not resolved, and BibTeX, cross-reference num
 - **Structure View**: Shows byte order, tensor data offset, and the parsed file layout
 - **Validation Warnings**: Reports header, EOF, and admission-limit problems for malformed or hostile files
 - **Efficient Large-File Access**: Range-reads only the metadata and tensor-index prefix — a multi-gigabyte model opens without reading its weights
-- **Powered by**: `omni-viewer-core` 0.13.0 for GGUF parsing and the viewer
+- **Powered by**: `omni-viewer-core` 0.15.0 for GGUF parsing and the viewer
 
 ## 🧭 Smart File Detection
 

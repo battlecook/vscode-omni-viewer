@@ -35,6 +35,7 @@ import { ReqifViewerProvider } from './reqifViewerProvider';
 import { SafetensorsViewerProvider } from './safetensorsViewerProvider';
 import { ShpViewerProvider } from './shpViewerProvider';
 import { StpViewerProvider } from './stpViewerProvider';
+import { TfliteViewerProvider } from './tfliteViewerProvider';
 import { TomlViewerProvider } from './tomlViewerProvider';
 import { VideoViewerProvider } from './videoViewerProvider';
 import { WordViewerProvider } from './wordViewerProvider';
@@ -280,6 +281,13 @@ export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
         missingMessage: 'No ONNX file selected',
         retainContextWhenHidden: true,
         createProvider: (context) => new OnnxViewerProvider(context)
+    },
+    {
+        viewType: TfliteViewerProvider.viewType,
+        command: 'omni-viewer.openTfliteViewer',
+        missingMessage: 'No TFLite file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new TfliteViewerProvider(context)
     },
     {
         viewType: GgufViewerProvider.viewType,

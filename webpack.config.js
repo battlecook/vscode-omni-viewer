@@ -8,6 +8,7 @@ module.exports = [
     mode: 'production',
     entry: {
       extension: './src/extension.ts',
+      tfliteParserWorker: './src/tfliteParserWorker.ts',
       audioViewerProvider: './src/audioViewerProvider.ts',
       audioEngine: './src/audioEngine.ts',
       videoViewerProvider: './src/videoViewerProvider.ts',
@@ -285,6 +286,53 @@ module.exports = [
       filename: 'ggufViewer.js',
       libraryTarget: 'var',
       library: 'GgufViewer'
+    },
+    resolve: {
+      extensions: ['.js'],
+      fallback: {
+        fs: false,
+        path: false
+      }
+    },
+    module: {
+      rules: [
+        {
+          test: /\.js$/,
+          exclude: /node_modules/,
+          use: {
+            loader: 'babel-loader',
+            options: {
+              presets: ['@babel/preset-env']
+            }
+          }
+        }
+      ]
+    },
+    optimization: {
+      splitChunks: false,
+      runtimeChunk: false,
+      minimize: true,
+      usedExports: true,
+      sideEffects: false
+    },
+    plugins: [
+      new webpack.optimize.LimitChunkCountPlugin({
+        maxChunks: 1
+      })
+    ]
+  },
+  // JavaScript files configuration for TFLite viewer (omni-viewer-core)
+  {
+    mode: 'production',
+    target: 'web',
+    entry: {
+      'templates/tflite/js/tfliteViewer': './src/templates/tflite/js/tfliteViewerMain.js'
+    },
+    output: {
+      path: path.resolve(__dirname, 'src/templates/tflite/js'),
+      filename: 'tfliteViewer.js',
+      libraryTarget: 'var',
+      library: 'TfliteViewer'
     },
     resolve: {
       extensions: ['.js'],

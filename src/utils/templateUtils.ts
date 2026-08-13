@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import * as vscode from 'vscode';
-import { escapeJsonForHtmlScriptTag } from './htmlEscaping';
+import { escapeHtml, escapeJsonForHtmlScriptTag } from './htmlEscaping';
 
 export class TemplateUtils {
     public static escapeJsonForHtmlScriptTag(json: string): string {
@@ -28,7 +28,7 @@ export class TemplateUtils {
                 template = template.split(placeholder).join(safeValue);
             }
 
-            template = this.injectOmniShareAssets(template);
+            template = this.injectOmniShareAssets(template, variables.cspNonce);
 
             return template;
         } catch (error) {
@@ -124,28 +124,33 @@ export class TemplateUtils {
 })();
 </script>`;
 
-    private static injectOmniShareAssets(html: string): string {
+    private static injectOmniShareAssets(html: string, nonce?: string): string {
+        const nonceAttribute = nonce ? ` nonce="${escapeHtml(nonce)}"` : '';
+        const shareStyle = this.OMNI_SHARE_STYLE.replace('<style>', `<style${nonceAttribute}>`);
+        const memoizeScript = this.OMNI_VSCODE_MEMOIZE_SCRIPT.replace('<script>', `<script${nonceAttribute}>`);
+        const shareWireScript = this.OMNI_SHARE_WIRE_SCRIPT.replace('<script>', `<script${nonceAttribute}>`);
+
         html = html.split('{{omniShareButtons}}').join(this.OMNI_SHARE_BUTTONS_HTML);
 
         if (html.includes('</head>')) {
-            html = html.replace('</head>', `${this.OMNI_SHARE_STYLE}\n</head>`);
+            html = html.replace('</head>', `${shareStyle}\n</head>`);
         } else {
-            html = this.OMNI_SHARE_STYLE + html;
+            html = shareStyle + html;
         }
 
         const firstScriptMatch = /<script\b/.exec(html);
         if (firstScriptMatch && firstScriptMatch.index !== undefined) {
-            html = html.slice(0, firstScriptMatch.index) + this.OMNI_VSCODE_MEMOIZE_SCRIPT + '\n' + html.slice(firstScriptMatch.index);
+            html = html.slice(0, firstScriptMatch.index) + memoizeScript + '\n' + html.slice(firstScriptMatch.index);
         } else if (html.includes('</body>')) {
-            html = html.replace('</body>', `${this.OMNI_VSCODE_MEMOIZE_SCRIPT}\n</body>`);
+            html = html.replace('</body>', `${memoizeScript}\n</body>`);
         } else {
-            html += this.OMNI_VSCODE_MEMOIZE_SCRIPT;
+            html += memoizeScript;
         }
 
         if (html.includes('</body>')) {
-            html = html.replace('</body>', `${this.OMNI_SHARE_WIRE_SCRIPT}\n</body>`);
+            html = html.replace('</body>', `${shareWireScript}\n</body>`);
         } else {
-            html += this.OMNI_SHARE_WIRE_SCRIPT;
+            html += shareWireScript;
         }
 
         return html;
