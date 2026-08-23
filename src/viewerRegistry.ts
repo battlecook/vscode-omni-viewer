@@ -17,6 +17,7 @@ import { HwpViewerProvider } from './hwpViewerProvider';
 import { ImageViewerProvider } from './imageViewerProvider';
 import { JsonViewerProvider } from './jsonViewerProvider';
 import { JsonlViewerProvider } from './jsonlViewerProvider';
+import { KerasViewerProvider } from './kerasViewerProvider';
 import { LatexViewerProvider } from './latexViewerProvider';
 import { MatViewerProvider } from './matViewerProvider';
 import { MarkdownViewerProvider } from './markdownViewerProvider';
@@ -288,6 +289,13 @@ export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
         missingMessage: 'No TFLite file selected',
         retainContextWhenHidden: true,
         createProvider: (context) => new TfliteViewerProvider(context)
+    },
+    {
+        viewType: KerasViewerProvider.viewType,
+        command: 'omni-viewer.openKerasViewer',
+        missingMessage: 'No Keras file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new KerasViewerProvider(context)
     },
     {
         viewType: GgufViewerProvider.viewType,

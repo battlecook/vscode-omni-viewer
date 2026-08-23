@@ -14,6 +14,9 @@
       "omni-viewer-core/parsers/tflite": [
         "node_modules/omni-viewer-core/dist/parsers/tflite/index.d.ts"
       ],
+      "omni-viewer-core/parsers/keras": [
+        "node_modules/omni-viewer-core/dist/parsers/keras/index.d.ts"
+      ],
       "omni-viewer-core/parsers/gguf/node": [
         "node_modules/omni-viewer-core/dist/parsers/gguf/node.d.ts"
       ]

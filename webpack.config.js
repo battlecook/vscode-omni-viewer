@@ -9,6 +9,7 @@ module.exports = [
     entry: {
       extension: './src/extension.ts',
       tfliteParserWorker: './src/tfliteParserWorker.ts',
+      kerasParserWorker: './src/kerasParserWorker.ts',
       audioViewerProvider: './src/audioViewerProvider.ts',
       audioEngine: './src/audioEngine.ts',
       videoViewerProvider: './src/videoViewerProvider.ts',
@@ -333,6 +334,53 @@ module.exports = [
       filename: 'tfliteViewer.js',
       libraryTarget: 'var',
       library: 'TfliteViewer'
+    },
+    resolve: {
+      extensions: ['.js'],
+      fallback: {
+        fs: false,
+        path: false
+      }
+    },
+    module: {
+      rules: [
+        {
+          test: /\.js$/,
+          exclude: /node_modules/,
+          use: {
+            loader: 'babel-loader',
+            options: {
+              presets: ['@babel/preset-env']
+            }
+          }
+        }
+      ]
+    },
+    optimization: {
+      splitChunks: false,
+      runtimeChunk: false,
+      minimize: true,
+      usedExports: true,
+      sideEffects: false
+    },
+    plugins: [
+      new webpack.optimize.LimitChunkCountPlugin({
+        maxChunks: 1
+      })
+    ]
+  },
+  // JavaScript files configuration for Keras viewer (omni-viewer-core)
+  {
+    mode: 'production',
+    target: 'web',
+    entry: {
+      'templates/keras/js/kerasViewer': './src/templates/keras/js/kerasViewerMain.js'
+    },
+    output: {
+      path: path.resolve(__dirname, 'src/templates/keras/js'),
+      filename: 'kerasViewer.js',
+      libraryTarget: 'var',
+      library: 'KerasViewer'
     },
     resolve: {
       extensions: ['.js'],

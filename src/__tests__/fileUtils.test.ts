@@ -21,9 +21,28 @@ jest.mock('hyparquet-compressors', () => ({
 }), { virtual: true });
 jest.mock('hwp.js', () => ({}), { virtual: true });
 jest.mock('xlsx', () => ({}), { virtual: true });
-jest.mock('jszip', () => ({}), { virtual: true });
+const mockZipLoadAsync = jest.fn();
+jest.mock('jszip', () => ({
+    loadAsync: mockZipLoadAsync
+}), { virtual: true });
 
 import { FileUtils } from '../utils/fileUtils';
+import { MAX_KERAS_READ_BYTES } from '../utils/kerasLimits';
+
+function hdf5Header(): Buffer {
+    const header = Buffer.alloc(512);
+    Buffer.from([0x89, 0x48, 0x44, 0x46, 0x0d, 0x0a, 0x1a, 0x0a]).copy(header);
+    return header;
+}
+
+/** The root attribute names `save_model_to_hdf5` writes next to each other. */
+function kerasHdf5Header(): Buffer {
+    const header = hdf5Header();
+    header.write('model_config', 64, 'latin1');
+    header.write('keras_version', 96, 'latin1');
+    header.write('backend', 128, 'latin1');
+    return header;
+}
 
 describe('FileUtils delimited formats', () => {
     let tempDir: string;
@@ -34,6 +53,8 @@ describe('FileUtils delimited formats', () => {
         mockParquetMetadataAsync.mockReset();
         mockParquetReadObjects.mockReset();
         mockParquetSchema.mockReset();
+        mockZipLoadAsync.mockReset();
+        mockZipLoadAsync.mockResolvedValue({ files: {} });
     });
 
     afterEach(() => {
@@ -448,6 +469,168 @@ describe('FileUtils delimited formats', () => {
         expect(result.viewType).toBe('omni-viewer.ggufViewer');
         expect(result.matchedBySignature).toBe(true);
         expect(result.reason).toContain('GGUF magic bytes');
+    });
+
+    it('routes a Keras v3 archive to the Keras viewer instead of the archive viewer', async () => {
+        const filePath = path.join(tempDir, 'model.keras');
+        const zip = Buffer.alloc(64);
+        zip.write('PK\x03\x04', 0, 'latin1');
+        fs.writeFileSync(filePath, zip);
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.kerasViewer');
+        expect(result.matchedBySignature).toBe(true);
+        expect(result.reason).toContain('Keras v3 extension');
+    });
+
+    it('routes a mislabeled Keras archive by its weight store member', async () => {
+        const filePath = path.join(tempDir, 'export.zip');
+        const zip = Buffer.alloc(64);
+        zip.write('PK\x03\x04', 0, 'latin1');
+        fs.writeFileSync(filePath, zip);
+        mockZipLoadAsync.mockResolvedValue({
+            files: { 'metadata.json': {}, 'config.json': {}, 'model.weights.h5': {} }
+        });
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.kerasViewer');
+        expect(result.reason).toContain('Keras v3 archive members');
+    });
+
+    it('leaves an ordinary ZIP carrying config and metadata JSON with the archive viewer', async () => {
+        const filePath = path.join(tempDir, 'bundle.zip');
+        const zip = Buffer.alloc(64);
+        zip.write('PK\x03\x04', 0, 'latin1');
+        fs.writeFileSync(filePath, zip);
+        mockZipLoadAsync.mockResolvedValue({
+            files: { 'metadata.json': {}, 'config.json': {}, 'README.md': {} }
+        });
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.archiveViewer');
+        expect(result.reason).toContain('ZIP archive signature');
+    });
+
+    it('leaves an oversized Keras archive with the archive viewer', async () => {
+        const filePath = path.join(tempDir, 'huge.keras');
+        const zip = Buffer.alloc(64);
+        zip.write('PK\x03\x04', 0, 'latin1');
+        fs.writeFileSync(filePath, zip);
+        fs.truncateSync(filePath, MAX_KERAS_READ_BYTES + 1);
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.archiveViewer');
+        expect(result.reason).toContain('too large to inspect as a model');
+    });
+
+    it('keeps a corrupt Keras archive on the Keras viewer, which reports what is wrong', async () => {
+        const filePath = path.join(tempDir, 'truncated.keras');
+        fs.writeFileSync(filePath, Buffer.from('not a zip and not an hdf5 file'));
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.kerasViewer');
+        expect(result.matchedBySignature).toBe(false);
+        expect(result.reason).toContain('Keras extension fallback');
+    });
+
+    it('does not claim a corrupt Keras file past the memory budget', async () => {
+        const filePath = path.join(tempDir, 'truncated-huge.keras');
+        fs.writeFileSync(filePath, Buffer.from('not a zip and not an hdf5 file'));
+        fs.truncateSync(filePath, MAX_KERAS_READ_BYTES + 1);
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBeNull();
+    });
+
+    it('routes a Keras HDF5 model to the Keras viewer', async () => {
+        const filePath = path.join(tempDir, 'legacy.h5');
+        const header = kerasHdf5Header();
+        fs.writeFileSync(filePath, header);
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.kerasViewer');
+        expect(result.matchedBySignature).toBe(true);
+        expect(result.reason).toContain('Keras model attributes');
+    });
+
+    it('leaves a Keras HDF5 model past the memory budget with the paged HDF5 viewer', async () => {
+        const filePath = path.join(tempDir, 'huge.h5');
+        fs.writeFileSync(filePath, kerasHdf5Header());
+        fs.truncateSync(filePath, MAX_KERAS_READ_BYTES + 1);
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.hdf5Viewer');
+        expect(result.reason).toContain('HDF5 signature');
+    });
+
+    it('leaves a Keras weights-only HDF5 file with the HDF5 viewer', async () => {
+        // `save_weights` writes `keras_version` to a file that holds no model,
+        // so that attribute alone must not claim the file for the Keras viewer.
+        const filePath = path.join(tempDir, 'weights.h5');
+        const header = hdf5Header();
+        header.write('keras_version', 64, 'latin1');
+        header.write('backend', 96, 'latin1');
+        fs.writeFileSync(filePath, header);
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.hdf5Viewer');
+        expect(result.reason).toContain('HDF5 signature');
+    });
+
+    it('leaves an HDF5 file that merely mentions model_config with the HDF5 viewer', async () => {
+        // The probe scans bytes, so a lone `model_config` string can come from a
+        // dataset name or value in a file Keras never wrote.
+        const filePath = path.join(tempDir, 'experiment.h5');
+        const header = hdf5Header();
+        header.write('model_config', 64, 'latin1');
+        fs.writeFileSync(filePath, header);
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.hdf5Viewer');
+        expect(result.reason).toContain('HDF5 signature');
+    });
+
+    it('leaves a plain HDF5 file with the HDF5 viewer', async () => {
+        const filePath = path.join(tempDir, 'data.h5');
+        fs.writeFileSync(filePath, hdf5Header());
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.hdf5Viewer');
+        expect(result.reason).toContain('HDF5 signature');
+    });
+
+    it('keeps an explicit Keras request on an HDF5 model file', async () => {
+        const filePath = path.join(tempDir, 'model.hdf5');
+        fs.writeFileSync(filePath, hdf5Header());
+
+        const result = await FileUtils.detectViewerType(filePath, 'omni-viewer.kerasViewer');
+
+        expect(result.viewType).toBe('omni-viewer.kerasViewer');
+        expect(result.reason).toContain('preserved the requested Keras viewer');
+    });
+
+    it('sends an explicit Keras request on an oversized HDF5 file to the HDF5 viewer', async () => {
+        // Honouring it would only produce the size-cap error page, and the tree
+        // viewer reads a file that large without loading it.
+        const filePath = path.join(tempDir, 'huge.hdf5');
+        fs.writeFileSync(filePath, kerasHdf5Header());
+        fs.truncateSync(filePath, MAX_KERAS_READ_BYTES + 1);
+
+        const result = await FileUtils.detectViewerType(filePath, 'omni-viewer.kerasViewer');
+
+        expect(result.viewType).toBe('omni-viewer.hdf5Viewer');
+        expect(result.reason).toContain('HDF5 signature');
     });
 
     it('detects LaTeX files by extension', async () => {

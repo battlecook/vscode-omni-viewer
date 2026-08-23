@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { spawn } from 'child_process';
 import JSZip from 'jszip';
+import { MAX_KERAS_READ_BYTES } from './kerasLimits';
 import { PptxXmlParser } from './pptxXmlParser';
 import { PptBinaryParser } from './pptBinaryParser';
 import {
@@ -64,6 +65,7 @@ export type OmniViewerViewType =
     | 'omni-viewer.safetensorsViewer'
     | 'omni-viewer.onnxViewer'
     | 'omni-viewer.tfliteViewer'
+    | 'omni-viewer.kerasViewer'
     | 'omni-viewer.ggufViewer'
     | 'omni-viewer.hwpViewer'
     | 'omni-viewer.psdViewer'
@@ -197,6 +199,29 @@ export class FileUtils {
         }
 
         if (this.matchesBytes(buffer, [0x89, 0x48, 0x44, 0x46, 0x0d, 0x0a, 0x1a, 0x0a])) {
+            // A model saved with `save_format='h5'` is an HDF5 file, so the Keras
+            // probe runs before the tree viewer claims it, and an explicit Keras
+            // request is honoured so reopening such a model with the Keras viewer
+            // is not rerouted straight back here.
+            //
+            // Either way the Keras viewer only takes a file it can hold in
+            // memory. A larger model stays with the paged HDF5 tree viewer, which
+            // reads it without loading it: claiming it would leave the file
+            // unopenable, since the tree viewer reroutes here on every attempt
+            // and the Keras parse then fails on the size cap.
+            const requestedKeras = fallbackViewType === 'omni-viewer.kerasViewer';
+            if (
+                (requestedKeras || this.looksLikeKerasHdf5Header(buffer, ext))
+                && await this.fitsKerasMemoryBudget(filePath)
+            ) {
+                return this.signatureMatch(
+                    'omni-viewer.kerasViewer',
+                    requestedKeras
+                        ? 'Matched the HDF5 signature and preserved the requested Keras viewer.'
+                        : 'Matched the HDF5 signature and Keras model attributes.'
+                );
+            }
+
             return this.signatureMatch('omni-viewer.hdf5Viewer', 'Matched the HDF5 signature.');
         }
 
@@ -274,7 +299,23 @@ export class FileUtils {
                 );
             }
 
-            const zipType = await this.detectZipBasedOfficeViewType(filePath);
+            if (ext === '.keras') {
+                // An archive past the Keras memory budget stays with the archive
+                // viewer, which can still list what is inside it.
+                if (await this.fitsKerasMemoryBudget(filePath)) {
+                    return this.signatureMatch(
+                        'omni-viewer.kerasViewer',
+                        'Matched a ZIP container with the Keras v3 extension.'
+                    );
+                }
+
+                return this.signatureMatch(
+                    'omni-viewer.archiveViewer',
+                    'Matched a Keras v3 archive too large to inspect as a model.'
+                );
+            }
+
+            const zipType = await this.detectZipBasedViewType(filePath);
             if (zipType) {
                 return this.signatureMatch(zipType.viewType, zipType.reason);
             }
@@ -346,6 +387,16 @@ export class FileUtils {
             return {
                 viewType: 'omni-viewer.tfliteViewer',
                 reason: 'Used the TFLite/LiteRT extension fallback.',
+                matchedBySignature: false
+            };
+        }
+
+        // Reached only when the file is not a readable ZIP; still worth the
+        // Keras viewer, which reports what is wrong with the archive.
+        if (ext === '.keras' && await this.fitsKerasMemoryBudget(filePath)) {
+            return {
+                viewType: 'omni-viewer.kerasViewer',
+                reason: 'Used the Keras extension fallback.',
                 matchedBySignature: false
             };
         }
@@ -710,7 +761,33 @@ export class FileUtils {
         return null;
     }
 
-    private static async detectZipBasedOfficeViewType(filePath: string): Promise<{ viewType: OmniViewerViewType; reason: string } | null> {
+    /** True when the HDF5 header carries the root attribute names Keras writes
+     *  for a legacy `save_format='h5'` model. Both names are required: this is a
+     *  byte scan of the signature buffer rather than an attribute lookup, and
+     *  `model_config` alone can appear as a dataset or string value in an
+     *  unrelated file, while `keras_version` alone is what `save_weights` writes
+     *  to a file that holds no model. Either mistake would take a file the HDF5
+     *  tree viewer handles better. A model whose root header sits past the
+     *  signature buffer also stays with that viewer. */
+    private static looksLikeKerasHdf5Header(buffer: Buffer, ext: string): boolean {
+        if (ext !== '.h5' && ext !== '.hdf5' && ext !== '.keras') {
+            return false;
+        }
+
+        const header = buffer.toString('latin1');
+        return header.includes('model_config') && header.includes('keras_version');
+    }
+
+    private static async fitsKerasMemoryBudget(filePath: string): Promise<boolean> {
+        try {
+            const { size } = await fs.promises.stat(filePath);
+            return size <= MAX_KERAS_READ_BYTES;
+        } catch {
+            return false;
+        }
+    }
+
+    private static async detectZipBasedViewType(filePath: string): Promise<{ viewType: OmniViewerViewType; reason: string } | null> {
         try {
             const zipLoader = (JSZip as unknown as { loadAsync?: (input: Buffer) => Promise<JSZip> }).loadAsync;
             if (!zipLoader) {
@@ -750,6 +827,22 @@ export class FileUtils {
                 return {
                     viewType: 'omni-viewer.hwpViewer',
                     reason: 'Matched a ZIP container with HWPX package entries.'
+                };
+            }
+
+            // `metadata.json` and `config.json` alone are too common in ordinary
+            // ZIPs, so the weight store is what identifies a Keras 3 archive. An
+            // archive past the Keras memory budget stays with the archive viewer,
+            // which can still list what is inside it.
+            if (
+                names.includes('model.weights.h5')
+                && names.includes('config.json')
+                && names.includes('metadata.json')
+                && buffer.length <= MAX_KERAS_READ_BYTES
+            ) {
+                return {
+                    viewType: 'omni-viewer.kerasViewer',
+                    reason: 'Matched a ZIP container with Keras v3 archive members.'
                 };
             }
         } catch (error) {

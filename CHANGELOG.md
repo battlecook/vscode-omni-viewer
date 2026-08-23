@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.42.0] - 2026-08-23
+
+### Added
+- **Keras Viewer**
+  - Added a custom editor for Keras models built on `omni-viewer-core`, covering both the Keras 3 `.keras` archive and the legacy `save_format='h5'` model, with parsing isolated in a worker and the viewer mounted in a dedicated webview bundle
+  - Added a model summary plus Layers, Weights, Training, Model Info, Config, and Files views covering layer classes, activations, built input shapes, parameter counts, inbound connections, compile configuration, and archive members
+  - Matched weights to their layers through the Keras 3 store paths and the legacy `/model_weights` layout, and reported missing configs, unreadable members, and unmatched weights as warnings instead of failing the parse
+  - Added `.keras` archive routing, a Keras probe on HDF5 files so a Keras `.h5` model opens in the model viewer while a plain HDF5 file stays with the HDF5 tree viewer, custom editor registration, explorer actions, and an `Open With OmniViewer` command
+  - Capped in-memory inspection at 512 MB and cancelled worker parsing when the editor load is cancelled or its panel closes
+  - Walked the HDF5 weight store for shapes and dtypes only, so no weight payload is decoded or sent into the webview
+
+### Changed
+- **Dependencies**
+  - Bumped `omni-viewer-core` to `^0.16.0`
+
 ## [0.41.0] - 2026-08-13
 
 ### Added

@@ -2,8 +2,8 @@
   "name": "omni-viewer",
   "displayName": "omni-viewer",
   "publisher": "battlecook",
-  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, excel, word, powerpoint, parquet, Shapefile, HDF5, MAT, Safetensors, ONNX, TFLite, GGUF, jsonl, yaml, toml, markdown, LaTeX, mermaid, PlantUML, hwp, PSD and PDF files",
-  "version": "0.41.0",
+  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, excel, word, powerpoint, parquet, Shapefile, HDF5, MAT, Safetensors, ONNX, TFLite, Keras, GGUF, jsonl, yaml, toml, markdown, LaTeX, mermaid, PlantUML, hwp, PSD and PDF files",
+  "version": "0.42.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
@@ -80,6 +80,9 @@
     "TFLite",
     "tflite",
     "LiteRT",
+    "Keras",
+    "keras",
+    "TensorFlow",
     "GGUF",
     "gguf",
     "llama.cpp",
@@ -599,6 +602,16 @@
         "priority": "default"
       },
       {
+        "viewType": "omni-viewer.kerasViewer",
+        "displayName": "Keras Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.keras"
+          }
+        ],
+        "priority": "default"
+      },
+      {
         "viewType": "omni-viewer.ggufViewer",
         "displayName": "GGUF Viewer",
         "selector": [
@@ -871,6 +884,11 @@
           "group": "navigation"
         },
         {
+          "command": "omni-viewer.openKerasViewer",
+          "when": "resourceExtname == '.keras'",
+          "group": "navigation"
+        },
+        {
           "command": "omni-viewer.openGgufViewer",
           "when": "resourceExtname == '.gguf'",
           "group": "navigation"
@@ -1079,6 +1097,11 @@
         "category": "Omni Viewer"
       },
       {
+        "command": "omni-viewer.openKerasViewer",
+        "title": "Open With OmniViewer",
+        "category": "Omni Viewer"
+      },
+      {
         "command": "omni-viewer.openGgufViewer",
         "title": "Open With OmniViewer",
         "category": "Omni Viewer"
@@ -1178,7 +1201,7 @@
     "marked": "^16.4.2",
     "mermaid": "^11.15.0",
     "music-metadata": "^11.8.3",
-    "omni-viewer-core": "^0.15.0",
+    "omni-viewer-core": "^0.16.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.10.38",
     "proj4": "^2.20.9",
