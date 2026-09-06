@@ -7,6 +7,7 @@ import { AudioViewerProvider } from './audioViewerProvider';
 import { AvroViewerProvider } from './avroViewerProvider';
 import { BagViewerProvider } from './bagViewerProvider';
 import { BlfViewerProvider } from './blfViewerProvider';
+import { CoremlViewerProvider } from './coremlViewerProvider';
 import { CsvViewerProvider } from './csvViewerProvider';
 import { Db3ViewerProvider } from './db3ViewerProvider';
 import { DbcViewerProvider } from './dbcViewerProvider';
@@ -296,6 +297,13 @@ export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
         missingMessage: 'No Keras file selected',
         retainContextWhenHidden: true,
         createProvider: (context) => new KerasViewerProvider(context)
+    },
+    {
+        viewType: CoremlViewerProvider.viewType,
+        command: 'omni-viewer.openCoremlViewer',
+        missingMessage: 'No Core ML file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new CoremlViewerProvider(context)
     },
     {
         viewType: GgufViewerProvider.viewType,

@@ -4,6 +4,7 @@ import * as os from 'os';
 import { spawn } from 'child_process';
 import JSZip from 'jszip';
 import { MAX_KERAS_READ_BYTES } from './kerasLimits';
+import { MAX_COREML_READ_BYTES } from './coremlLimits';
 import { PptxXmlParser } from './pptxXmlParser';
 import { PptBinaryParser } from './pptBinaryParser';
 import {
@@ -66,6 +67,7 @@ export type OmniViewerViewType =
     | 'omni-viewer.onnxViewer'
     | 'omni-viewer.tfliteViewer'
     | 'omni-viewer.kerasViewer'
+    | 'omni-viewer.coremlViewer'
     | 'omni-viewer.ggufViewer'
     | 'omni-viewer.hwpViewer'
     | 'omni-viewer.psdViewer'
@@ -315,6 +317,22 @@ export class FileUtils {
                 );
             }
 
+            if (ext === '.mlpackage') {
+                // An archive past the Core ML memory budget stays with the
+                // archive viewer, which can still list what is inside it.
+                if (await this.fitsCoremlMemoryBudget(filePath)) {
+                    return this.signatureMatch(
+                        'omni-viewer.coremlViewer',
+                        'Matched a ZIP container with the Core ML package extension.'
+                    );
+                }
+
+                return this.signatureMatch(
+                    'omni-viewer.archiveViewer',
+                    'Matched a Core ML package too large to inspect as a model.'
+                );
+            }
+
             const zipType = await this.detectZipBasedViewType(filePath);
             if (zipType) {
                 return this.signatureMatch(zipType.viewType, zipType.reason);
@@ -387,6 +405,21 @@ export class FileUtils {
             return {
                 viewType: 'omni-viewer.tfliteViewer',
                 reason: 'Used the TFLite/LiteRT extension fallback.',
+                matchedBySignature: false
+            };
+        }
+
+        // A bare `.mlmodel` is a raw protobuf with no magic bytes, so the
+        // extension is what routes it, exactly as for ONNX above. A
+        // `.mlpackage` only reaches here when it is not a readable ZIP; it is
+        // still worth the Core ML viewer, which reports what is wrong with it.
+        if (
+            (ext === '.mlmodel' || ext === '.mlpackage')
+            && await this.fitsCoremlMemoryBudget(filePath)
+        ) {
+            return {
+                viewType: 'omni-viewer.coremlViewer',
+                reason: 'Used the Core ML extension fallback.',
                 matchedBySignature: false
             };
         }
@@ -787,6 +820,15 @@ export class FileUtils {
         }
     }
 
+    private static async fitsCoremlMemoryBudget(filePath: string): Promise<boolean> {
+        try {
+            const { size } = await fs.promises.stat(filePath);
+            return size <= MAX_COREML_READ_BYTES;
+        } catch {
+            return false;
+        }
+    }
+
     private static async detectZipBasedViewType(filePath: string): Promise<{ viewType: OmniViewerViewType; reason: string } | null> {
         try {
             const zipLoader = (JSZip as unknown as { loadAsync?: (input: Buffer) => Promise<JSZip> }).loadAsync;
@@ -843,6 +885,21 @@ export class FileUtils {
                 return {
                     viewType: 'omni-viewer.kerasViewer',
                     reason: 'Matched a ZIP container with Keras v3 archive members.'
+                };
+            }
+
+            // A zipped `.mlpackage` names its spec under the Core ML data
+            // directory its `Manifest.json` indexes, which no ordinary ZIP
+            // carries. An archive past the Core ML memory budget stays with the
+            // archive viewer, which can still list what is inside it.
+            if (
+                names.some(name => /^[^/]*\/?Data\/com\.apple\.CoreML\/.+\.mlmodel$/i.test(name))
+                && names.some(name => /(^|\/)Manifest\.json$/i.test(name))
+                && buffer.length <= MAX_COREML_READ_BYTES
+            ) {
+                return {
+                    viewType: 'omni-viewer.coremlViewer',
+                    reason: 'Matched a ZIP container with Core ML package members.'
                 };
             }
         } catch (error) {

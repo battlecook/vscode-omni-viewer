@@ -10,6 +10,7 @@ module.exports = [
       extension: './src/extension.ts',
       tfliteParserWorker: './src/tfliteParserWorker.ts',
       kerasParserWorker: './src/kerasParserWorker.ts',
+      coremlParserWorker: './src/coremlParserWorker.ts',
       audioViewerProvider: './src/audioViewerProvider.ts',
       audioEngine: './src/audioEngine.ts',
       videoViewerProvider: './src/videoViewerProvider.ts',
@@ -381,6 +382,53 @@ module.exports = [
       filename: 'kerasViewer.js',
       libraryTarget: 'var',
       library: 'KerasViewer'
+    },
+    resolve: {
+      extensions: ['.js'],
+      fallback: {
+        fs: false,
+        path: false
+      }
+    },
+    module: {
+      rules: [
+        {
+          test: /\.js$/,
+          exclude: /node_modules/,
+          use: {
+            loader: 'babel-loader',
+            options: {
+              presets: ['@babel/preset-env']
+            }
+          }
+        }
+      ]
+    },
+    optimization: {
+      splitChunks: false,
+      runtimeChunk: false,
+      minimize: true,
+      usedExports: true,
+      sideEffects: false
+    },
+    plugins: [
+      new webpack.optimize.LimitChunkCountPlugin({
+        maxChunks: 1
+      })
+    ]
+  },
+  // JavaScript files configuration for Core ML viewer (omni-viewer-core)
+  {
+    mode: 'production',
+    target: 'web',
+    entry: {
+      'templates/coreml/js/coremlViewer': './src/templates/coreml/js/coremlViewerMain.js'
+    },
+    output: {
+      path: path.resolve(__dirname, 'src/templates/coreml/js'),
+      filename: 'coremlViewer.js',
+      libraryTarget: 'var',
+      library: 'CoremlViewer'
     },
     resolve: {
       extensions: ['.js'],

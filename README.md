@@ -1,6 +1,6 @@
 # VSCode Omni Viewer
 
-A comprehensive audio, image, PSD, video, CSV, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, Excel, Word, PowerPoint, PDF, Parquet, HDF5, Safetensors, ONNX, TFLite/LiteRT, Keras, GGUF, JSONL, LaTeX, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
+A comprehensive audio, image, PSD, video, CSV, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, Excel, Word, PowerPoint, PDF, Parquet, HDF5, Safetensors, ONNX, TFLite/LiteRT, Keras, Core ML, GGUF, JSONL, LaTeX, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-red)](https://github.com/sponsors/battlecook)
 
@@ -293,7 +293,7 @@ Note: external file references are not resolved, and BibTeX, cross-reference num
 - **Validation Warnings**: Reports malformed headers, unsupported data types, and inconsistent tensor byte ranges
 - **Search and Export**: Filters tensor/metadata rows and copies the parsed model as JSON
 - **Efficient Large-File Access**: Reads only the Safetensors prefix and JSON header instead of loading tensor payloads
-- **Powered by**: `omni-viewer-core` 0.16.0 for random-access Safetensors parsing
+- **Powered by**: `omni-viewer-core` 0.17.0 for random-access Safetensors parsing
 
 ## 🕸️ ONNX Viewer Features
 
@@ -305,7 +305,7 @@ Note: external file references are not resolved, and BibTeX, cross-reference num
 - **Opsets and Metadata**: Reports imported opset domains and versions plus the model's metadata properties
 - **Validation Warnings**: Reports truncated, malformed, or unsupported protobuf structures instead of failing silently
 - **Weights Stay on Disk**: Parses the ModelProto for topology and metadata only — tensor payloads are skipped, never decoded into memory
-- **Powered by**: `omni-viewer-core` 0.16.0 for the dependency-free ONNX protobuf reader and viewer
+- **Powered by**: `omni-viewer-core` 0.17.0 for the dependency-free ONNX protobuf reader and viewer
 
 ## 📱 TFLite / LiteRT Viewer Features
 
@@ -317,7 +317,7 @@ Note: external file references are not resolved, and BibTeX, cross-reference num
 - **Model Metadata**: Lists signatures, metadata entries, external buffers, and model information in searchable panels
 - **Validation Warnings**: Surfaces malformed FlatBuffers, custom operators, Select TensorFlow fallbacks, and externally stored buffers
 - **Weights Stay Unparsed**: Reads the `TFL3` FlatBuffer structure without decoding tensor payloads
-- **Powered by**: `omni-viewer-core` 0.16.0 for dependency-free TFLite/LiteRT parsing and rendering
+- **Powered by**: `omni-viewer-core` 0.17.0 for dependency-free TFLite/LiteRT parsing and rendering
 
 ## 🧱 Keras Viewer Features
 
@@ -330,7 +330,20 @@ Note: external file references are not resolved, and BibTeX, cross-reference num
 - **Training Configuration**: Shows the compiled optimizer, loss, and metrics along with the archive's metadata and members
 - **Validation Warnings**: Reports missing or unreadable configs, unmatched weights, and unknown layouts instead of failing the parse
 - **Weights Stay Undecoded**: Walks the HDF5 weight store for shapes and dtypes only — no weight payload is decoded or sent into the webview. The model is inspected in memory, so a file above 512 MB is left to the HDF5 viewer or the Archive viewer instead
-- **Powered by**: `omni-viewer-core` 0.16.0 for Keras archive and HDF5 model parsing and rendering
+- **Powered by**: `omni-viewer-core` 0.17.0 for Keras archive and HDF5 model parsing and rendering
+
+## 🍎 Core ML Viewer Features
+
+### Apple Core ML Models (.mlmodel, .mlpackage)
+- **Both Encodings**: Reads a bare `.mlmodel` specification and an `.mlpackage` archive, telling the two apart by their bytes rather than their name. A `.mlpackage` written to disk as a folder is a directory rather than a file, so open the `Data/com.apple.CoreML/*.mlmodel` inside it, or a zipped copy of the package
+- **Model Summary**: Shows the specification version with the iOS/macOS release it requires, the model type, and function, graph, operation, input, and output counts
+- **Prediction Interface**: Lists every input, output, state, and training input with its feature type — `image 224 × 224 RGB`, `multiArray FLOAT32[1, 3, 224, 224]` — along with shape flexibility, optional flags, and descriptions, across all functions for multi-function models
+- **Graph Explorer**: Walks ML Program operations with their named operands, attributes, and nested blocks; pre-Core ML 5 neural network layers with resolved layer types; and pipeline stages, with control-flow targets linked between graphs
+- **Weight Inventory**: Resolves each blob-backed tensor to its file, offset, byte count, and quantization, and reports inline tensors by size — plus a per-weight-file view of reference counts and whether the package actually carries the file
+- **Custom & Updatable Ops**: Flags operations needing a class registered with the runtime and layers marked for on-device update
+- **Package Contents**: Shows the `Manifest.json` items and archive members of an `.mlpackage`, including the path of the spec that was parsed
+- **Weights Stay Undecoded**: Never decodes a single parameter — blob references become offsets and byte counts, so no weight payload reaches the webview. The model is inspected in memory, so a file above 512 MB is left to the Archive viewer
+- **Powered by**: `omni-viewer-core` 0.17.0 for dependency-free Core ML protobuf parsing and rendering
 
 ## 🦙 GGUF Viewer Features
 
@@ -341,7 +354,7 @@ Note: external file references are not resolved, and BibTeX, cross-reference num
 - **Structure View**: Shows byte order, tensor data offset, and the parsed file layout
 - **Validation Warnings**: Reports header, EOF, and admission-limit problems for malformed or hostile files
 - **Efficient Large-File Access**: Range-reads only the metadata and tensor-index prefix — a multi-gigabyte model opens without reading its weights
-- **Powered by**: `omni-viewer-core` 0.16.0 for GGUF parsing and the viewer
+- **Powered by**: `omni-viewer-core` 0.17.0 for GGUF parsing and the viewer
 
 ## 🧭 Smart File Detection
 

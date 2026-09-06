@@ -28,6 +28,7 @@ jest.mock('jszip', () => ({
 
 import { FileUtils } from '../utils/fileUtils';
 import { MAX_KERAS_READ_BYTES } from '../utils/kerasLimits';
+import { MAX_COREML_READ_BYTES } from '../utils/coremlLimits';
 
 function hdf5Header(): Buffer {
     const header = Buffer.alloc(512);
@@ -469,6 +470,74 @@ describe('FileUtils delimited formats', () => {
         expect(result.viewType).toBe('omni-viewer.ggufViewer');
         expect(result.matchedBySignature).toBe(true);
         expect(result.reason).toContain('GGUF magic bytes');
+    });
+
+    it('detects bare .mlmodel specifications by extension', async () => {
+        // A `.mlmodel` is a raw protobuf with no magic bytes, so only the
+        // extension can route it.
+        const filePath = path.join(tempDir, 'model.mlmodel');
+        fs.writeFileSync(filePath, Buffer.from([0x08, 0x07, 0x12, 0x00]));
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.coremlViewer');
+        expect(result.matchedBySignature).toBe(false);
+        expect(result.reason).toContain('Core ML extension fallback');
+    });
+
+    it('routes an .mlpackage archive to the Core ML viewer instead of the archive viewer', async () => {
+        const filePath = path.join(tempDir, 'model.mlpackage');
+        const zip = Buffer.alloc(64);
+        zip.write('PK\x03\x04', 0, 'latin1');
+        fs.writeFileSync(filePath, zip);
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.coremlViewer');
+        expect(result.matchedBySignature).toBe(true);
+        expect(result.reason).toContain('Core ML package extension');
+    });
+
+    it('routes a mislabeled Core ML package by its spec member', async () => {
+        const filePath = path.join(tempDir, 'export.zip');
+        const zip = Buffer.alloc(64);
+        zip.write('PK\x03\x04', 0, 'latin1');
+        fs.writeFileSync(filePath, zip);
+        mockZipLoadAsync.mockResolvedValue({
+            files: {
+                'Manifest.json': {},
+                'Data/com.apple.CoreML/model.mlmodel': {},
+                'Data/com.apple.CoreML/weights/weight.bin': {}
+            }
+        });
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.coremlViewer');
+        expect(result.reason).toContain('Core ML package members');
+    });
+
+    it('leaves an oversized Core ML package with the archive viewer', async () => {
+        const filePath = path.join(tempDir, 'huge.mlpackage');
+        const zip = Buffer.alloc(64);
+        zip.write('PK\x03\x04', 0, 'latin1');
+        fs.writeFileSync(filePath, zip);
+        fs.truncateSync(filePath, MAX_COREML_READ_BYTES + 1);
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.archiveViewer');
+        expect(result.reason).toContain('too large to inspect as a model');
+    });
+
+    it('does not claim a Core ML file past the memory budget', async () => {
+        const filePath = path.join(tempDir, 'huge.mlmodel');
+        fs.writeFileSync(filePath, Buffer.from([0x08, 0x07]));
+        fs.truncateSync(filePath, MAX_COREML_READ_BYTES + 1);
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBeNull();
     });
 
     it('routes a Keras v3 archive to the Keras viewer instead of the archive viewer', async () => {

@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.43.0] - 2026-09-05
+
+### Added
+- **Core ML Viewer**
+  - Added a custom editor for Apple Core ML models built on `omni-viewer-core`, covering both the bare `.mlmodel` specification and the `.mlpackage` archive, with parsing isolated in a worker and the viewer mounted in a dedicated webview bundle
+  - Added a model summary plus prediction interface, graph, weight, package, and model info views covering specification version and the iOS/macOS release it requires, model type, feature types with shape flexibility, class labels, and user-defined metadata
+  - Walked ML Program operations with their named operands, attributes, and nested blocks, pre-Core ML 5 neural network layers with resolved layer types, and pipeline stages, linking control-flow targets between graphs
+  - Resolved blob-backed tensors to a file, offset, byte count, and quantization, reported inline tensors by size, and summarized each weight file's reference count and whether the package carries it
+  - Flagged custom operations needing a runtime-registered class and layers marked for on-device update
+  - Added `.mlmodel` extension routing, `.mlpackage` archive routing with member-based detection for a mislabeled package, custom editor registration, explorer actions, and an `Open With OmniViewer` command
+  - Capped in-memory inspection at 512 MB and cancelled worker parsing when the editor load is cancelled or its panel closes
+  - Never decoded a single parameter, so no weight payload is sent into the webview
+
+### Changed
+- **Dependencies**
+  - Bumped `omni-viewer-core` to `^0.17.0`
+
 ## [0.42.0] - 2026-08-23
 
 ### Added
