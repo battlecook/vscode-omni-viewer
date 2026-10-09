@@ -9,8 +9,10 @@ module.exports = [
     entry: {
       extension: './src/extension.ts',
       tfliteParserWorker: './src/tfliteParserWorker.ts',
+      pteParserWorker: './src/pteParserWorker.ts',
       kerasParserWorker: './src/kerasParserWorker.ts',
       coremlParserWorker: './src/coremlParserWorker.ts',
+      harParserWorker: './src/harParserWorker.ts',
       audioViewerProvider: './src/audioViewerProvider.ts',
       audioEngine: './src/audioEngine.ts',
       videoViewerProvider: './src/videoViewerProvider.ts',
@@ -229,6 +231,53 @@ module.exports = [
       })
     ]
   },
+  // JavaScript files configuration for Jupyter notebook viewer (omni-viewer-core)
+  {
+    mode: 'production',
+    target: 'web',
+    entry: {
+      'templates/notebook/js/notebookViewer': './src/templates/notebook/js/notebookViewerMain.js'
+    },
+    output: {
+      path: path.resolve(__dirname, 'src/templates/notebook/js'),
+      filename: 'notebookViewer.js',
+      libraryTarget: 'var',
+      library: 'NotebookViewer'
+    },
+    resolve: {
+      extensions: ['.js'],
+      fallback: {
+        fs: false,
+        path: false
+      }
+    },
+    module: {
+      rules: [
+        {
+          test: /\.js$/,
+          exclude: /node_modules/,
+          use: {
+            loader: 'babel-loader',
+            options: {
+              presets: ['@babel/preset-env']
+            }
+          }
+        }
+      ]
+    },
+    optimization: {
+      splitChunks: false,
+      runtimeChunk: false,
+      minimize: true,
+      usedExports: true,
+      sideEffects: false
+    },
+    plugins: [
+      new webpack.optimize.LimitChunkCountPlugin({
+        maxChunks: 1
+      })
+    ]
+  },
   // JavaScript files configuration for ONNX viewer (omni-viewer-core)
   {
     mode: 'production',
@@ -370,6 +419,53 @@ module.exports = [
       })
     ]
   },
+  // JavaScript files configuration for ExecuTorch viewer (omni-viewer-core)
+  {
+    mode: 'production',
+    target: 'web',
+    entry: {
+      'templates/pte/js/pteViewer': './src/templates/pte/js/pteViewerMain.js'
+    },
+    output: {
+      path: path.resolve(__dirname, 'src/templates/pte/js'),
+      filename: 'pteViewer.js',
+      libraryTarget: 'var',
+      library: 'PteViewer'
+    },
+    resolve: {
+      extensions: ['.js'],
+      fallback: {
+        fs: false,
+        path: false
+      }
+    },
+    module: {
+      rules: [
+        {
+          test: /\.js$/,
+          exclude: /node_modules/,
+          use: {
+            loader: 'babel-loader',
+            options: {
+              presets: ['@babel/preset-env']
+            }
+          }
+        }
+      ]
+    },
+    optimization: {
+      splitChunks: false,
+      runtimeChunk: false,
+      minimize: true,
+      usedExports: true,
+      sideEffects: false
+    },
+    plugins: [
+      new webpack.optimize.LimitChunkCountPlugin({
+        maxChunks: 1
+      })
+    ]
+  },
   // JavaScript files configuration for Keras viewer (omni-viewer-core)
   {
     mode: 'production',
@@ -429,6 +525,53 @@ module.exports = [
       filename: 'coremlViewer.js',
       libraryTarget: 'var',
       library: 'CoremlViewer'
+    },
+    resolve: {
+      extensions: ['.js'],
+      fallback: {
+        fs: false,
+        path: false
+      }
+    },
+    module: {
+      rules: [
+        {
+          test: /\.js$/,
+          exclude: /node_modules/,
+          use: {
+            loader: 'babel-loader',
+            options: {
+              presets: ['@babel/preset-env']
+            }
+          }
+        }
+      ]
+    },
+    optimization: {
+      splitChunks: false,
+      runtimeChunk: false,
+      minimize: true,
+      usedExports: true,
+      sideEffects: false
+    },
+    plugins: [
+      new webpack.optimize.LimitChunkCountPlugin({
+        maxChunks: 1
+      })
+    ]
+  },
+  // JavaScript files configuration for HAR viewer (omni-viewer-core)
+  {
+    mode: 'production',
+    target: 'web',
+    entry: {
+      'templates/har/js/harViewer': './src/templates/har/js/harViewerMain.js'
+    },
+    output: {
+      path: path.resolve(__dirname, 'src/templates/har/js'),
+      filename: 'harViewer.js',
+      libraryTarget: 'var',
+      library: 'HarViewer'
     },
     resolve: {
       extensions: ['.js'],

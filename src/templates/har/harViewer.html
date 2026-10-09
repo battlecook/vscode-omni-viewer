@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-{{cspNonce}}' {{cspSource}}; style-src 'unsafe-inline';">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HAR Viewer - {{fileName}}</title>
+    <style nonce="{{cspNonce}}">
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            background: var(--vscode-editor-background, #1e1e1e);
+            color: var(--vscode-foreground, #d4d4d4);
+            font-family: var(--vscode-font-family, sans-serif);
+        }
+        .omni-har-shell-bar {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            padding: 6px 10px;
+            flex-shrink: 0;
+        }
+        #har-root {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: auto;
+            --omni-fg: var(--vscode-foreground, #d4d4d4);
+            --omni-bg: var(--vscode-editor-background, #1e1e1e);
+            --omni-editor-bg: var(--vscode-editor-background, #1e1e1e);
+            --omni-panel-bg: var(--vscode-editorWidget-background, rgba(127, 127, 127, 0.05));
+            --omni-toolbar-bg: var(--vscode-editorWidget-background, rgba(127, 127, 127, 0.08));
+            --omni-header-bg: var(--vscode-editorWidget-background, rgba(127, 127, 127, 0.08));
+            --omni-input-bg: var(--vscode-input-background, #16181d);
+            --omni-button-bg: var(--vscode-button-secondaryBackground, rgba(127, 127, 127, 0.16));
+            --omni-hover: var(--vscode-list-hoverBackground, rgba(127, 127, 127, 0.12));
+            --omni-border: var(--vscode-widget-border, var(--vscode-panel-border, #454545));
+            --omni-muted: var(--vscode-descriptionForeground, #aaa);
+            --omni-accent: var(--vscode-focusBorder, #007fd4);
+            --omni-link: var(--vscode-textLink-foreground, #4fc1ff);
+            --omni-focus: var(--vscode-focusBorder, #007fd4);
+            --omni-error: var(--vscode-errorForeground, #f44747);
+            --omni-warning: var(--vscode-editorWarning-foreground, #cca700);
+            --omni-warning-bg: var(--vscode-inputValidation-warningBackground, #493b1c);
+            --omni-warning-fg: var(--vscode-inputValidation-warningForeground, #f0cf78);
+            --omni-font-family: var(--vscode-font-family, system-ui, sans-serif);
+            --omni-font-size: var(--vscode-font-size, 13px);
+            --omni-mono: var(--vscode-editor-font-family, monospace);
+        }
+        .omni-har-failure {
+            padding: 16px 20px;
+        }
+        .omni-har-failure h2 {
+            margin: 0 0 8px;
+            font-size: 1.1em;
+            color: var(--vscode-errorForeground, #f44747);
+        }
+        .omni-har-failure p {
+            margin: 4px 0;
+            color: var(--vscode-descriptionForeground, #aaa);
+        }
+    </style>
+</head>
+<body>
+    <div class="omni-har-shell-bar">
+        {{omniShareButtons}}
+    </div>
+    <div id="har-root"></div>
+
+    <script nonce="{{cspNonce}}" id="har-data" type="application/json">{{harData}}</script>
+    <script nonce="{{cspNonce}}" src="js/harViewer.js" data-omni-no-inline></script>
+</body>
+</html>

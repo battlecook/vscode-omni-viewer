@@ -21,6 +21,11 @@ export class TemplateUtils {
 
             template = await this.inlineExternalFiles(context, templatePath, template, webview);
 
+            // Expanded before the variables so file content carrying the
+            // literal placeholder (a notebook or Markdown file about this
+            // extension, say) is never rewritten into button markup.
+            template = template.split('{{omniShareButtons}}').join(this.OMNI_SHARE_BUTTONS_HTML);
+
             for (const [key, value] of Object.entries(variables)) {
                 const placeholder = `{{${key}}}`;
                 const safeValue = value === null || value === undefined ? '' : String(value);
@@ -129,8 +134,6 @@ export class TemplateUtils {
         const shareStyle = this.OMNI_SHARE_STYLE.replace('<style>', `<style${nonceAttribute}>`);
         const memoizeScript = this.OMNI_VSCODE_MEMOIZE_SCRIPT.replace('<script>', `<script${nonceAttribute}>`);
         const shareWireScript = this.OMNI_SHARE_WIRE_SCRIPT.replace('<script>', `<script${nonceAttribute}>`);
-
-        html = html.split('{{omniShareButtons}}').join(this.OMNI_SHARE_BUTTONS_HTML);
 
         if (html.includes('</head>')) {
             html = html.replace('</head>', `${shareStyle}\n</head>`);

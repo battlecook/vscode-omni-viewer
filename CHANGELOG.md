@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.44.0] - 2026-10-09
+
+### Added
+- **Jupyter Notebook Viewer**
+  - Added a read-only custom editor for Jupyter notebooks (`.ipynb`) built on `omni-viewer-core`, showing code and saved outputs in file order without executing anything
+  - Rendered Markdown cells with KaTeX math and `attachment:` images, code cells with `In`/`Out` counts and kernel-language highlighting, and stream, HTML table, image, Markdown, LaTeX, JSON, plain-text, and error outputs
+  - Added cell and output search, hide-all-code and hide-all-outputs toggles, and per-cell expansion honoring saved `source_hidden`, `outputs_hidden`, and `collapsed` hints
+  - Resolved images referenced relative to the notebook through the host, confined to the notebook's folder (symlinks included) and capped at 16 MiB each
+  - Added `.ipynb` extension routing ahead of the JSON probes, an optional custom editor registration that leaves VS Code's notebook editor as the default, explorer actions, and an `Open With OmniViewer` command
+- **ExecuTorch Viewer**
+  - Added a custom editor for PyTorch ExecuTorch programs (`.pte`) built on `omni-viewer-core`, with parsing isolated in a worker and the viewer mounted in a dedicated webview bundle
+  - Added a program summary plus graph, instruction, value, inputs & outputs, delegate, segment, and model info views for every method in the program
+  - Resolved each tensor's storage — inline constant, constant segment, mutable state, external `.ptd`, memory-planned, or runtime — to a segment, file offset, and byte count
+  - Listed backend delegates with their compile specs and data locations, and data segments with their kind, range, and users
+  - Flagged required runtime backends, externally stored tensors, out-of-range segments, and unrecognized scalar types or instruction kinds
+  - Added `ET12` FlatBuffer identifier detection so a mislabeled program still routes correctly, `.pte` extension routing, custom editor registration, explorer actions, and an `Open With OmniViewer` command
+  - Capped in-memory inspection at 512 MB and cancelled worker parsing when the editor load is cancelled or its panel closes
+  - Never decoded a segment payload, so no weight or delegate blob is sent into the webview
+- **HAR Viewer**
+  - Added a custom editor for HTTP Archive network logs (`.har`) built on `omni-viewer-core`, aimed at web and API failure analysis, with parsing isolated in a worker and the viewer mounted in a dedicated webview bundle
+  - Added summary figures (requests, elapsed, transferred, resources, domains, errors), a request table sortable by every column with a per-request waterfall, and filters for method, status class, resource type, domain, and free text over URLs, status text, headers, and optionally bodies
+  - Added a request detail pane with headers, payload (query string and form fields), pretty-printed JSON responses, cookies, and phase timings
+  - Kept the requests of a truncated archive and reported its problems as warnings, and localized parse failures and diagnostics in the webview
+  - Added `.har` extension routing, content detection that sends a HAR saved as `.json` or without an extension to the HAR viewer (JSONL files are never probed), custom editor registration, explorer actions, and an `Open With OmniViewer` command
+  - Added a confirmation before the Share button uploads a HAR archive (a `.har`, or a `.json` shown in the HAR viewer), since archives usually carry cookies, authorization headers, and request bodies
+  - Capped in-memory inspection at 100 MB, since the parsed request model is about as large as the archive and is embedded in the webview, and cancelled worker parsing when the editor load is cancelled or its panel closes
+
+### Changed
+- **Dependencies**
+  - Bumped `omni-viewer-core` to `^0.19.0`
+
 ## [0.43.0] - 2026-09-05
 
 ### Added

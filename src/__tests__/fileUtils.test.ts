@@ -29,6 +29,7 @@ jest.mock('jszip', () => ({
 import { FileUtils } from '../utils/fileUtils';
 import { MAX_KERAS_READ_BYTES } from '../utils/kerasLimits';
 import { MAX_COREML_READ_BYTES } from '../utils/coremlLimits';
+import { MAX_HAR_READ_BYTES } from '../utils/harLimits';
 
 function hdf5Header(): Buffer {
     const header = Buffer.alloc(512);
@@ -455,6 +456,54 @@ describe('FileUtils delimited formats', () => {
         expect(result.reason).toContain('TFLite/LiteRT extension');
     });
 
+    it('detects ExecuTorch programs by FlatBuffer identifier', async () => {
+        // Named .bin on purpose: the ET12 identifier alone must route the file.
+        const filePath = path.join(tempDir, 'program.bin');
+        const header = Buffer.alloc(12);
+        header.writeUInt32LE(8, 0);
+        header.write('ET12', 4, 'ascii');
+        fs.writeFileSync(filePath, header);
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.pteViewer');
+        expect(result.matchedBySignature).toBe(true);
+        expect(result.reason).toContain('ExecuTorch FlatBuffer identifier');
+    });
+
+    it('routes .pte files without the identifier to the ExecuTorch viewer by extension', async () => {
+        const filePath = path.join(tempDir, 'program.pte');
+        fs.writeFileSync(filePath, Buffer.from('not-enough-data-for-a-flatbuffer'));
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.pteViewer');
+        expect(result.matchedBySignature).toBe(false);
+        expect(result.reason).toContain('ExecuTorch extension');
+    });
+
+    it('keeps text whose bytes 4-7 spell ET12 away from the ExecuTorch viewer', async () => {
+        // `OFFSET12` puts "ET12" at offset 4, but "OFFS" is no FlatBuffer root offset.
+        const filePath = path.join(tempDir, 'registers.csv');
+        fs.writeFileSync(filePath, 'OFFSET12,LENGTH\n1,2\n3,4\n');
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.csvViewer');
+    });
+
+    it('does not claim an ET12 header whose root offset points past the end of the file', async () => {
+        const filePath = path.join(tempDir, 'truncated.bin');
+        const header = Buffer.alloc(12);
+        header.writeUInt32LE(64, 0);
+        header.write('ET12', 4, 'ascii');
+        fs.writeFileSync(filePath, header);
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).not.toBe('omni-viewer.pteViewer');
+    });
+
     it('detects GGUF files by signature', async () => {
         // Named .bin on purpose: the magic bytes alone must route the file.
         const filePath = path.join(tempDir, 'model.bin');
@@ -470,6 +519,159 @@ describe('FileUtils delimited formats', () => {
         expect(result.viewType).toBe('omni-viewer.ggufViewer');
         expect(result.matchedBySignature).toBe(true);
         expect(result.reason).toContain('GGUF magic bytes');
+    });
+
+    it('routes .har archives to the HAR viewer', async () => {
+        const filePath = path.join(tempDir, 'session.har');
+        fs.writeFileSync(filePath, '{"log":{"version":"1.2","entries":[]}}');
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.harViewer');
+        expect(result.reason).toContain('HAR extension fallback');
+    });
+
+    it('claims a HAR archive saved as .json before the JSON viewer', async () => {
+        const filePath = path.join(tempDir, 'network.json');
+        fs.writeFileSync(filePath, '\uFEFF{\n  "log": {\n    "version": "1.2",\n    "creator": {"name": "Firefox"},\n    "entries": [\n');
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.harViewer');
+        expect(result.reason).toContain('HTTP Archive');
+    });
+
+    it('sends a HAR saved as .json to the HAR viewer when the JSON viewer was requested', async () => {
+        // Both runtime callers pass the requested viewer, and "Open With
+        // OmniViewer" on a `.json` always requests the JSON viewer.
+        const filePath = path.join(tempDir, 'network.json');
+        fs.writeFileSync(filePath, '{"log":{"version":"1.2","entries":[]}}');
+
+        const result = await FileUtils.detectViewerType(filePath, 'omni-viewer.jsonViewer');
+
+        expect(result.viewType).toBe('omni-viewer.harViewer');
+    });
+
+    it('keeps an NDJSON log with a log key in the JSONL viewer', async () => {
+        const filePath = path.join(tempDir, 'app.ndjson');
+        fs.writeFileSync(filePath, '{"log":{"level":"info"},"entries":[1]}\n{"log":{"level":"warn"},"entries":[]}\n');
+
+        const result = await FileUtils.detectViewerType(filePath, 'omni-viewer.jsonlViewer');
+
+        expect(result.viewType).toBe('omni-viewer.jsonlViewer');
+    });
+
+    it('does not claim JSON whose entries array sits outside log', async () => {
+        const filePath = path.join(tempDir, 'outside.json');
+        fs.writeFileSync(filePath, '{"log":{"level":"info","note":"\\"entries\\": ["},"entries":[]}');
+
+        const result = await FileUtils.detectViewerType(filePath, 'omni-viewer.jsonViewer');
+
+        expect(result.viewType).toBe('omni-viewer.jsonViewer');
+    });
+
+    it('claims a pretty-printed multi-page HAR whose entries start past 16 KB', async () => {
+        const filePath = path.join(tempDir, 'session.json');
+        const pages = Array.from({ length: 80 }, (_, index) => ({
+            startedDateTime: '2026-10-09T01:02:03.000Z',
+            id: `page_${index}`,
+            title: `https://example.com/step/${index}`,
+            pageTimings: { onContentLoad: 120, onLoad: 340 }
+        }));
+        const text = JSON.stringify({
+            // No `creator`, so only the `entries` key itself can claim it.
+            log: { version: '1.2', pages, entries: [] }
+        }, null, 2);
+        expect(text.indexOf('"entries"')).toBeGreaterThan(16 * 1024);
+        fs.writeFileSync(filePath, text);
+
+        const result = await FileUtils.detectViewerType(filePath, 'omni-viewer.jsonViewer');
+
+        expect(result.viewType).toBe('omni-viewer.harViewer');
+    });
+
+    it('claims a HAR whose pages array outruns the signature buffer', async () => {
+        const filePath = path.join(tempDir, 'long-session.json');
+        const pages = Array.from({ length: 2000 }, (_, index) => ({ id: `page_${index}`, title: 'x'.repeat(40) }));
+        fs.writeFileSync(filePath, JSON.stringify({
+            log: { version: '1.2', creator: { name: 'Firefox', version: '131' }, pages, entries: [] }
+        }));
+
+        const result = await FileUtils.detectViewerType(filePath, 'omni-viewer.jsonViewer');
+
+        expect(result.viewType).toBe('omni-viewer.harViewer');
+    });
+
+    it('skips a string value equal to "entries" before the real key', async () => {
+        const filePath = path.join(tempDir, 'commented.json');
+        fs.writeFileSync(filePath, '{"log":{"version":"1.2","comment":"entries","entries":[]}}');
+
+        const result = await FileUtils.detectViewerType(filePath, 'omni-viewer.jsonViewer');
+
+        expect(result.viewType).toBe('omni-viewer.harViewer');
+    });
+
+    it('does not claim a log with a pages array but no HAR creator', async () => {
+        const filePath = path.join(tempDir, 'book.json');
+        fs.writeFileSync(filePath, '{"log":{"pages":[1,2,3]}}');
+
+        const result = await FileUtils.detectViewerType(filePath, 'omni-viewer.jsonViewer');
+
+        expect(result.viewType).toBe('omni-viewer.jsonViewer');
+    });
+
+    it('does not claim JSON whose entries array is nested below log', async () => {
+        const filePath = path.join(tempDir, 'nested.json');
+        fs.writeFileSync(filePath, '{"log":{"meta":{"entries":[]}}}');
+
+        const result = await FileUtils.detectViewerType(filePath, 'omni-viewer.jsonViewer');
+
+        expect(result.viewType).toBe('omni-viewer.jsonViewer');
+    });
+
+    it('leaves JSON with an unrelated log key to the JSON viewer', async () => {
+        const filePath = path.join(tempDir, 'config.json');
+        fs.writeFileSync(filePath, '{"name":"app","log":{"level":"debug"}}');
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.jsonViewer');
+    });
+
+    it('keeps an over-budget pretty-printed .har in the HAR viewer to report the limit', async () => {
+        // Pretty-printed lines like `"name": "x",` would otherwise satisfy the
+        // CSV delimiter probe once the HAR claim stepped aside.
+        const filePath = path.join(tempDir, 'huge.har');
+        const entry = '    {\n      "name": "x",\n      "value": "y",\n      "size": 1,\n      "time": 2\n    },\n';
+        fs.writeFileSync(filePath, '{\n  "log": {\n    "version": "1.2",\n    "entries": [\n' + entry.repeat(2000));
+        fs.truncateSync(filePath, MAX_HAR_READ_BYTES + 1);
+
+        const result = await FileUtils.detectViewerType(filePath, 'omni-viewer.harViewer');
+
+        expect(result.viewType).toBe('omni-viewer.harViewer');
+    });
+
+    it('keeps a UTF-16LE .har in the HAR viewer instead of the MP3 probe', async () => {
+        // `FF FE` is a UTF-16LE byte-order mark and also an MPEG frame sync.
+        const filePath = path.join(tempDir, 'powershell.har');
+        fs.writeFileSync(filePath, Buffer.concat([
+            Buffer.from([0xFF, 0xFE]),
+            Buffer.from('{"log":{"version":"1.2","entries":[]}}', 'utf16le')
+        ]));
+
+        const result = await FileUtils.detectViewerType(filePath, 'omni-viewer.harViewer');
+
+        expect(result.viewType).toBe('omni-viewer.harViewer');
+    });
+
+    it('leaves an over-budget HAR saved as .json to the JSON viewer', async () => {
+        const filePath = path.join(tempDir, 'huge.json');
+        fs.writeFileSync(filePath, '{"log":{"version":"1.2","entries":[');
+        fs.truncateSync(filePath, MAX_HAR_READ_BYTES + 1);
+
+        const result = await FileUtils.detectViewerType(filePath, 'omni-viewer.jsonViewer');
+
+        expect(result.viewType).not.toBe('omni-viewer.harViewer');
     });
 
     it('detects bare .mlmodel specifications by extension', async () => {
@@ -736,6 +938,22 @@ describe('FileUtils delimited formats', () => {
         const result = await FileUtils.detectViewerType(filePath);
 
         expect(result.viewType).toBe('omni-viewer.latexViewer');
+    });
+
+    it('routes Jupyter notebooks ahead of the JSON probes', async () => {
+        const filePath = path.join(tempDir, 'analysis.ipynb');
+        fs.writeFileSync(filePath, JSON.stringify({
+            nbformat: 4,
+            nbformat_minor: 5,
+            metadata: {},
+            cells: [{ cell_type: 'markdown', metadata: {}, source: ['# Title'] }]
+        }, null, 1), 'utf8');
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.notebookViewer');
+        expect(result.matchedBySignature).toBe(false);
+        expect(result.reason).toContain('Jupyter notebook extension');
     });
 
     it('detects ReqIF files by extension', async () => {

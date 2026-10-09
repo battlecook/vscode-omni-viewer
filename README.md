@@ -1,6 +1,6 @@
 # VSCode Omni Viewer
 
-A comprehensive audio, image, PSD, video, CSV, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, Excel, Word, PowerPoint, PDF, Parquet, HDF5, Safetensors, ONNX, TFLite/LiteRT, Keras, Core ML, GGUF, JSONL, LaTeX, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
+A comprehensive audio, image, PSD, video, CSV, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, Excel, Word, PowerPoint, PDF, Parquet, HDF5, Safetensors, ONNX, TFLite/LiteRT, ExecuTorch, Keras, Core ML, GGUF, HAR, JSONL, Jupyter Notebook, LaTeX, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-red)](https://github.com/sponsors/battlecook)
 
@@ -242,6 +242,20 @@ Note: `.ts` files share an extension with TypeScript source files, so automatic 
 
 Note: external file references are not resolved, and BibTeX, cross-reference numbering, and TikZ drawing are out of scope.
 
+## 📓 Jupyter Notebook Viewer Features
+
+### Read-Only Notebook Preview (.ipynb)
+- **Saved Results, Never Executed**: Shows nbformat 4 notebooks in file order with the outputs stored in the file; no kernel is started and no code runs
+- **Code Cells**: `In`/`Out` execution counts, syntax highlighting for the notebook's kernel language (Python, R, Julia, Scala, SQL, and more), stdout/stderr streams, and error tracebacks
+- **Rich Outputs**: HTML tables, PNG/JPEG/GIF/WebP/SVG images, Markdown, LaTeX, JSON, and plain text, with one static representation chosen per output; interactive widget and JavaScript outputs fall back to their saved text
+- **Markdown Cells**: GitHub-flavored Markdown with KaTeX math, `attachment:` images, and images referenced relative to the notebook (confined to the notebook's folder)
+- **Navigate Large Notebooks**: Search cells and outputs, hide all code or all outputs, and expand individual cells; saved `source_hidden`, `outputs_hidden`, and `collapsed` hints set the initial state
+- **Safe by Default**: Output HTML is sanitized, scripts and remote resources are blocked, and external links open in the browser
+- **Opt-In Editor**: Registered as an optional editor so VS Code's own notebook editor stays the default; use `Open With OmniViewer` from the explorer
+- **Powered by**: [omni-viewer-core](https://github.com/battlecook/omni-viewer-core) for parsing and rendering, with [KaTeX](https://katex.org/) for formulas
+
+Note: notebooks larger than 64 MiB are not previewed.
+
 ## 📄 JSONL Viewer Features
 
 ![JSONL Viewer Screenshot](https://eyedealisty-website.web.app/img/omniviewer/jsonl-screenshot.jpg)
@@ -293,7 +307,7 @@ Note: external file references are not resolved, and BibTeX, cross-reference num
 - **Validation Warnings**: Reports malformed headers, unsupported data types, and inconsistent tensor byte ranges
 - **Search and Export**: Filters tensor/metadata rows and copies the parsed model as JSON
 - **Efficient Large-File Access**: Reads only the Safetensors prefix and JSON header instead of loading tensor payloads
-- **Powered by**: `omni-viewer-core` 0.17.0 for random-access Safetensors parsing
+- **Powered by**: `omni-viewer-core` 0.19.0 for random-access Safetensors parsing
 
 ## 🕸️ ONNX Viewer Features
 
@@ -305,7 +319,7 @@ Note: external file references are not resolved, and BibTeX, cross-reference num
 - **Opsets and Metadata**: Reports imported opset domains and versions plus the model's metadata properties
 - **Validation Warnings**: Reports truncated, malformed, or unsupported protobuf structures instead of failing silently
 - **Weights Stay on Disk**: Parses the ModelProto for topology and metadata only — tensor payloads are skipped, never decoded into memory
-- **Powered by**: `omni-viewer-core` 0.17.0 for the dependency-free ONNX protobuf reader and viewer
+- **Powered by**: `omni-viewer-core` 0.19.0 for the dependency-free ONNX protobuf reader and viewer
 
 ## 📱 TFLite / LiteRT Viewer Features
 
@@ -317,7 +331,20 @@ Note: external file references are not resolved, and BibTeX, cross-reference num
 - **Model Metadata**: Lists signatures, metadata entries, external buffers, and model information in searchable panels
 - **Validation Warnings**: Surfaces malformed FlatBuffers, custom operators, Select TensorFlow fallbacks, and externally stored buffers
 - **Weights Stay Unparsed**: Reads the `TFL3` FlatBuffer structure without decoding tensor payloads
-- **Powered by**: `omni-viewer-core` 0.17.0 for dependency-free TFLite/LiteRT parsing and rendering
+- **Powered by**: `omni-viewer-core` 0.19.0 for dependency-free TFLite/LiteRT parsing and rendering
+
+## 🔥 ExecuTorch Viewer Features
+
+### PyTorch ExecuTorch Programs (.pte)
+- **Program Summary**: Shows schema version, method, instruction, operator, tensor, and delegate counts plus the constant data stored in the file
+- **Method Graph**: Visualizes each method's kernel and delegate calls with the values flowing between them, with `JumpFalseCall` targets resolved within their chain
+- **Instruction List**: Lists every kernel, delegate, move, jump, and free call with its operator or backend, inputs, outputs, and source stack frames
+- **Value Inspector**: Shows each EValue's type and shape, dim order, element count, data size, and where its bytes live — inline constant, constant segment, mutable state, external `.ptd`, memory-planned activation, or runtime-supplied
+- **Delegates and Segments**: Lists backend delegates such as XNNPACK with their compile specs and blob locations, and every data segment with its kind, file offset, size, and the methods that use it
+- **Model Info**: Shows the extended header, memory-plan arena sizes, input/output pytree specs, and named data entries
+- **Validation Warnings**: Flags required runtime backends, tensors stored in a separate `.ptd` file, segments past the end of the file, and unknown scalar types or instruction kinds
+- **Weights Stay on Disk**: Reads the `ET12` FlatBuffer and resolves segments to offsets and byte counts without decoding a single payload. The program is inspected in memory, so a file above 512 MB is rejected
+- **Powered by**: `omni-viewer-core` 0.19.0 for dependency-free ExecuTorch parsing and rendering
 
 ## 🧱 Keras Viewer Features
 
@@ -330,7 +357,7 @@ Note: external file references are not resolved, and BibTeX, cross-reference num
 - **Training Configuration**: Shows the compiled optimizer, loss, and metrics along with the archive's metadata and members
 - **Validation Warnings**: Reports missing or unreadable configs, unmatched weights, and unknown layouts instead of failing the parse
 - **Weights Stay Undecoded**: Walks the HDF5 weight store for shapes and dtypes only — no weight payload is decoded or sent into the webview. The model is inspected in memory, so a file above 512 MB is left to the HDF5 viewer or the Archive viewer instead
-- **Powered by**: `omni-viewer-core` 0.17.0 for Keras archive and HDF5 model parsing and rendering
+- **Powered by**: `omni-viewer-core` 0.19.0 for Keras archive and HDF5 model parsing and rendering
 
 ## 🍎 Core ML Viewer Features
 
@@ -343,7 +370,7 @@ Note: external file references are not resolved, and BibTeX, cross-reference num
 - **Custom & Updatable Ops**: Flags operations needing a class registered with the runtime and layers marked for on-device update
 - **Package Contents**: Shows the `Manifest.json` items and archive members of an `.mlpackage`, including the path of the spec that was parsed
 - **Weights Stay Undecoded**: Never decodes a single parameter — blob references become offsets and byte counts, so no weight payload reaches the webview. The model is inspected in memory, so a file above 512 MB is left to the Archive viewer
-- **Powered by**: `omni-viewer-core` 0.17.0 for dependency-free Core ML protobuf parsing and rendering
+- **Powered by**: `omni-viewer-core` 0.19.0 for dependency-free Core ML protobuf parsing and rendering
 
 ## 🦙 GGUF Viewer Features
 
@@ -354,7 +381,22 @@ Note: external file references are not resolved, and BibTeX, cross-reference num
 - **Structure View**: Shows byte order, tensor data offset, and the parsed file layout
 - **Validation Warnings**: Reports header, EOF, and admission-limit problems for malformed or hostile files
 - **Efficient Large-File Access**: Range-reads only the metadata and tensor-index prefix — a multi-gigabyte model opens without reading its weights
-- **Powered by**: `omni-viewer-core` 0.17.0 for GGUF parsing and the viewer
+- **Powered by**: `omni-viewer-core` 0.19.0 for GGUF parsing and the viewer
+
+## 🌐 HAR Viewer Features
+
+### HTTP Archive Network Logs (.har)
+- **Built for Triage**: Opens the HTTP Archive a browser's network panel (or curl, Charles, Fiddler, Playwright) exports — the artifact a web or API failure usually arrives as — as a request log rather than a JSON tree
+- **Summary Figures**: Shows request count, elapsed time, transferred bytes, decoded resource bytes, domain count, the number of failed requests, and the page count when the archive records pages
+- **Request Table with Waterfall**: Sorts by every column — name, method, status, type, domain, transferred size, and time — with a per-request waterfall bar on a timeline shared by the whole archive
+- **Failure Filters**: Narrows by method, status class (including requests that never got a response), resource type, and domain, plus free-text search over URLs, status text, and headers with an opt-in toggle that extends the search to bodies
+- **Request Details**: Shows general info and request/response headers, query string and request payload with form fields expanded, the response body pretty-printed when it really is JSON, cookies, and a phase-by-phase timing breakdown (blocked, DNS, connect, TLS, send, wait/TTFB, receive)
+- **Honest Numbers**: Keeps a size or start time the archive never recorded as unknown rather than a confident zero, takes the TLS handshake out of `connect` so the waterfall never double-counts it, and tells a body cut by the preview limit apart from one the archive stored incompletely
+- **Broken Archives Still Open**: A truncated export still shows the requests it did hold, with a warning, instead of failing outright
+- **Smart Routing**: `.har` files open in the HAR viewer, and a HAR saved as `.json` (or without an extension) is recognized by its `log.entries` structure, so "Open With OmniViewer" on such a `.json` opens the HAR viewer instead of the JSON tree; the raw text stays available in VS Code's text editor
+- **Parsed Off the UI Thread**: The archive is parsed in a worker, and only the request model — bodies cut to a preview — is sent into the webview. Because the parsed model is about as large as the archive, archives above 100 MB are not inspected — a `.har` that large still opens in the HAR viewer and reports the limit
+- **Credential-Aware Sharing**: HAR files usually carry cookies, authorization headers, and request bodies, so the Share button asks for confirmation before uploading one
+- **Powered by**: `omni-viewer-core` 0.19.0 for HAR parsing and rendering
 
 ## 🧭 Smart File Detection
 

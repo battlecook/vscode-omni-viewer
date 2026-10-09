@@ -2,8 +2,8 @@
   "name": "omni-viewer",
   "displayName": "omni-viewer",
   "publisher": "battlecook",
-  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, excel, word, powerpoint, parquet, Shapefile, HDF5, MAT, Safetensors, ONNX, TFLite, Keras, Core ML, GGUF, jsonl, yaml, toml, markdown, LaTeX, mermaid, PlantUML, hwp, PSD and PDF files",
-  "version": "0.43.0",
+  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, excel, word, powerpoint, parquet, Shapefile, HDF5, MAT, Safetensors, ONNX, TFLite, ExecuTorch, Keras, Core ML, GGUF, HAR, jsonl, yaml, toml, markdown, Jupyter Notebook, LaTeX, mermaid, PlantUML, hwp, PSD and PDF files",
+  "version": "0.44.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
@@ -59,6 +59,9 @@
     "YAML",
     "TOML",
     "Markdown",
+    "Jupyter",
+    "Notebook",
+    "ipynb",
     "LaTeX",
     "TeX",
     "Mermaid",
@@ -80,6 +83,10 @@
     "TFLite",
     "tflite",
     "LiteRT",
+    "ExecuTorch",
+    "executorch",
+    "pte",
+    "PyTorch",
     "Keras",
     "keras",
     "TensorFlow",
@@ -87,6 +94,10 @@
     "coreml",
     "mlmodel",
     "mlpackage",
+    "HAR",
+    "har",
+    "HTTP Archive",
+    "network",
     "GGUF",
     "gguf",
     "llama.cpp",
@@ -410,6 +421,16 @@
         "priority": "default"
       },
       {
+        "viewType": "omni-viewer.harViewer",
+        "displayName": "HAR Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.har"
+          }
+        ],
+        "priority": "default"
+      },
+      {
         "viewType": "omni-viewer.jsonViewer",
         "displayName": "JSON Viewer",
         "selector": [
@@ -483,6 +504,16 @@
           },
           {
             "filenamePattern": "*.ltx"
+          }
+        ],
+        "priority": "option"
+      },
+      {
+        "viewType": "omni-viewer.notebookViewer",
+        "displayName": "Jupyter Notebook Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.ipynb"
           }
         ],
         "priority": "option"
@@ -601,6 +632,16 @@
           },
           {
             "filenamePattern": "*.lite"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "omni-viewer.pteViewer",
+        "displayName": "ExecuTorch Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.pte"
           }
         ],
         "priority": "default"
@@ -821,6 +862,11 @@
           "group": "navigation"
         },
         {
+          "command": "omni-viewer.openHarViewer",
+          "when": "resourceExtname == '.har'",
+          "group": "navigation"
+        },
+        {
           "command": "omni-viewer.openJsonViewer",
           "when": "resourceExtname == '.json'",
           "group": "navigation"
@@ -848,6 +894,11 @@
         {
           "command": "omni-viewer.openLatexViewer",
           "when": "resourceExtname == '.tex' || resourceExtname == '.latex' || resourceExtname == '.ltx'",
+          "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openNotebookViewer",
+          "when": "resourceExtname == '.ipynb'",
           "group": "navigation"
         },
         {
@@ -898,6 +949,11 @@
         {
           "command": "omni-viewer.openTfliteViewer",
           "when": "resourceExtname == '.tflite' || resourceExtname == '.lite'",
+          "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openPteViewer",
+          "when": "resourceExtname == '.pte'",
           "group": "navigation"
         },
         {
@@ -1039,6 +1095,11 @@
         "category": "Omni Viewer"
       },
       {
+        "command": "omni-viewer.openHarViewer",
+        "title": "Open With OmniViewer",
+        "category": "Omni Viewer"
+      },
+      {
         "command": "omni-viewer.openJsonViewer",
         "title": "Open With OmniViewer",
         "category": "Omni Viewer"
@@ -1065,6 +1126,11 @@
       },
       {
         "command": "omni-viewer.openLatexViewer",
+        "title": "Open With OmniViewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openNotebookViewer",
         "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
@@ -1115,6 +1181,11 @@
       },
       {
         "command": "omni-viewer.openTfliteViewer",
+        "title": "Open With OmniViewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openPteViewer",
         "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },
@@ -1228,7 +1299,7 @@
     "marked": "^16.4.2",
     "mermaid": "^11.15.0",
     "music-metadata": "^11.8.3",
-    "omni-viewer-core": "^0.17.0",
+    "omni-viewer-core": "^0.19.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.10.38",
     "proj4": "^2.20.9",

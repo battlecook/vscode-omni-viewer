@@ -172,6 +172,22 @@ async function uploadShare(uri: vscode.Uri, token: string): Promise<CreateShareR
     }
 }
 
+/** A HAR archive records every request of a session verbatim, so it routinely
+ *  carries live credentials — cookies, `Authorization` headers, CSRF tokens,
+ *  POSTed passwords. Uploading one is confirmed first: a `.har`, or any file
+ *  the active HAR viewer is showing (a HAR saved as `.json`). */
+function mayHoldHttpCredentials(target: vscode.Uri): boolean {
+    if (path.extname(target.fsPath).toLowerCase() === '.har') {
+        return true;
+    }
+    const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input as
+        { uri?: vscode.Uri; viewType?: string } | undefined;
+    return input?.viewType === 'omni-viewer.harViewer'
+        && input.uri?.toString() === target.toString();
+}
+
+export const HAR_SHARE_CONFIRM_ACTION = 'Share Anyway';
+
 function getActiveCustomEditorUri(): vscode.Uri | undefined {
     const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
     const input = activeTab?.input as { uri?: vscode.Uri } | undefined;
@@ -201,6 +217,17 @@ export async function shareFileCommand(uri?: vscode.Uri): Promise<void> {
     if (stat.size > MAX_FILE_SIZE_BYTES) {
         vscode.window.showErrorMessage('Omni Viewer: file is too large to share (max 10 MB).');
         return;
+    }
+    if (mayHoldHttpCredentials(target)) {
+        const choice = await vscode.window.showWarningMessage(
+            'HAR files usually contain cookies, authorization headers, and request bodies that can include passwords or session tokens. '
+                + `Anyone with the share link can download ${path.basename(target.fsPath)} as-is. Share it anyway?`,
+            { modal: true },
+            HAR_SHARE_CONFIRM_ACTION
+        );
+        if (choice !== HAR_SHARE_CONFIRM_ACTION) {
+            return;
+        }
     }
 
     await vscode.window.withProgress(

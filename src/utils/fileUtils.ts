@@ -5,6 +5,7 @@ import { spawn } from 'child_process';
 import JSZip from 'jszip';
 import { MAX_KERAS_READ_BYTES } from './kerasLimits';
 import { MAX_COREML_READ_BYTES } from './coremlLimits';
+import { MAX_HAR_READ_BYTES } from './harLimits';
 import { PptxXmlParser } from './pptxXmlParser';
 import { PptBinaryParser } from './pptBinaryParser';
 import {
@@ -51,11 +52,13 @@ export type OmniViewerViewType =
     | 'omni-viewer.pcapViewer'
     | 'omni-viewer.pcapngViewer'
     | 'omni-viewer.jsonViewer'
+    | 'omni-viewer.harViewer'
     | 'omni-viewer.yamlViewer'
     | 'omni-viewer.jsonlViewer'
     | 'omni-viewer.tomlViewer'
     | 'omni-viewer.markdownViewer'
     | 'omni-viewer.latexViewer'
+    | 'omni-viewer.notebookViewer'
     | 'omni-viewer.mermaidViewer'
     | 'omni-viewer.plantumlViewer'
     | 'omni-viewer.protoViewer'
@@ -66,6 +69,7 @@ export type OmniViewerViewType =
     | 'omni-viewer.safetensorsViewer'
     | 'omni-viewer.onnxViewer'
     | 'omni-viewer.tfliteViewer'
+    | 'omni-viewer.pteViewer'
     | 'omni-viewer.kerasViewer'
     | 'omni-viewer.coremlViewer'
     | 'omni-viewer.ggufViewer'
@@ -98,6 +102,20 @@ export class FileUtils {
             return {
                 viewType: fallbackViewType ?? null,
                 reason: 'The file is empty, so the extension fallback was used.',
+                matchedBySignature: false
+            };
+        }
+
+        // A `.har` is always JSON text, so it is claimed before the binary
+        // probes: a UTF-16 BOM (`FF FE`) would otherwise pass for an MPEG audio
+        // frame. It stays with the HAR viewer whatever its size or encoding —
+        // the viewer reports an oversized or unreadable archive itself, where
+        // the text probes would read a pretty-printed one's comma-heavy lines
+        // as CSV.
+        if (ext === '.har') {
+            return {
+                viewType: 'omni-viewer.harViewer',
+                reason: 'Used the HAR extension fallback.',
                 matchedBySignature: false
             };
         }
@@ -229,6 +247,10 @@ export class FileUtils {
 
         if (this.hasAsciiPrefix(buffer.subarray(4), 'TFL3')) {
             return this.signatureMatch('omni-viewer.tfliteViewer', 'Matched the TFLite FlatBuffer identifier.');
+        }
+
+        if (this.hasAsciiPrefix(buffer.subarray(4), 'ET12') && await this.hasFlatbufferRootOffset(filePath, buffer)) {
+            return this.signatureMatch('omni-viewer.pteViewer', 'Matched the ExecuTorch FlatBuffer identifier.');
         }
 
         if (this.hasAsciiPrefix(buffer, 'GGUF')) {
@@ -409,6 +431,14 @@ export class FileUtils {
             };
         }
 
+        if (ext === '.pte') {
+            return {
+                viewType: 'omni-viewer.pteViewer',
+                reason: 'Used the ExecuTorch extension fallback.',
+                matchedBySignature: false
+            };
+        }
+
         // A bare `.mlmodel` is a raw protobuf with no magic bytes, so the
         // extension is what routes it, exactly as for ONNX above. A
         // `.mlpackage` only reaches here when it is not a readable ZIP; it is
@@ -438,6 +468,28 @@ export class FileUtils {
             return {
                 viewType: 'omni-viewer.shpViewer',
                 reason: 'Used the Shapefile extension fallback.',
+                matchedBySignature: false
+            };
+        }
+
+        // A HAR archive is plain JSON, so it is claimed before the text probes:
+        // the generic JSON viewer would take it, and a minified archive small
+        // enough to fit the sample is one line the JSONL probe would take. The
+        // content probe only runs where a HAR is actually saved — `.json`
+        // exports and extensionless files — so a JSONL log whose records carry
+        // a `log` key keeps its own viewer. As with a Keras `.h5` and the HDF5
+        // viewer, a HAR saved as `.json` wins over a JSON viewer request; the
+        // raw text stays available through VS Code's text editor. (A `.har`
+        // was claimed by extension above.) A `.json` or extensionless archive
+        // past the memory budget is left to the other viewers.
+        if (
+            (ext === '.json' || ext === '')
+            && this.looksLikeHar(buffer)
+            && await this.fitsHarMemoryBudget(filePath)
+        ) {
+            return {
+                viewType: 'omni-viewer.harViewer',
+                reason: 'Matched HTTP Archive (HAR) content.',
                 matchedBySignature: false
             };
         }
@@ -820,6 +872,89 @@ export class FileUtils {
         }
     }
 
+    private static async fitsHarMemoryBudget(filePath: string): Promise<boolean> {
+        try {
+            const { size } = await fs.promises.stat(filePath);
+            return size <= MAX_HAR_READ_BYTES;
+        } catch {
+            return false;
+        }
+    }
+
+    /** True when the sample opens a HAR archive: a top-level object whose
+     *  `log` object holds an `entries` array. The sample is only the head of
+     *  the file, so this scans the opening structure rather than parsing. The
+     *  whole signature buffer is scanned, since writers put `log.pages` before
+     *  `log.entries` and a pretty-printed multi-page export pushes `entries`
+     *  well past the first few kilobytes; when even that is not enough, a
+     *  `pages` array that follows `log.creator` — the HAR 1.2 shape every
+     *  writer emits — identifies the archive. Only direct keys of `log` count:
+     *  one nested deeper, a string value equal to a key name, or anything after
+     *  `log` has closed does not. */
+    private static looksLikeHar(buffer: Buffer): boolean {
+        const sample = buffer.toString('utf8').replace(/^\uFEFF/, '');
+        const opening = /^\s*\{\s*"log"\s*:\s*\{/.exec(sample);
+        if (!opening) {
+            return false;
+        }
+
+        // Depth 1 is directly inside `log`; strings are skipped whole so a
+        // brace or `"entries"` inside a value cannot move the scan.
+        let depth = 1;
+        let i = opening[0].length;
+        let sawCreator = false;
+        while (i < sample.length && depth > 0) {
+            const ch = sample[i];
+            if (ch === '"') {
+                let end = i + 1;
+                while (end < sample.length && sample[end] !== '"') {
+                    end += sample[end] === '\\' ? 2 : 1;
+                }
+                const token = sample.slice(i, end + 1);
+                i = end + 1;
+                const isKey = depth === 1 && /^\s*:/.test(sample.slice(i, i + 64));
+                if (isKey) {
+                    const arrayValue = /^\s*:\s*\[/.test(sample.slice(i, i + 64));
+                    if (token === '"entries"') {
+                        return arrayValue;
+                    }
+                    if (token === '"creator"') {
+                        sawCreator = true;
+                    } else if (token === '"pages"' && arrayValue && sawCreator) {
+                        return true;
+                    }
+                }
+                continue;
+            }
+            if (ch === '{' || ch === '[') {
+                depth++;
+            } else if (ch === '}' || ch === ']') {
+                depth--;
+            }
+            i++;
+        }
+        return false;
+    }
+
+    /** Four ASCII bytes at offset 4 also occur in plain text (`OFFSET12,...`),
+     *  so an identifier match only counts when bytes 0-3 are a usable FlatBuffer
+     *  root offset: 4-byte aligned, past the identifier, and inside the file. */
+    private static async hasFlatbufferRootOffset(filePath: string, buffer: Buffer): Promise<boolean> {
+        if (buffer.length < 8) {
+            return false;
+        }
+        const rootOffset = buffer.readUInt32LE(0);
+        if (rootOffset < 8 || rootOffset % 4 !== 0) {
+            return false;
+        }
+        try {
+            const { size } = await fs.promises.stat(filePath);
+            return rootOffset < size;
+        } catch {
+            return false;
+        }
+    }
+
     private static async fitsCoremlMemoryBudget(filePath: string): Promise<boolean> {
         try {
             const { size } = await fs.promises.stat(filePath);
@@ -934,6 +1069,16 @@ export class FileUtils {
             return {
                 viewType: 'omni-viewer.latexViewer',
                 reason: 'Used the LaTeX extension fallback.',
+                matchedBySignature: false
+            };
+        }
+
+        // A notebook is a JSON document, so it must be claimed before the
+        // JSON and JSONL probes below.
+        if (ext === '.ipynb') {
+            return {
+                viewType: 'omni-viewer.notebookViewer',
+                reason: 'Used the Jupyter notebook extension fallback.',
                 matchedBySignature: false
             };
         }

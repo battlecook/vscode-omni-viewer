@@ -14,6 +14,7 @@ import { DbcViewerProvider } from './dbcViewerProvider';
 import { ExcelViewerProvider } from './excelViewerProvider';
 import { GgufViewerProvider } from './ggufViewerProvider';
 import { Hdf5ViewerProvider } from './hdf5ViewerProvider';
+import { HarViewerProvider } from './harViewerProvider';
 import { HwpViewerProvider } from './hwpViewerProvider';
 import { ImageViewerProvider } from './imageViewerProvider';
 import { JsonViewerProvider } from './jsonViewerProvider';
@@ -24,6 +25,7 @@ import { MatViewerProvider } from './matViewerProvider';
 import { MarkdownViewerProvider } from './markdownViewerProvider';
 import { MermaidViewerProvider } from './mermaidViewerProvider';
 import { Mf4ViewerProvider } from './mf4ViewerProvider';
+import { NotebookViewerProvider } from './notebookViewerProvider';
 import { OnnxViewerProvider } from './onnxViewerProvider';
 import { ParquetViewerProvider } from './parquetViewerProvider';
 import { PcapViewerProvider } from './pcapViewerProvider';
@@ -33,6 +35,7 @@ import { PlantumlViewerProvider } from './plantumlViewerProvider';
 import { PptViewerProvider } from './pptViewerProvider';
 import { ProtoViewerProvider } from './protoViewerProvider';
 import { PsdViewerProvider } from './psdViewerProvider';
+import { PteViewerProvider } from './pteViewerProvider';
 import { ReqifViewerProvider } from './reqifViewerProvider';
 import { SafetensorsViewerProvider } from './safetensorsViewerProvider';
 import { ShpViewerProvider } from './shpViewerProvider';
@@ -222,6 +225,13 @@ export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
         createProvider: (context) => new LatexViewerProvider(context)
     },
     {
+        viewType: NotebookViewerProvider.viewType,
+        command: 'omni-viewer.openNotebookViewer',
+        missingMessage: 'No Jupyter notebook selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new NotebookViewerProvider(context)
+    },
+    {
         viewType: MermaidViewerProvider.viewType,
         command: 'omni-viewer.openMermaidViewer',
         missingMessage: 'No Mermaid file selected',
@@ -292,6 +302,13 @@ export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
         createProvider: (context) => new TfliteViewerProvider(context)
     },
     {
+        viewType: PteViewerProvider.viewType,
+        command: 'omni-viewer.openPteViewer',
+        missingMessage: 'No ExecuTorch file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new PteViewerProvider(context)
+    },
+    {
         viewType: KerasViewerProvider.viewType,
         command: 'omni-viewer.openKerasViewer',
         missingMessage: 'No Keras file selected',
@@ -304,6 +321,13 @@ export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
         missingMessage: 'No Core ML file selected',
         retainContextWhenHidden: true,
         createProvider: (context) => new CoremlViewerProvider(context)
+    },
+    {
+        viewType: HarViewerProvider.viewType,
+        command: 'omni-viewer.openHarViewer',
+        missingMessage: 'No HAR file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new HarViewerProvider(context)
     },
     {
         viewType: GgufViewerProvider.viewType,
