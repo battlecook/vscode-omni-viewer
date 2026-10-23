@@ -17,6 +17,15 @@
       "omni-viewer-core/parsers/pte": [
         "node_modules/omni-viewer-core/dist/parsers/pte/index.d.ts"
       ],
+      "omni-viewer-core/parsers/pt2": [
+        "node_modules/omni-viewer-core/dist/parsers/pt2/index.d.ts"
+      ],
+      "omni-viewer-core/parsers/openvino": [
+        "node_modules/omni-viewer-core/dist/parsers/openvino/index.d.ts"
+      ],
+      "omni-viewer-core/parsers/numpy": [
+        "node_modules/omni-viewer-core/dist/parsers/numpy/index.d.ts"
+      ],
       "omni-viewer-core/parsers/keras": [
         "node_modules/omni-viewer-core/dist/parsers/keras/index.d.ts"
       ],

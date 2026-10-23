@@ -4,8 +4,9 @@ Omni Viewer does **not** currently enable this share upload/download flow in the
 This section documents the intended privacy behavior for a future share feature release.
 
 ## What will be collected when sharing (planned)
-- The file selected by the user for sharing (single file upload)
-- Metadata: filename, content type, file size, file type, and optional file_meta (for example audio/video region, row range, sheet index)
+- The file selected by the user for sharing (single file upload), encrypted on the device with AES-256-GCM before upload
+- The filename and content type are sealed inside the encrypted file; the server stores only an opaque `encrypted.bin` and its size
+- The decryption key stays in the share link's `#k=` fragment and is never sent to the server
 - Platform/source identifier (for example `vscode`)
 
 ## Why this data will be collected

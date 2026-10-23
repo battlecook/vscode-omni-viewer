@@ -30,6 +30,8 @@ import { FileUtils } from '../utils/fileUtils';
 import { MAX_KERAS_READ_BYTES } from '../utils/kerasLimits';
 import { MAX_COREML_READ_BYTES } from '../utils/coremlLimits';
 import { MAX_HAR_READ_BYTES } from '../utils/harLimits';
+import { MAX_NUMPY_READ_BYTES } from '../utils/numpyLimits';
+import { MAX_PT2_READ_BYTES } from '../utils/pt2Limits';
 
 function hdf5Header(): Buffer {
     const header = Buffer.alloc(512);
@@ -740,6 +742,237 @@ describe('FileUtils delimited formats', () => {
         const result = await FileUtils.detectViewerType(filePath);
 
         expect(result.viewType).toBeNull();
+    });
+
+    it('detects NumPy arrays by the NPY magic string', async () => {
+        // Named .bin on purpose: the magic alone must route the file.
+        const filePath = path.join(tempDir, 'array.bin');
+        fs.writeFileSync(filePath, Buffer.concat([
+            Buffer.from([0x93]),
+            Buffer.from("NUMPY\x01\x00v\x00{'descr': '<f4', 'fortran_order': False, 'shape': (1,), }", 'latin1')
+        ]));
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.numpyViewer');
+        expect(result.matchedBySignature).toBe(true);
+        expect(result.reason).toContain('NumPy NPY magic');
+    });
+
+    it('routes .npy files without the magic to the NumPy viewer by extension', async () => {
+        const filePath = path.join(tempDir, 'broken.npy');
+        fs.writeFileSync(filePath, Buffer.from([0x00, 0x01, 0x02, 0x03]));
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.numpyViewer');
+        expect(result.matchedBySignature).toBe(false);
+        expect(result.reason).toContain('NumPy extension fallback');
+    });
+
+    it('routes an .npz archive to the NumPy viewer without inflating it', async () => {
+        const filePath = path.join(tempDir, 'arrays.npz');
+        const zip = Buffer.alloc(64);
+        zip.write('PK\x03\x04', 0, 'latin1');
+        fs.writeFileSync(filePath, zip);
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.numpyViewer');
+        expect(result.matchedBySignature).toBe(true);
+        expect(result.reason).toContain('NumPy NPZ extension');
+        expect(mockZipLoadAsync).not.toHaveBeenCalled();
+    });
+
+    it('leaves an oversized .npz with the archive viewer', async () => {
+        const filePath = path.join(tempDir, 'huge.npz');
+        const zip = Buffer.alloc(64);
+        zip.write('PK\x03\x04', 0, 'latin1');
+        fs.writeFileSync(filePath, zip);
+        fs.truncateSync(filePath, MAX_NUMPY_READ_BYTES + 1);
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.archiveViewer');
+        expect(result.reason).toContain('too large to inspect as arrays');
+    });
+
+    it('keeps a plain ZIP of .npy files with the archive viewer', async () => {
+        const filePath = path.join(tempDir, 'dataset.zip');
+        const zip = Buffer.alloc(64);
+        zip.write('PK\x03\x04', 0, 'latin1');
+        fs.writeFileSync(filePath, zip);
+        mockZipLoadAsync.mockResolvedValue({ files: { 'x.npy': {}, 'y.npy': {} } });
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.archiveViewer');
+    });
+
+    it('keeps an explicit Archive viewer request for .npz and .pt2 so the listing stays reachable', async () => {
+        for (const name of ['arrays.npz', 'model.pt2']) {
+            const filePath = path.join(tempDir, name);
+            const zip = Buffer.alloc(64);
+            zip.write('PK\x03\x04', 0, 'latin1');
+            fs.writeFileSync(filePath, zip);
+
+            const result = await FileUtils.detectViewerType(filePath, 'omni-viewer.archiveViewer');
+
+            expect(result.viewType).toBe('omni-viewer.archiveViewer');
+            expect(result.reason).toContain('preserved the requested Archive viewer');
+        }
+    });
+
+    it('keeps an explicit Archive viewer request for a mislabeled PyTorch Export package', async () => {
+        const filePath = path.join(tempDir, 'export.zip');
+        const zip = Buffer.alloc(64);
+        zip.write('PK\x03\x04', 0, 'latin1');
+        fs.writeFileSync(filePath, zip);
+        mockZipLoadAsync.mockResolvedValue({ files: { 'model/archive_format': {} } });
+
+        const result = await FileUtils.detectViewerType(filePath, 'omni-viewer.archiveViewer');
+
+        expect(result.viewType).toBe('omni-viewer.archiveViewer');
+    });
+
+    it('does not claim a ZIP whose PyTorch Export package is nested deeper than one folder', async () => {
+        const filePath = path.join(tempDir, 'project.zip');
+        const zip = Buffer.alloc(64);
+        zip.write('PK\x03\x04', 0, 'latin1');
+        fs.writeFileSync(filePath, zip);
+        mockZipLoadAsync.mockResolvedValue({
+            files: {
+                'README.md': {},
+                'exports/model/archive_format': {},
+                'exports/model/models/model.json': {}
+            }
+        });
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.archiveViewer');
+    });
+
+    it('routes a .pt2 package to the PyTorch Export viewer without inflating it', async () => {
+        const filePath = path.join(tempDir, 'model.pt2');
+        const zip = Buffer.alloc(64);
+        zip.write('PK\x03\x04', 0, 'latin1');
+        fs.writeFileSync(filePath, zip);
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.pt2Viewer');
+        expect(result.matchedBySignature).toBe(true);
+        expect(result.reason).toContain('PyTorch Export extension');
+        expect(mockZipLoadAsync).not.toHaveBeenCalled();
+    });
+
+    it('routes a mislabeled PyTorch Export package by its archive_format marker', async () => {
+        const filePath = path.join(tempDir, 'export.zip');
+        const zip = Buffer.alloc(64);
+        zip.write('PK\x03\x04', 0, 'latin1');
+        fs.writeFileSync(filePath, zip);
+        mockZipLoadAsync.mockResolvedValue({
+            files: {
+                'model/archive_format': {},
+                'model/models/model.json': {}
+            }
+        });
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.pt2Viewer');
+        expect(result.reason).toContain('PyTorch Export package members');
+    });
+
+    it('routes a legacy torch.export.save archive by its program file', async () => {
+        const filePath = path.join(tempDir, 'legacy.zip');
+        const zip = Buffer.alloc(64);
+        zip.write('PK\x03\x04', 0, 'latin1');
+        fs.writeFileSync(filePath, zip);
+        mockZipLoadAsync.mockResolvedValue({
+            files: {
+                'serialized_exported_program.json': {},
+                'serialized_state_dict.pt': {}
+            }
+        });
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.pt2Viewer');
+    });
+
+    it('leaves an oversized .pt2 with the archive viewer', async () => {
+        const filePath = path.join(tempDir, 'huge.pt2');
+        const zip = Buffer.alloc(64);
+        zip.write('PK\x03\x04', 0, 'latin1');
+        fs.writeFileSync(filePath, zip);
+        fs.truncateSync(filePath, MAX_PT2_READ_BYTES + 1);
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.archiveViewer');
+        expect(result.reason).toContain('too large to inspect as a model');
+    });
+
+    it('routes a .pt2 that is not a readable ZIP to the PyTorch Export viewer by extension', async () => {
+        const filePath = path.join(tempDir, 'broken.pt2');
+        fs.writeFileSync(filePath, Buffer.from([0x00, 0x01, 0x02, 0x03]));
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.pt2Viewer');
+        expect(result.reason).toContain('PyTorch Export extension fallback');
+    });
+
+    it('detects an OpenVINO IR topology by its <net> root and layers', async () => {
+        const filePath = path.join(tempDir, 'model.xml');
+        fs.writeFileSync(filePath, [
+            '\uFEFF<?xml version="1.0"?>',
+            '<!-- exported by ovc -->',
+            '<net name="tiny" version="11">',
+            '\t<layers>',
+            '\t\t<layer id="0" name="x" type="Parameter" version="opset1"/>',
+            '\t</layers>',
+            '</net>'
+        ].join('\n'));
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.openvinoViewer');
+        expect(result.reason).toContain('OpenVINO IR');
+    });
+
+    it('leaves ordinary XML to the other viewers', async () => {
+        const filePath = path.join(tempDir, 'pom.xml');
+        fs.writeFileSync(filePath, '<?xml version="1.0"?>\n<project><modelVersion>4.0.0</modelVersion></project>\n');
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).not.toBe('omni-viewer.openvinoViewer');
+    });
+
+    it('does not claim a <net> root without a numeric version or layers', async () => {
+        const unversioned = path.join(tempDir, 'unversioned.xml');
+        fs.writeFileSync(unversioned, '<net name="a">\n<layers>\n</layers>\n</net>');
+        const layerless = path.join(tempDir, 'layerless.xml');
+        fs.writeFileSync(layerless, '<net name="a" version="11">\n<edges/>\n</net>');
+        const uppercase = path.join(tempDir, 'uppercase.xml');
+        fs.writeFileSync(uppercase, '<NET version="11">\n<layers>\n</layers>\n</NET>');
+
+        for (const filePath of [unversioned, layerless, uppercase]) {
+            const result = await FileUtils.detectViewerType(filePath);
+            expect(result.viewType).not.toBe('omni-viewer.openvinoViewer');
+        }
+    });
+
+    it('keeps AUTOSAR XML with the ARXML viewer', async () => {
+        const filePath = path.join(tempDir, 'system.xml');
+        fs.writeFileSync(filePath, '<?xml version="1.0"?>\n<AUTOSAR><AR-PACKAGES><AR-PACKAGE><SHORT-NAME>A</SHORT-NAME></AR-PACKAGE></AR-PACKAGES></AUTOSAR>');
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.arxmlViewer');
     });
 
     it('routes a Keras v3 archive to the Keras viewer instead of the archive viewer', async () => {

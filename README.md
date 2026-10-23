@@ -1,6 +1,6 @@
 # VSCode Omni Viewer
 
-A comprehensive audio, image, PSD, video, CSV, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, Excel, Word, PowerPoint, PDF, Parquet, HDF5, Safetensors, ONNX, TFLite/LiteRT, ExecuTorch, Keras, Core ML, GGUF, HAR, JSONL, Jupyter Notebook, LaTeX, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
+A comprehensive audio, image, PSD, video, CSV, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, Excel, Word, PowerPoint, PDF, Parquet, HDF5, NumPy, Safetensors, ONNX, TFLite/LiteRT, ExecuTorch, PyTorch Export, OpenVINO IR, Keras, Core ML, GGUF, HAR, JSONL, Jupyter Notebook, LaTeX, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-red)](https://github.com/sponsors/battlecook)
 
@@ -298,6 +298,17 @@ Note: notebooks larger than 64 MiB are not previewed.
 - **Format Coverage**: Reads superblock versions 0–3, including classic symbol-table groups and version-2 object headers with compact links
 - **Header Preview**: Hex/ASCII dump of the file header for inspection
 
+## 🔢 NumPy Viewer Features
+
+### NumPy Arrays (.npy, .npz)
+- **Both Containers**: Opens a standalone `.npy` array and an `.npz` archive written by `np.savez` / `np.savez_compressed`, with an array selector for archives holding several arrays
+- **Array Details**: Shows each array's dtype, byte order, shape, memory order (C or Fortran), element count, and byte size
+- **Data Grid**: Pages through the values of 1-D and 2-D arrays and slices higher-dimensional ones, printing `NaN`, infinities, and negative zero exactly as stored
+- **Bounded Preview**: Decodes at most 100,000 values across the file, so a large array opens with a preview rather than being loaded into the webview whole
+- **Safe by Design**: Object arrays are listed but never unpickled, and an `.npz` member is inflated through a bounded stream rather than trusted to its declared size
+- **Smart Routing**: The `\x93NUMPY` magic string routes a mislabeled `.npy`, and an `.npz` opens without the generic ZIP probe inflating it first. Files are inspected in memory, so an `.npz` above 512 MB is left to the Archive viewer
+- **Powered by**: `omni-viewer-core` 0.19.0 for NumPy parsing and rendering
+
 ## 🧠 Safetensors Viewer Features
 
 ### Model Tensor Metadata (.safetensors)
@@ -345,6 +356,30 @@ Note: notebooks larger than 64 MiB are not previewed.
 - **Validation Warnings**: Flags required runtime backends, tensors stored in a separate `.ptd` file, segments past the end of the file, and unknown scalar types or instruction kinds
 - **Weights Stay on Disk**: Reads the `ET12` FlatBuffer and resolves segments to offsets and byte counts without decoding a single payload. The program is inspected in memory, so a file above 512 MB is rejected
 - **Powered by**: `omni-viewer-core` 0.19.0 for dependency-free ExecuTorch parsing and rendering
+
+## 🔥 PyTorch Export Viewer Features
+
+### `torch.export` Packages (.pt2)
+- **Export IR Graph**: Shows the ATen graph — placeholders coloured by signature kind (user input, parameter, buffer, constant), operator nodes, outputs, and the `cond` / `while_loop` sub-graphs of higher-order control-flow nodes
+- **Node Inspector**: Lists each node's arguments, producers and consumers, `nn.Module` stack, metadata, and stack trace
+- **Weights and Constants**: Lists parameters, buffers, tensor constants, and script objects with dtype, shape, byte size, archive status, and a short value preview of every fixed-width dtype including bf16 and float8
+- **Signature and Modules**: Shows graph inputs and outputs by kind (including buffer mutations and constant inputs) and the `nn.Module` hierarchy with preserved call signatures
+- **Model Info**: Reports schema and torch versions, opsets, range constraints, guards, and operator counts, with symbolic shapes printed as expressions (`2*s0`) instead of sympy `srepr`
+- **Multi-Model and AOTInductor Packages**: Adds a model selector for `package_pt2` bundles and opens AOTInductor-only packages on the archive listing with their compile metadata; the pre-PT2 `torch.export.save` layout is read on a best-effort basis
+- **Smart Routing**: `.pt2` files open by extension, and a package saved under another name is recognized by its `archive_format` marker. The package is inspected in memory, so a file above 512 MB is left to the Archive viewer
+- **Powered by**: `omni-viewer-core` 0.19.0 for dependency-free PT2 parsing and rendering
+
+## 🟣 OpenVINO IR Viewer Features
+
+### OpenVINO Intermediate Representation (.xml + .bin)
+- **Graph View**: Shows the layer topology with a layer inspector covering ports with their producers and consumers, `<data>` attributes, `rt_info`, weight ranges, and the sub-graphs a `Loop`, `TensorIterator`, or `If` layer carries
+- **Layers, Constants, and I/O**: Searchable tables of every layer, every constant with its offset, size, and status in the `.bin`, and the model's inputs and outputs with their tensor names
+- **Weight Checks**: Reads the same-named `.bin` beside the `.xml`, checks every constant's byte range against it, and decodes its leading values (f16, bf16, and f8 included); a `.bin` too short for the constants, or with bytes nothing references, is flagged as a likely mismatch
+- **Model Info**: Reports the network name, IR version, opsets, operator counts, and flattened `rt_info` / `meta_data`
+- **IR Versions**: Targets IR v10 and v11 (OpenVINO 2020.1 and newer) and reads the legacy v7-and-earlier layout on a best-effort basis
+- **Opt-In for `.xml`**: `.xml` is shared with every other XML dialect, so the viewer never becomes the default — choose **Open With… → OpenVINO IR Viewer** (or **Reopen Editor With…**). A file that is not an IR is rerouted to whichever Omni viewer recognizes it (ARXML, ReqIF, …), and otherwise reports that it is not an IR
+- **Size Limits**: Topologies up to 256 MB are inspected; a `.bin` above 512 MB, or one that cannot be read, stays on disk and the topology opens with constants shown by range only, with a notice saying why
+- **Powered by**: `omni-viewer-core` 0.19.0 for dependency-free OpenVINO IR parsing and rendering
 
 ## 🧱 Keras Viewer Features
 
@@ -447,8 +482,9 @@ The following policy describes the planned behavior for a future share feature r
 Open VSX listing privacy details: [open-vsx-listing-privacy.md](open-vsx-listing-privacy.md)
 
 - **What data will be uploaded**
-  - The file selected by the user for sharing (single file)
-  - File metadata such as filename, content type, file size, file type, and optional viewer metadata (for example selected region/range)
+  - The file selected by the user for sharing (single file), encrypted on the device with AES-256-GCM before upload
+  - The filename and content type are sealed inside the encrypted file; the server sees only an opaque `encrypted.bin` and its size
+  - The decryption key stays in the share link's `#k=` fragment and is never sent to the server
   - Request source platform (for example `vscode`)
 - **Purpose**
   - Create a temporary share link and allow limited-time download/view access

@@ -10,6 +10,9 @@ module.exports = [
       extension: './src/extension.ts',
       tfliteParserWorker: './src/tfliteParserWorker.ts',
       pteParserWorker: './src/pteParserWorker.ts',
+      pt2ParserWorker: './src/pt2ParserWorker.ts',
+      openvinoParserWorker: './src/openvinoParserWorker.ts',
+      numpyParserWorker: './src/numpyParserWorker.ts',
       kerasParserWorker: './src/kerasParserWorker.ts',
       coremlParserWorker: './src/coremlParserWorker.ts',
       harParserWorker: './src/harParserWorker.ts',
@@ -431,6 +434,147 @@ module.exports = [
       filename: 'pteViewer.js',
       libraryTarget: 'var',
       library: 'PteViewer'
+    },
+    resolve: {
+      extensions: ['.js'],
+      fallback: {
+        fs: false,
+        path: false
+      }
+    },
+    module: {
+      rules: [
+        {
+          test: /\.js$/,
+          exclude: /node_modules/,
+          use: {
+            loader: 'babel-loader',
+            options: {
+              presets: ['@babel/preset-env']
+            }
+          }
+        }
+      ]
+    },
+    optimization: {
+      splitChunks: false,
+      runtimeChunk: false,
+      minimize: true,
+      usedExports: true,
+      sideEffects: false
+    },
+    plugins: [
+      new webpack.optimize.LimitChunkCountPlugin({
+        maxChunks: 1
+      })
+    ]
+  },
+  // JavaScript files configuration for PyTorch Export viewer (omni-viewer-core)
+  {
+    mode: 'production',
+    target: 'web',
+    entry: {
+      'templates/pt2/js/pt2Viewer': './src/templates/pt2/js/pt2ViewerMain.js'
+    },
+    output: {
+      path: path.resolve(__dirname, 'src/templates/pt2/js'),
+      filename: 'pt2Viewer.js',
+      libraryTarget: 'var',
+      library: 'Pt2Viewer'
+    },
+    resolve: {
+      extensions: ['.js'],
+      fallback: {
+        fs: false,
+        path: false
+      }
+    },
+    module: {
+      rules: [
+        {
+          test: /\.js$/,
+          exclude: /node_modules/,
+          use: {
+            loader: 'babel-loader',
+            options: {
+              presets: ['@babel/preset-env']
+            }
+          }
+        }
+      ]
+    },
+    optimization: {
+      splitChunks: false,
+      runtimeChunk: false,
+      minimize: true,
+      usedExports: true,
+      sideEffects: false
+    },
+    plugins: [
+      new webpack.optimize.LimitChunkCountPlugin({
+        maxChunks: 1
+      })
+    ]
+  },
+  // JavaScript files configuration for OpenVINO viewer (omni-viewer-core)
+  {
+    mode: 'production',
+    target: 'web',
+    entry: {
+      'templates/openvino/js/openvinoViewer': './src/templates/openvino/js/openvinoViewerMain.js'
+    },
+    output: {
+      path: path.resolve(__dirname, 'src/templates/openvino/js'),
+      filename: 'openvinoViewer.js',
+      libraryTarget: 'var',
+      library: 'OpenVinoViewer'
+    },
+    resolve: {
+      extensions: ['.js'],
+      fallback: {
+        fs: false,
+        path: false
+      }
+    },
+    module: {
+      rules: [
+        {
+          test: /\.js$/,
+          exclude: /node_modules/,
+          use: {
+            loader: 'babel-loader',
+            options: {
+              presets: ['@babel/preset-env']
+            }
+          }
+        }
+      ]
+    },
+    optimization: {
+      splitChunks: false,
+      runtimeChunk: false,
+      minimize: true,
+      usedExports: true,
+      sideEffects: false
+    },
+    plugins: [
+      new webpack.optimize.LimitChunkCountPlugin({
+        maxChunks: 1
+      })
+    ]
+  },
+  // JavaScript files configuration for NumPy viewer (omni-viewer-core)
+  {
+    mode: 'production',
+    target: 'web',
+    entry: {
+      'templates/numpy/js/numpyViewer': './src/templates/numpy/js/numpyViewerMain.js'
+    },
+    output: {
+      path: path.resolve(__dirname, 'src/templates/numpy/js'),
+      filename: 'numpyViewer.js',
+      libraryTarget: 'var',
+      library: 'NumpyViewer'
     },
     resolve: {
       extensions: ['.js'],

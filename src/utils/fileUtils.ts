@@ -6,6 +6,8 @@ import JSZip from 'jszip';
 import { MAX_KERAS_READ_BYTES } from './kerasLimits';
 import { MAX_COREML_READ_BYTES } from './coremlLimits';
 import { MAX_HAR_READ_BYTES } from './harLimits';
+import { MAX_NUMPY_READ_BYTES } from './numpyLimits';
+import { MAX_PT2_READ_BYTES } from './pt2Limits';
 import { PptxXmlParser } from './pptxXmlParser';
 import { PptBinaryParser } from './pptBinaryParser';
 import {
@@ -70,6 +72,9 @@ export type OmniViewerViewType =
     | 'omni-viewer.onnxViewer'
     | 'omni-viewer.tfliteViewer'
     | 'omni-viewer.pteViewer'
+    | 'omni-viewer.pt2Viewer'
+    | 'omni-viewer.openvinoViewer'
+    | 'omni-viewer.numpyViewer'
     | 'omni-viewer.kerasViewer'
     | 'omni-viewer.coremlViewer'
     | 'omni-viewer.ggufViewer'
@@ -253,6 +258,12 @@ export class FileUtils {
             return this.signatureMatch('omni-viewer.pteViewer', 'Matched the ExecuTorch FlatBuffer identifier.');
         }
 
+        // `\x93NUMPY` opens every `.npy`; an over-budget array still goes to
+        // the NumPy viewer, which reports the limit itself.
+        if (this.matchesBytes(buffer, [0x93, 0x4E, 0x55, 0x4D, 0x50, 0x59])) {
+            return this.signatureMatch('omni-viewer.numpyViewer', 'Matched the NumPy NPY magic string.');
+        }
+
         if (this.hasAsciiPrefix(buffer, 'GGUF')) {
             return this.signatureMatch('omni-viewer.ggufViewer', 'Matched the GGUF magic bytes.');
         }
@@ -339,6 +350,40 @@ export class FileUtils {
                 );
             }
 
+            if (ext === '.npz' || ext === '.pt2') {
+                // Both are ZIPs the archive viewer can still list once they are
+                // past the in-memory budget their own viewers need. An explicit
+                // archive request is honoured too, so a package its own viewer
+                // rejects (an `.npz` declaring more than the core will inflate,
+                // say) can still be listed instead of being rerouted back.
+                const isNumpy = ext === '.npz';
+                if (
+                    fallbackViewType !== 'omni-viewer.archiveViewer'
+                    && await this.fitsMemoryBudget(filePath, isNumpy ? MAX_NUMPY_READ_BYTES : MAX_PT2_READ_BYTES)
+                ) {
+                    return this.signatureMatch(
+                        isNumpy ? 'omni-viewer.numpyViewer' : 'omni-viewer.pt2Viewer',
+                        isNumpy
+                            ? 'Matched a ZIP container with the NumPy NPZ extension.'
+                            : 'Matched a ZIP container with the PyTorch Export extension.'
+                    );
+                }
+
+                if (fallbackViewType === 'omni-viewer.archiveViewer') {
+                    return this.signatureMatch(
+                        'omni-viewer.archiveViewer',
+                        'Matched a ZIP container and preserved the requested Archive viewer.'
+                    );
+                }
+
+                return this.signatureMatch(
+                    'omni-viewer.archiveViewer',
+                    isNumpy
+                        ? 'Matched a NumPy NPZ archive too large to inspect as arrays.'
+                        : 'Matched a PyTorch Export package too large to inspect as a model.'
+                );
+            }
+
             if (ext === '.mlpackage') {
                 // An archive past the Core ML memory budget stays with the
                 // archive viewer, which can still list what is inside it.
@@ -355,7 +400,7 @@ export class FileUtils {
                 );
             }
 
-            const zipType = await this.detectZipBasedViewType(filePath);
+            const zipType = await this.detectZipBasedViewType(filePath, fallbackViewType);
             if (zipType) {
                 return this.signatureMatch(zipType.viewType, zipType.reason);
             }
@@ -435,6 +480,26 @@ export class FileUtils {
             return {
                 viewType: 'omni-viewer.pteViewer',
                 reason: 'Used the ExecuTorch extension fallback.',
+                matchedBySignature: false
+            };
+        }
+
+        // Reached only when the file carries neither the NPY magic nor a
+        // readable ZIP; the NumPy viewer reports what is wrong with it.
+        if (ext === '.npy' || ext === '.npz') {
+            return {
+                viewType: 'omni-viewer.numpyViewer',
+                reason: 'Used the NumPy extension fallback.',
+                matchedBySignature: false
+            };
+        }
+
+        // Reached only when the file is not a readable ZIP; still worth the
+        // PyTorch Export viewer, which reports what is wrong with the package.
+        if (ext === '.pt2') {
+            return {
+                viewType: 'omni-viewer.pt2Viewer',
+                reason: 'Used the PyTorch Export extension fallback.',
                 matchedBySignature: false
             };
         }
@@ -955,6 +1020,15 @@ export class FileUtils {
         }
     }
 
+    private static async fitsMemoryBudget(filePath: string, limit: number): Promise<boolean> {
+        try {
+            const { size } = await fs.promises.stat(filePath);
+            return size <= limit;
+        } catch {
+            return false;
+        }
+    }
+
     private static async fitsCoremlMemoryBudget(filePath: string): Promise<boolean> {
         try {
             const { size } = await fs.promises.stat(filePath);
@@ -964,7 +1038,10 @@ export class FileUtils {
         }
     }
 
-    private static async detectZipBasedViewType(filePath: string): Promise<{ viewType: OmniViewerViewType; reason: string } | null> {
+    private static async detectZipBasedViewType(
+        filePath: string,
+        requestedViewType?: OmniViewerViewType
+    ): Promise<{ viewType: OmniViewerViewType; reason: string } | null> {
         try {
             const zipLoader = (JSZip as unknown as { loadAsync?: (input: Buffer) => Promise<JSZip> }).loadAsync;
             if (!zipLoader) {
@@ -1037,6 +1114,22 @@ export class FileUtils {
                     reason: 'Matched a ZIP container with Core ML package members.'
                 };
             }
+
+            // `PyTorchFileWriter` puts an `archive_format` marker under the
+            // package folder; the legacy `torch.export.save` layout is flat
+            // and named by its program file. A marker deeper than that belongs
+            // to a package nested inside an ordinary ZIP, and an explicit
+            // archive request keeps the listing reachable.
+            if (
+                requestedViewType !== 'omni-viewer.archiveViewer'
+                && names.some(name => /^([^/]+\/)?(archive_format|serialized_exported_program\.json)$/.test(name))
+                && buffer.length <= MAX_PT2_READ_BYTES
+            ) {
+                return {
+                    viewType: 'omni-viewer.pt2Viewer',
+                    reason: 'Matched a ZIP container with PyTorch Export package members.'
+                };
+            }
         } catch (error) {
             console.warn('Failed to inspect ZIP-based office file:', error);
         }
@@ -1079,6 +1172,16 @@ export class FileUtils {
             return {
                 viewType: 'omni-viewer.notebookViewer',
                 reason: 'Used the Jupyter notebook extension fallback.',
+                matchedBySignature: false
+            };
+        }
+
+        // `.xml` is shared with every other XML dialect, so an OpenVINO IR is
+        // only ever recognized by its `<net version>` root and `<layers>`.
+        if ((ext === '.xml' || ext === '') && this.looksLikeOpenVinoIr(buffer)) {
+            return {
+                viewType: 'omni-viewer.openvinoViewer',
+                reason: 'Matched OpenVINO IR content.',
                 matchedBySignature: false
             };
         }
@@ -1271,6 +1374,37 @@ export class FileUtils {
         const hasDbcHeader = sampleLines.some(line => /^(VERSION|NS_|BS_|BU_):?/.test(line));
 
         return hasMessage && (hasSignal || hasDbcHeader);
+    }
+
+    /** Mirrors `looksLikeOpenVinoIr` in `omni-viewer-core/parsers/openvino`:
+     *  after a BOM, XML declaration, processing instructions, comments, and
+     *  an optional DOCTYPE, the root must be a lowercase `<net>` carrying a
+     *  numeric `version` and followed by `<layers>`. */
+    private static looksLikeOpenVinoIr(buffer: Buffer): boolean {
+        const text = buffer.toString('utf8');
+        let index = text.charCodeAt(0) === 0xFEFF ? 1 : 0;
+        for (;;) {
+            while (index < text.length && /\s/.test(text[index])) {
+                index++;
+            }
+            const opener = text.startsWith('<?', index) ? '<?' : text.startsWith('<!--', index) ? '<!--' : null;
+            if (!opener) {
+                break;
+            }
+            const end = text.indexOf(opener === '<?' ? '?>' : '-->', index + opener.length);
+            if (end === -1) {
+                return false;
+            }
+            index = end + (opener === '<?' ? 2 : 3);
+        }
+
+        const sample = text.slice(index);
+        const root = /^\s*(?:<!DOCTYPE(?:[^[>]|\[[^\]]*\])*>\s*)?<net(?:\s[^>]*)?>/.exec(sample);
+        if (!root) {
+            return false;
+        }
+        const tag = root[0];
+        return /\sversion\s*=\s*["']\d+["']/.test(tag) && /<layers[\s/>]/.test(sample.slice(tag.length));
     }
 
     private static looksLikeArxml(sample: string): boolean {

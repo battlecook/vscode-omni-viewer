@@ -2,8 +2,8 @@
   "name": "omni-viewer",
   "displayName": "omni-viewer",
   "publisher": "battlecook",
-  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, excel, word, powerpoint, parquet, Shapefile, HDF5, MAT, Safetensors, ONNX, TFLite, ExecuTorch, Keras, Core ML, GGUF, HAR, jsonl, yaml, toml, markdown, Jupyter Notebook, LaTeX, mermaid, PlantUML, hwp, PSD and PDF files",
-  "version": "0.44.0",
+  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, excel, word, powerpoint, parquet, Shapefile, HDF5, MAT, NumPy, Safetensors, ONNX, TFLite, ExecuTorch, PyTorch Export, OpenVINO, Keras, Core ML, GGUF, HAR, jsonl, yaml, toml, markdown, Jupyter Notebook, LaTeX, mermaid, PlantUML, hwp, PSD and PDF files",
+  "version": "0.45.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
@@ -76,6 +76,10 @@
     "MAT",
     "mat",
     "MATLAB",
+    "NumPy",
+    "numpy",
+    "npy",
+    "npz",
     "Safetensors",
     "safetensors",
     "ONNX",
@@ -87,6 +91,10 @@
     "executorch",
     "pte",
     "PyTorch",
+    "pt2",
+    "torch.export",
+    "OpenVINO",
+    "openvino",
     "Keras",
     "keras",
     "TensorFlow",
@@ -604,6 +612,19 @@
         "priority": "default"
       },
       {
+        "viewType": "omni-viewer.numpyViewer",
+        "displayName": "NumPy Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.npy"
+          },
+          {
+            "filenamePattern": "*.npz"
+          }
+        ],
+        "priority": "default"
+      },
+      {
         "viewType": "omni-viewer.safetensorsViewer",
         "displayName": "Safetensors Viewer",
         "selector": [
@@ -645,6 +666,26 @@
           }
         ],
         "priority": "default"
+      },
+      {
+        "viewType": "omni-viewer.pt2Viewer",
+        "displayName": "PyTorch Export Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.pt2"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "omni-viewer.openvinoViewer",
+        "displayName": "OpenVINO IR Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.xml"
+          }
+        ],
+        "priority": "option"
       },
       {
         "viewType": "omni-viewer.kerasViewer",
@@ -937,6 +978,11 @@
           "group": "navigation"
         },
         {
+          "command": "omni-viewer.openNumpyViewer",
+          "when": "resourceExtname == '.npy' || resourceExtname == '.npz'",
+          "group": "navigation"
+        },
+        {
           "command": "omni-viewer.openSafetensorsViewer",
           "when": "resourceExtname == '.safetensors'",
           "group": "navigation"
@@ -954,6 +1000,11 @@
         {
           "command": "omni-viewer.openPteViewer",
           "when": "resourceExtname == '.pte'",
+          "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openPt2Viewer",
+          "when": "resourceExtname == '.pt2'",
           "group": "navigation"
         },
         {
@@ -1170,6 +1221,11 @@
         "category": "Omni Viewer"
       },
       {
+        "command": "omni-viewer.openNumpyViewer",
+        "title": "Open With OmniViewer",
+        "category": "Omni Viewer"
+      },
+      {
         "command": "omni-viewer.openSafetensorsViewer",
         "title": "Open With OmniViewer",
         "category": "Omni Viewer"
@@ -1186,6 +1242,16 @@
       },
       {
         "command": "omni-viewer.openPteViewer",
+        "title": "Open With OmniViewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openPt2Viewer",
+        "title": "Open With OmniViewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openOpenVinoViewer",
         "title": "Open With OmniViewer",
         "category": "Omni Viewer"
       },

@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.45.0] - 2026-10-23
+
+### Added
+- **NumPy Viewer**
+  - Added a custom editor for NumPy arrays (`.npy`) and array archives (`.npz`) built on `omni-viewer-core`, with parsing isolated in a worker and the viewer mounted in a dedicated webview bundle
+  - Added an array selector, dtype, byte order, shape, memory order, element count, and byte size details, and a data grid that slices higher-dimensional arrays
+  - Kept `NaN`, infinities, and negative zero intact on the way into the webview instead of letting JSON turn them into `null` and `0`
+  - Bounded the value preview to 100,000 elements across the file and never unpickled object arrays
+  - Added `\x93NUMPY` magic detection so a mislabeled array still routes correctly, `.npz` routing ahead of the whole-file ZIP probe, custom editor registration, explorer actions, and an `Open With OmniViewer` command
+  - Capped in-memory inspection at 512 MB, leaving a larger `.npz` to the Archive viewer, and cancelled worker parsing when the editor load is cancelled or its panel closes
+- **PyTorch Export Viewer**
+  - Added a custom editor for `torch.export` packages (`.pt2`) built on `omni-viewer-core`, with parsing isolated in a worker and the viewer mounted in a dedicated webview bundle
+  - Added the ATen graph with control-flow sub-graphs and a node inspector, weights and constants with archive status and value previews, the graph signature, the `nn.Module` hierarchy, model info, and the archive listing
+  - Supported multi-model `package_pt2` bundles, AOTInductor-only packages, and the pre-PT2 `torch.export.save` layout on a best-effort basis
+  - Added `.pt2` routing ahead of the whole-file ZIP probe, `archive_format` / `serialized_exported_program.json` member detection for a mislabeled package, custom editor registration, explorer actions, and an `Open With OmniViewer` command
+  - Capped in-memory inspection at 512 MB, leaving a larger package to the Archive viewer, and cancelled worker parsing when the editor load is cancelled or its panel closes
+- **OpenVINO IR Viewer**
+  - Added a custom editor for OpenVINO IR models (`.xml` with its `.bin`) built on `omni-viewer-core`, with parsing isolated in a worker and the viewer mounted in a dedicated webview bundle
+  - Added the layer graph with a layer inspector and control-flow bodies, plus searchable layer, constant, input/output, and model info panels
+  - Read the same-named `.bin` beside the `.xml` to range-check every constant and preview its leading values, flagging a `.bin` that looks like it belongs to a different model
+  - Registered the viewer as an optional editor for `.xml` so ordinary XML keeps its default editor, and added content detection on the `<net version>` root and `<layers>` so an IR is never confused with ARXML, ReqIF, or other XML
+  - Capped the topology at 256 MB and left a `.bin` above 512 MB (or one that cannot be read) on disk, rendering the topology with constants shown by range only and a notice saying why
+
+### Changed
+- **Share**
+  - Encrypted shared files on the device before upload, following the server's v2 `OVS2` format: AES-256-GCM with a fresh 32-byte key and 12-byte nonce per share and `OVS2` as additional data, sealing the original filename and content type with the file bytes
+  - Switched uploads from `POST /v1/shares` to `POST /v2/shares` with an opaque `encrypted.bin`, so the filename, content type, and key never reach the API, Firestore, or GCS metadata, and a failed v2 upload never falls back to a plaintext v1 upload
+  - Matched the client size check to the server's 1 MB `vscode` upload cap, applied to the encrypted file, so an oversized file is refused before upload instead of failing on the server (the previous message wrongly said 10 MB)
+  - Share links now take the platform-wide `…/share/{share_id}#k=<key>` form, with the key as unpadded base64url (exactly 43 characters)
+  - **Open Shared Link** picks the API version from the link: a `#k=` key opens the share through `GET /v2/shares/:share_id/download` and verifies the GCM tag and the sealed metadata before saving the file, while a link without a key still opens as v1. A malformed key is rejected before any request, and a file that fails decryption is never saved or opened
+
 ## [0.44.0] - 2026-10-09
 
 ### Added

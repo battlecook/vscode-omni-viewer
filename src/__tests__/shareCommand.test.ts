@@ -18,7 +18,7 @@ jest.mock('vscode', () => ({
     Uri: { parse: jest.fn() }
 }), { virtual: true });
 
-import { HAR_SHARE_CONFIRM_ACTION, shareFileCommand } from '../shareCommand';
+import { HAR_SHARE_CONFIRM_ACTION, parseShareInput, shareFileCommand } from '../shareCommand';
 
 function fileUri(fsPath: string) {
     return { fsPath, toString: () => `file://${fsPath}` } as unknown as import('vscode').Uri;
@@ -69,5 +69,14 @@ describe('shareFileCommand HAR confirmation', () => {
 
         expect(mockShowWarningMessage).not.toHaveBeenCalled();
         expect(mockWithProgress).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('parseShareInput', () => {
+    it('keeps the #k= fragment of a share URL and none for a bare ID', () => {
+        expect(parseShareInput('https://omni-viewer-web.web.app/share/abc123#k=KEY')).toEqual({ shareId: 'abc123', fragment: '#k=KEY' });
+        expect(parseShareInput(' https://omni-viewer-web.web.app/share/abc123 ')).toEqual({ shareId: 'abc123', fragment: '' });
+        expect(parseShareInput('abc123')).toEqual({ shareId: 'abc123', fragment: '' });
+        expect(parseShareInput('not a link')).toBeNull();
     });
 });

@@ -4,13 +4,19 @@ import * as path from 'path';
 import * as os from 'os';
 import * as fsp from 'fs/promises';
 import { URL } from 'url';
+import { decryptShareFile, encryptShareFile, readShareLinkKey } from './utils/shareCrypto';
 
 const SHARE_API_BASE = 'https://omni-viewer-share-624036133562.us-west1.run.app';
 const WEB_BASE = 'https://omni-viewer-web.web.app';
-const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+// The server caps `vscode` uploads below 1 MiB, measured on the encrypted envelope.
+const MAX_FILE_SIZE_BYTES = 1024 * 1024 - 1;
 const DEFAULT_EXPIRES_IN_MINUTES = 5;
 const SHARE_PATH_PATTERN = /\/share\/([^/?#]+)/;
 const BARE_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
+// The only filename `POST /v2/shares` accepts: the real name is sealed in the envelope.
+const ENCRYPTED_SHARE_FILENAME = 'encrypted.bin';
+
+type ShareApiVersion = 'v1' | 'v2';
 
 interface HttpResponse {
     status: number;
@@ -28,17 +34,15 @@ interface CreateShareResponse {
     share_id: string;
     download_url: string;
     expires_at: string;
-    filename: string;
     file_size: number;
-    content_type: string;
+    encryption_version: number;
 }
 
 interface DownloadTicket {
     download_url: string;
-    filename: string;
+    // v1 only; v2 tickets carry no name, it is sealed inside the envelope.
+    filename?: string;
     content_type: string;
-    file_type?: string;
-    file_meta?: Record<string, unknown>;
 }
 
 function send(method: string, url: string, headers: Record<string, string | number>, body?: Buffer): Promise<HttpResponse> {
@@ -131,7 +135,7 @@ function extractErrorMessage(res: HttpResponse): string {
 }
 
 async function fetchUploadToken(): Promise<string> {
-    const res = await postJson(`${SHARE_API_BASE}/v1/share-upload-tokens`, { platform: 'vscode' });
+    const res = await postJson(`${SHARE_API_BASE}/v2/share-upload-tokens`, { platform: 'vscode' });
     if (res.status < 200 || res.status >= 300) {
         throw new Error(extractErrorMessage(res));
     }
@@ -147,18 +151,16 @@ async function fetchUploadToken(): Promise<string> {
     return parsed.upload_token;
 }
 
-async function uploadShare(uri: vscode.Uri, token: string): Promise<CreateShareResponse> {
-    const filePath = uri.fsPath;
-    const fileBytes = await vscode.workspace.fs.readFile(uri);
-    const filename = path.basename(filePath);
-
-    const url = `${SHARE_API_BASE}/v1/shares?expires_in_minutes=${DEFAULT_EXPIRES_IN_MINUTES}`;
+async function uploadShare(envelope: Buffer, token: string): Promise<CreateShareResponse> {
+    const url = `${SHARE_API_BASE}/v2/shares?expires_in_minutes=${DEFAULT_EXPIRES_IN_MINUTES}`;
+    // The server rejects any plaintext field beyond platform, is_paid_user,
+    // max_access_count and jb_license, so nothing about the file goes here.
     const res = await postMultipart(
         url,
         [
             { name: 'platform', value: 'vscode' },
             { name: 'is_paid_user', value: 'false' },
-            { name: 'file', value: Buffer.from(fileBytes), filename, contentType: 'application/octet-stream' }
+            { name: 'file', value: envelope, filename: ENCRYPTED_SHARE_FILENAME, contentType: 'application/octet-stream' }
         ],
         { 'X-Upload-Token': token }
     );
@@ -215,13 +217,13 @@ export async function shareFileCommand(uri?: vscode.Uri): Promise<void> {
         return;
     }
     if (stat.size > MAX_FILE_SIZE_BYTES) {
-        vscode.window.showErrorMessage('Omni Viewer: file is too large to share (max 10 MB).');
+        vscode.window.showErrorMessage('Omni Viewer: file is too large to share (max 1 MB).');
         return;
     }
     if (mayHoldHttpCredentials(target)) {
         const choice = await vscode.window.showWarningMessage(
             'HAR files usually contain cookies, authorization headers, and request bodies that can include passwords or session tokens. '
-                + `Anyone with the share link can download ${path.basename(target.fsPath)} as-is. Share it anyway?`,
+                + `The upload is encrypted, but anyone with the share link can open ${path.basename(target.fsPath)} as-is. Share it anyway?`,
             { modal: true },
             HAR_SHARE_CONFIRM_ACTION
         );
@@ -238,9 +240,23 @@ export async function shareFileCommand(uri?: vscode.Uri): Promise<void> {
         },
         async () => {
             try {
+                const fileBytes = await vscode.workspace.fs.readFile(target);
+                const { envelope, key } = encryptShareFile(fileBytes, {
+                    filename: path.basename(target.fsPath),
+                    content_type: 'application/octet-stream',
+                    // Left empty so the receiving viewer detects the type itself, as
+                    // it did for v1 shares from VS Code.
+                    file_type: '',
+                    file_meta: {}
+                });
+                // The server limit applies to the envelope, which is slightly larger.
+                if (envelope.length > MAX_FILE_SIZE_BYTES) {
+                    throw new Error('file is too large to share once encrypted (max 1 MB).');
+                }
                 const token = await fetchUploadToken();
-                const share = await uploadShare(target, token);
-                const shareUrl = `${WEB_BASE}/share/${encodeURIComponent(share.share_id)}`;
+                const share = await uploadShare(envelope, token);
+                // The key only ever leaves this client in the link fragment.
+                const shareUrl = `${WEB_BASE}/share/${encodeURIComponent(share.share_id)}#k=${key}`;
                 await vscode.env.clipboard.writeText(shareUrl);
 
                 const action = await vscode.window.showInformationMessage(
@@ -258,25 +274,43 @@ export async function shareFileCommand(uri?: vscode.Uri): Promise<void> {
     );
 }
 
-function parseShareId(input: string): string | null {
+interface ParsedShareInput {
+    shareId: string;
+    // The URL's `#...` fragment, which carries the v2 key as `#k=<key>`.
+    fragment: string;
+}
+
+export function parseShareInput(input: string): ParsedShareInput | null {
     const trimmed = input.trim();
     if (!trimmed) return null;
     const match = trimmed.match(SHARE_PATH_PATTERN);
     if (match && match[1]) {
+        let shareId = match[1];
         try {
-            return decodeURIComponent(match[1]);
+            shareId = decodeURIComponent(shareId);
         } catch {
-            return match[1];
+            // Keep the raw segment if the URL is malformed.
         }
+        const hashIndex = trimmed.indexOf('#');
+        return { shareId, fragment: hashIndex >= 0 ? trimmed.slice(hashIndex) : '' };
     }
     if (BARE_ID_PATTERN.test(trimmed)) {
-        return trimmed;
+        return { shareId: trimmed, fragment: '' };
     }
     return null;
 }
 
-async function fetchTicket(shareId: string): Promise<DownloadTicket> {
-    const url = `${SHARE_API_BASE}/v1/shares/${encodeURIComponent(shareId)}/download`;
+function validateShareInput(value: string): string | null {
+    const parsed = parseShareInput(value);
+    if (!parsed) return 'Invalid share URL or ID.';
+    if (readShareLinkKey(parsed.fragment).status === 'invalid') {
+        return 'Invalid share link: the decryption key is malformed.';
+    }
+    return null;
+}
+
+async function fetchTicket(version: ShareApiVersion, shareId: string): Promise<DownloadTicket> {
+    const url = `${SHARE_API_BASE}/${version}/shares/${encodeURIComponent(shareId)}/download`;
     const res = await send('GET', url, {});
     if (res.status === 404) {
         throw new Error('Shared file not found.');
@@ -313,27 +347,29 @@ function sanitizeFilename(name: string): string {
         }
     }
     cleaned = cleaned.trim().slice(0, 200);
-    return cleaned || 'shared-file';
+    // `.` and `..` would resolve outside the download folder.
+    return cleaned && cleaned !== '.' && cleaned !== '..' ? cleaned : 'shared-file';
 }
 
 export async function openSharedLinkCommand(): Promise<void> {
     const input = await vscode.window.showInputBox({
         prompt: 'Enter Omni Viewer share URL or share ID',
-        placeHolder: `${WEB_BASE}/share/<id> or <id>`,
+        placeHolder: `${WEB_BASE}/share/<id>#k=<key> or <id>`,
         ignoreFocusOut: true,
         validateInput: (value) => {
             if (!value.trim()) return 'Please enter a share URL or ID.';
-            if (!parseShareId(value)) return 'Invalid share URL or ID.';
-            return null;
+            return validateShareInput(value);
         }
     });
     if (!input) return;
 
-    const shareId = parseShareId(input);
-    if (!shareId) {
-        vscode.window.showErrorMessage('Omni Viewer: invalid share URL or ID.');
+    const parsed = parseShareInput(input);
+    const linkKey = parsed ? readShareLinkKey(parsed.fragment) : null;
+    if (!parsed || !linkKey || linkKey.status === 'invalid') {
+        vscode.window.showErrorMessage(`Omni Viewer: ${validateShareInput(input) ?? 'invalid share URL or ID.'}`);
         return;
     }
+    const { shareId } = parsed;
 
     await vscode.window.withProgress(
         {
@@ -343,9 +379,24 @@ export async function openSharedLinkCommand(): Promise<void> {
         },
         async () => {
             try {
-                const ticket = await fetchTicket(shareId);
-                const bytes = await downloadBytes(ticket.download_url);
-                const safeName = sanitizeFilename(ticket.filename || `share-${shareId}`);
+                // A `#k=` key means v2, no key means v1. The server keeps the two
+                // apart (each 404s on the other's shares) and a ticket spends an
+                // access, so never probe one version and fall back to the other.
+                const ticket = await fetchTicket(linkKey.status === 'valid' ? 'v2' : 'v1', shareId);
+                let bytes = await downloadBytes(ticket.download_url);
+                let filename = ticket.filename;
+                if (linkKey.status === 'valid') {
+                    let opened: ReturnType<typeof decryptShareFile>;
+                    try {
+                        opened = decryptShareFile(bytes, linkKey.key);
+                    } catch {
+                        // Wrong key, tampered or non-encrypted upload: never save it.
+                        throw new Error('could not decrypt the shared file. The link may be incomplete or corrupted.');
+                    }
+                    bytes = opened.bytes;
+                    filename = opened.meta.filename;
+                }
+                const safeName = sanitizeFilename(filename || `share-${shareId}`);
                 const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'omni-viewer-share-'));
                 const filePath = path.join(dir, safeName);
                 await fsp.writeFile(filePath, bytes);

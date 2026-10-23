@@ -25,8 +25,10 @@ import { MatViewerProvider } from './matViewerProvider';
 import { MarkdownViewerProvider } from './markdownViewerProvider';
 import { MermaidViewerProvider } from './mermaidViewerProvider';
 import { Mf4ViewerProvider } from './mf4ViewerProvider';
+import { NumpyViewerProvider } from './numpyViewerProvider';
 import { NotebookViewerProvider } from './notebookViewerProvider';
 import { OnnxViewerProvider } from './onnxViewerProvider';
+import { OpenVinoViewerProvider } from './openvinoViewerProvider';
 import { ParquetViewerProvider } from './parquetViewerProvider';
 import { PcapViewerProvider } from './pcapViewerProvider';
 import { PcapngViewerProvider } from './pcapngViewerProvider';
@@ -35,6 +37,7 @@ import { PlantumlViewerProvider } from './plantumlViewerProvider';
 import { PptViewerProvider } from './pptViewerProvider';
 import { ProtoViewerProvider } from './protoViewerProvider';
 import { PsdViewerProvider } from './psdViewerProvider';
+import { Pt2ViewerProvider } from './pt2ViewerProvider';
 import { PteViewerProvider } from './pteViewerProvider';
 import { ReqifViewerProvider } from './reqifViewerProvider';
 import { SafetensorsViewerProvider } from './safetensorsViewerProvider';
@@ -281,6 +284,13 @@ export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
         createProvider: (context) => new MatViewerProvider(context)
     },
     {
+        viewType: NumpyViewerProvider.viewType,
+        command: 'omni-viewer.openNumpyViewer',
+        missingMessage: 'No NumPy file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new NumpyViewerProvider(context)
+    },
+    {
         viewType: SafetensorsViewerProvider.viewType,
         command: 'omni-viewer.openSafetensorsViewer',
         missingMessage: 'No Safetensors file selected',
@@ -307,6 +317,20 @@ export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
         missingMessage: 'No ExecuTorch file selected',
         retainContextWhenHidden: true,
         createProvider: (context) => new PteViewerProvider(context)
+    },
+    {
+        viewType: Pt2ViewerProvider.viewType,
+        command: 'omni-viewer.openPt2Viewer',
+        missingMessage: 'No PyTorch Export file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new Pt2ViewerProvider(context)
+    },
+    {
+        viewType: OpenVinoViewerProvider.viewType,
+        command: 'omni-viewer.openOpenVinoViewer',
+        missingMessage: 'No OpenVINO IR file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new OpenVinoViewerProvider(context)
     },
     {
         viewType: KerasViewerProvider.viewType,
