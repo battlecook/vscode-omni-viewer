@@ -1,9 +1,11 @@
 import * as vscode from 'vscode';
+import { EpubMessageHandlers } from './messageHandlers/epubMessageHandlers';
 import { LatexMessageHandlers } from './messageHandlers/latexMessageHandlers';
 import { MediaMessageHandlers } from './messageHandlers/mediaMessageHandlers';
 import { NotebookMessageHandlers } from './messageHandlers/notebookMessageHandlers';
 import { PdfMessageHandlers } from './messageHandlers/pdfMessageHandlers';
 import { TextMessageHandlers } from './messageHandlers/textMessageHandlers';
+import { XmlMessageHandlers } from './messageHandlers/xmlMessageHandlers';
 import { WebviewMessage } from './messageHandlers/types';
 import { openSharedLinkCommand, shareFileCommand } from '../shareCommand';
 
@@ -91,6 +93,12 @@ export class MessageHandler {
                 break;
             case 'notebookHostOpenExternal':
                 await NotebookMessageHandlers.handleHostOpenExternal(message, documentUri, webview);
+                break;
+            case 'epubHostOpenExternal':
+                await EpubMessageHandlers.handleHostOpenExternal(message, documentUri, webview);
+                break;
+            case 'xmlHostClipboard':
+                await XmlMessageHandlers.handleHostClipboard(message, documentUri, webview);
                 break;
             case 'omniViewerShare':
                 await shareFileCommand(documentUri);

@@ -32,6 +32,18 @@ import { MAX_COREML_READ_BYTES } from '../utils/coremlLimits';
 import { MAX_HAR_READ_BYTES } from '../utils/harLimits';
 import { MAX_NUMPY_READ_BYTES } from '../utils/numpyLimits';
 import { MAX_PT2_READ_BYTES } from '../utils/pt2Limits';
+import { MAX_EPUB_READ_BYTES } from '../utils/epubLimits';
+import { MAX_XML_READ_BYTES } from '../utils/xmlLimits';
+
+/** A ZIP local file header for OCF's stored `mimetype` first member. */
+function epubHeader(mimetype = 'application/epub+zip'): Buffer {
+    const header = Buffer.alloc(30);
+    header.write('PK\x03\x04', 0, 'latin1');
+    header.writeUInt16LE(0, 8);
+    header.writeUInt16LE('mimetype'.length, 26);
+    header.writeUInt16LE(0, 28);
+    return Buffer.concat([header, Buffer.from('mimetype' + mimetype, 'latin1'), Buffer.alloc(64)]);
+}
 
 function hdf5Header(): Buffer {
     const header = Buffer.alloc(512);
@@ -973,6 +985,144 @@ describe('FileUtils delimited formats', () => {
         const result = await FileUtils.detectViewerType(filePath);
 
         expect(result.viewType).toBe('omni-viewer.arxmlViewer');
+    });
+
+    it('routes ordinary XML and its dialects to the XML viewer', async () => {
+        const files: Array<[string, string]> = [
+            ['pom.xml', '<?xml version="1.0"?>\n<project><modelVersion>4.0.0</modelVersion></project>\n'],
+            ['App.csproj', '<Project Sdk="Microsoft.NET.Sdk">\n<PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>\n</Project>\n'],
+            ['track.gpx', '<gpx version="1.1" creator="a,b,c"><trk><name>x,y,z</name></trk></gpx>']
+        ];
+
+        for (const [name, content] of files) {
+            const filePath = path.join(tempDir, name);
+            fs.writeFileSync(filePath, content);
+
+            const result = await FileUtils.detectViewerType(filePath);
+
+            expect(result.viewType).toBe('omni-viewer.xmlViewer');
+            expect(result.reason).toContain('XML extension');
+        }
+    });
+
+    it('detects extensionless XML by its declaration', async () => {
+        const filePath = path.join(tempDir, 'feed');
+        fs.writeFileSync(filePath, '\uFEFF<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"><channel/></rss>\n');
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.xmlViewer');
+        expect(result.reason).toContain('XML declaration');
+    });
+
+    it('keeps OpenVINO IR and ReqIF ahead of the generic XML viewer', async () => {
+        const openvino = path.join(tempDir, 'ir.xml');
+        fs.writeFileSync(openvino, '<?xml version="1.0"?>\n<net name="m" version="11">\n<layers>\n</layers>\n</net>');
+        const reqif = path.join(tempDir, 'spec.xml');
+        fs.writeFileSync(reqif, '<?xml version="1.0"?>\n<REQ-IF><THE-HEADER><REQ-IF-HEADER IDENTIFIER="h"/></THE-HEADER></REQ-IF>');
+
+        expect((await FileUtils.detectViewerType(openvino)).viewType).toBe('omni-viewer.openvinoViewer');
+        expect((await FileUtils.detectViewerType(reqif)).viewType).toBe('omni-viewer.reqifViewer');
+    });
+
+    it('keeps a UTF-16LE XML file with a BOM out of the audio probe', async () => {
+        const filePath = path.join(tempDir, 'task.xml');
+        fs.writeFileSync(filePath, Buffer.concat([
+            Buffer.from([0xFF, 0xFE]),
+            Buffer.from('<?xml version="1.0" encoding="UTF-16"?>\n<Task><Actions/></Task>\n', 'utf16le')
+        ]));
+
+        const result = await FileUtils.detectViewerType(filePath, 'omni-viewer.xmlViewer');
+
+        expect(result.viewType).toBe('omni-viewer.xmlViewer');
+    });
+
+    it('keeps an XSLT that emits SVG with the XML viewer', async () => {
+        const filePath = path.join(tempDir, 'chart.xslt');
+        fs.writeFileSync(filePath, [
+            '<?xml version="1.0"?>',
+            '<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">',
+            '<xsl:template match="/"><svg xmlns="http://www.w3.org/2000/svg"/></xsl:template>',
+            '</xsl:stylesheet>'
+        ].join('\n'));
+
+        const result = await FileUtils.detectViewerType(filePath, 'omni-viewer.xmlViewer');
+
+        expect(result.viewType).toBe('omni-viewer.xmlViewer');
+    });
+
+    it('does not take a declared file with another viewer\'s extension for generic XML', async () => {
+        const svg = path.join(tempDir, 'logo.svg');
+        fs.writeFileSync(svg, '<?xml version="1.0"?>\n<!-- ' + 'x'.repeat(4096) + ' -->\n<svg xmlns="http://www.w3.org/2000/svg"/>\n');
+        const puml = path.join(tempDir, 'diagram.puml');
+        fs.writeFileSync(puml, '<?xml version="1.0"?>\n@startuml\nA -> B\n@enduml\n');
+
+        expect((await FileUtils.detectViewerType(svg, 'omni-viewer.imageViewer')).viewType).not.toBe('omni-viewer.xmlViewer');
+        expect((await FileUtils.detectViewerType(puml)).viewType).not.toBe('omni-viewer.xmlViewer');
+    });
+
+    it('keeps the EPUB and XML read limits in step with the core parsers', () => {
+        // The core is ESM and mocked under Jest, so its published constants are read as text.
+        const coreDist = path.join(__dirname, '..', '..', 'node_modules', 'omni-viewer-core', 'dist', 'parsers');
+        const readMiB = (file: string, pattern: RegExp): number => {
+            const match = pattern.exec(fs.readFileSync(path.join(coreDist, file), 'utf8'));
+            expect(match).not.toBeNull();
+            return Number(match![1]) * 1024 * 1024;
+        };
+
+        expect(MAX_EPUB_READ_BYTES).toBe(readMiB('types.js', /maxInputBytes:\s*(\d+)\s*\*\s*1024\s*\*\s*1024/));
+        expect(MAX_XML_READ_BYTES).toBe(readMiB('xml/index.js', /XML_DEFAULT_MAX_INPUT_BYTES\s*=\s*(\d+)\s*\*\s*1024\s*\*\s*1024/));
+    });
+
+    it('detects an EPUB by its stored mimetype member even with the wrong extension', async () => {
+        const filePath = path.join(tempDir, 'book.zip');
+        fs.writeFileSync(filePath, epubHeader());
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.epubViewer');
+        expect(result.matchedBySignature).toBe(true);
+        expect(result.reason).toContain('EPUB OCF mimetype');
+        expect(mockZipLoadAsync).not.toHaveBeenCalled();
+    });
+
+    it('routes an .epub ZIP to the EPUB viewer by extension', async () => {
+        const filePath = path.join(tempDir, 'novel.epub');
+        const zip = Buffer.alloc(64);
+        zip.write('PK\x03\x04', 0, 'latin1');
+        fs.writeFileSync(filePath, zip);
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.epubViewer');
+        expect(result.reason).toContain('EPUB extension');
+    });
+
+    it('does not take an ODF mimetype member for an EPUB', async () => {
+        const filePath = path.join(tempDir, 'sheet.zip');
+        fs.writeFileSync(filePath, epubHeader('application/vnd.oasis.opendocument.spreadsheet'));
+        mockZipLoadAsync.mockResolvedValue({ files: { mimetype: {}, 'content.xml': {} } });
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.archiveViewer');
+    });
+
+    it('leaves an oversized EPUB, or an explicit Archive request, with the archive viewer', async () => {
+        const large = path.join(tempDir, 'huge.epub');
+        fs.writeFileSync(large, epubHeader());
+        fs.truncateSync(large, MAX_EPUB_READ_BYTES + 1);
+
+        const oversized = await FileUtils.detectViewerType(large);
+        expect(oversized.viewType).toBe('omni-viewer.archiveViewer');
+        expect(oversized.reason).toContain('too large to open as a book');
+
+        const small = path.join(tempDir, 'small.epub');
+        fs.writeFileSync(small, epubHeader());
+
+        const requested = await FileUtils.detectViewerType(small, 'omni-viewer.archiveViewer');
+        expect(requested.viewType).toBe('omni-viewer.archiveViewer');
+        expect(requested.reason).toContain('preserved the requested Archive viewer');
     });
 
     it('routes a Keras v3 archive to the Keras viewer instead of the archive viewer', async () => {

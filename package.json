@@ -2,8 +2,8 @@
   "name": "omni-viewer",
   "displayName": "omni-viewer",
   "publisher": "battlecook",
-  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, excel, word, powerpoint, parquet, Shapefile, HDF5, MAT, NumPy, Safetensors, ONNX, TFLite, ExecuTorch, PyTorch Export, OpenVINO, Keras, Core ML, GGUF, HAR, jsonl, yaml, toml, markdown, Jupyter Notebook, LaTeX, mermaid, PlantUML, hwp, PSD and PDF files",
-  "version": "0.45.0",
+  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, excel, word, powerpoint, parquet, Shapefile, HDF5, MAT, NumPy, Safetensors, ONNX, TFLite, ExecuTorch, PyTorch Export, OpenVINO, Keras, Core ML, GGUF, HAR, jsonl, yaml, toml, markdown, Jupyter Notebook, LaTeX, XML, EPUB, mermaid, PlantUML, hwp, PSD and PDF files",
+  "version": "0.46.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
@@ -64,6 +64,12 @@
     "ipynb",
     "LaTeX",
     "TeX",
+    "XML",
+    "xml",
+    "xpath",
+    "EPUB",
+    "epub",
+    "ebook",
     "Mermaid",
     "PlantUML",
     "Parquet",
@@ -527,6 +533,71 @@
         "priority": "option"
       },
       {
+        "viewType": "omni-viewer.xmlViewer",
+        "displayName": "XML Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.xml"
+          },
+          {
+            "filenamePattern": "*.xsd"
+          },
+          {
+            "filenamePattern": "*.xsl"
+          },
+          {
+            "filenamePattern": "*.xslt"
+          },
+          {
+            "filenamePattern": "*.wsdl"
+          },
+          {
+            "filenamePattern": "*.xlf"
+          },
+          {
+            "filenamePattern": "*.xliff"
+          },
+          {
+            "filenamePattern": "*.rss"
+          },
+          {
+            "filenamePattern": "*.atom"
+          },
+          {
+            "filenamePattern": "*.xaml"
+          },
+          {
+            "filenamePattern": "*.kml"
+          },
+          {
+            "filenamePattern": "*.gpx"
+          },
+          {
+            "filenamePattern": "*.resx"
+          },
+          {
+            "filenamePattern": "*.csproj"
+          },
+          {
+            "filenamePattern": "*.vcxproj"
+          },
+          {
+            "filenamePattern": "*.nuspec"
+          }
+        ],
+        "priority": "option"
+      },
+      {
+        "viewType": "omni-viewer.epubViewer",
+        "displayName": "EPUB Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.epub"
+          }
+        ],
+        "priority": "default"
+      },
+      {
         "viewType": "omni-viewer.mermaidViewer",
         "displayName": "Mermaid Viewer",
         "selector": [
@@ -943,6 +1014,16 @@
           "group": "navigation"
         },
         {
+          "command": "omni-viewer.openXmlViewer",
+          "when": "resourceExtname == '.xml' || resourceExtname == '.xsd' || resourceExtname == '.xsl' || resourceExtname == '.xslt' || resourceExtname == '.wsdl' || resourceExtname == '.xlf' || resourceExtname == '.xliff' || resourceExtname == '.rss' || resourceExtname == '.atom' || resourceExtname == '.xaml' || resourceExtname == '.kml' || resourceExtname == '.gpx' || resourceExtname == '.resx' || resourceExtname == '.csproj' || resourceExtname == '.vcxproj' || resourceExtname == '.nuspec'",
+          "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openEpubViewer",
+          "when": "resourceExtname == '.epub'",
+          "group": "navigation"
+        },
+        {
           "command": "omni-viewer.openMermaidViewer",
           "when": "resourceExtname == '.mmd' || resourceExtname == '.mermaid'",
           "group": "navigation"
@@ -1186,6 +1267,16 @@
         "category": "Omni Viewer"
       },
       {
+        "command": "omni-viewer.openXmlViewer",
+        "title": "Open With OmniViewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openEpubViewer",
+        "title": "Open With OmniViewer",
+        "category": "Omni Viewer"
+      },
+      {
         "command": "omni-viewer.openMermaidViewer",
         "title": "Open With OmniViewer",
         "category": "Omni Viewer"
@@ -1365,7 +1456,7 @@
     "marked": "^16.4.2",
     "mermaid": "^11.15.0",
     "music-metadata": "^11.8.3",
-    "omni-viewer-core": "^0.19.0",
+    "omni-viewer-core": "^0.20.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.10.38",
     "proj4": "^2.20.9",

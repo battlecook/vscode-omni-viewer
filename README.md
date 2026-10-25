@@ -1,6 +1,6 @@
 # VSCode Omni Viewer
 
-A comprehensive audio, image, PSD, video, CSV, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, Excel, Word, PowerPoint, PDF, Parquet, HDF5, NumPy, Safetensors, ONNX, TFLite/LiteRT, ExecuTorch, PyTorch Export, OpenVINO IR, Keras, Core ML, GGUF, HAR, JSONL, Jupyter Notebook, LaTeX, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
+A comprehensive audio, image, PSD, video, CSV, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, Excel, Word, PowerPoint, PDF, Parquet, HDF5, NumPy, Safetensors, ONNX, TFLite/LiteRT, ExecuTorch, PyTorch Export, OpenVINO IR, Keras, Core ML, GGUF, HAR, JSONL, Jupyter Notebook, LaTeX, XML, EPUB, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-red)](https://github.com/sponsors/battlecook)
 
@@ -255,6 +255,36 @@ Note: external file references are not resolved, and BibTeX, cross-reference num
 - **Powered by**: [omni-viewer-core](https://github.com/battlecook/omni-viewer-core) for parsing and rendering, with [KaTeX](https://katex.org/) for formulas
 
 Note: notebooks larger than 64 MiB are not previewed.
+
+## 🧾 XML Viewer Features
+
+### Element Tree and Source Side by Side
+- **Tree + Source**: Element/attribute tree with a node inspector next to the original source; selecting a node highlights its range in the source, and clicking a tag or attribute in the source selects its node
+- **Namespaces and Diagnostics**: Namespaces are resolved, and well-formedness errors (mismatched or unclosed tags, duplicate attributes, undeclared prefixes) are reported with line and column, then recovered so a broken file still opens
+- **Search**: Names, values, or comments and processing instructions, with next/previous and a matches-only filter
+- **Copy**: A node's XPath, its value, or its XML
+- **Large Files**: Both panes are virtualized, and long single-line sources are split into display segments
+- **Safe by Default**: External entities are never loaded, and internal DTD entities expand one level only under a budget (no XXE or billion-laughs expansion)
+- **Opt-In Editor**: Registered as an optional editor so XML keeps VS Code's text editor as the default; use `Open With OmniViewer` from the explorer. OpenVINO IR, ARXML, and ReqIF files still open in their dedicated viewers
+- **Powered by**: [omni-viewer-core](https://github.com/battlecook/omni-viewer-core)
+
+### Supported XML Formats
+- XML, XSD, XSL, XSLT, WSDL, XLF, XLIFF, RSS, Atom, XAML, KML, GPX, RESX, CSPROJ, VCXPROJ, NUSPEC, and extensionless files starting with an `<?xml` declaration
+
+Note: documents larger than 64 MiB are not previewed.
+
+## 📚 EPUB Viewer Features
+
+### Reflowable E-Book Reader (.epub)
+- **EPUB 2 and 3**: Reads the table of contents from the EPUB 3 navigation document or the EPUB 2 NCX, and walks the book's reading order with next/previous and the arrow keys
+- **Book Info**: Title, creators, identifiers, publication date, series, subjects, description, and cover, plus any diagnostics
+- **Text Scaling**: `Ctrl/Cmd` `+`/`-`/`0`
+- **On-Demand Loading**: Only the package files are read up front; chapters and images are inflated as you open them
+- **Safe by Default**: Chapter markup is sanitized; scripts, forms, frames, media, and publisher CSS are dropped, remote images are blocked, and external links open in the browser
+- **DRM**: A book whose every chapter is encrypted is reported as protected; partly encrypted or fixed-layout content is listed in the diagnostics
+- **Powered by**: [omni-viewer-core](https://github.com/battlecook/omni-viewer-core), with [DOMPurify](https://github.com/cure53/DOMPurify) for sanitizing
+
+Note: books larger than 256 MiB open in the Archive viewer instead.
 
 ## 📄 JSONL Viewer Features
 

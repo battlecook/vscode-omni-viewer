@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.46.0] - 2026-10-25
+
+### Added
+- **XML Viewer**
+  - Added a read-only custom editor for XML documents and dialects (`.xml`, `.xsd`, `.xsl`, `.xslt`, `.wsdl`, `.xlf`, `.xliff`, `.rss`, `.atom`, `.xaml`, `.kml`, `.gpx`, `.resx`, `.csproj`, `.vcxproj`, `.nuspec`) built on `omni-viewer-core` 0.20.0, with the viewer mounted in a dedicated webview bundle
+  - Added the element/attribute tree with a node inspector beside the source, linked selection between the two, search with a matches-only filter, and copying a node's XPath, value, or XML
+  - Reported well-formedness errors with line and column while still opening a broken file as a partial tree, and never loaded external entities
+  - Registered the viewer as an optional editor so XML keeps VS Code's text editor as the default, kept OpenVINO IR, ARXML, and ReqIF content with their dedicated viewers, and added `<?xml` declaration detection for extensionless files
+  - Passed the raw bytes to the webview by message so the core parser detects the encoding, and capped documents at the parser's 64 MiB limit
+- **EPUB Viewer**
+  - Added a custom editor for EPUB 2 and 3 books (`.epub`) built on `omni-viewer-core` 0.20.0, with the table of contents, chapter navigation, text scaling, and a book-info panel with metadata, cover, and diagnostics
+  - Sanitized chapter markup with DOMPurify, dropped scripts and publisher CSS, blocked remote images, and opened external links through the host after an `http`/`https`/`mailto` check
+  - Added stored-`mimetype` detection so a mislabeled book still routes correctly, ahead of the whole-file ZIP probe, plus explorer actions and an `Open With OmniViewer` command
+  - Capped books at the core parser's 256 MiB input limit, leaving a larger one (or an explicit Archive viewer request) to the Archive viewer
+
+### Changed
+- Updated `omni-viewer-core` to 0.20.0
+
 ## [0.45.0] - 2026-10-23
 
 ### Added

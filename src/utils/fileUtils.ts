@@ -8,6 +8,8 @@ import { MAX_COREML_READ_BYTES } from './coremlLimits';
 import { MAX_HAR_READ_BYTES } from './harLimits';
 import { MAX_NUMPY_READ_BYTES } from './numpyLimits';
 import { MAX_PT2_READ_BYTES } from './pt2Limits';
+import { MAX_EPUB_READ_BYTES } from './epubLimits';
+import { XML_EXTENSIONS } from './xmlLimits';
 import { PptxXmlParser } from './pptxXmlParser';
 import { PptBinaryParser } from './pptBinaryParser';
 import {
@@ -61,6 +63,8 @@ export type OmniViewerViewType =
     | 'omni-viewer.markdownViewer'
     | 'omni-viewer.latexViewer'
     | 'omni-viewer.notebookViewer'
+    | 'omni-viewer.xmlViewer'
+    | 'omni-viewer.epubViewer'
     | 'omni-viewer.mermaidViewer'
     | 'omni-viewer.plantumlViewer'
     | 'omni-viewer.protoViewer'
@@ -123,6 +127,14 @@ export class FileUtils {
                 reason: 'Used the HAR extension fallback.',
                 matchedBySignature: false
             };
+        }
+
+        // XML-family extensions are text, so they are claimed before the binary
+        // probes for the same reason as `.har`: a UTF-16LE BOM would pass for an
+        // MPEG frame, and the SVG probe would take an XSLT that emits `<svg>`.
+        // The dialects with dedicated viewers are recognized by content first.
+        if (XML_EXTENSIONS.has(ext)) {
+            return this.detectXmlDialectViewType(buffer, ext);
         }
 
         if (this.hasAsciiPrefix(buffer, '%PDF-')) {
@@ -331,6 +343,31 @@ export class FileUtils {
                 return this.signatureMatch(
                     preferredOfficeViewType,
                     `Matched a ZIP-based Office container and preserved the ${ext} Office viewer.`
+                );
+            }
+
+            // OCF requires an uncompressed `mimetype` first member, so an EPUB
+            // is recognized from the signature read alone, before the
+            // whole-file ZIP probe. A book past the EPUB memory budget, or an
+            // explicit archive request, stays with the archive viewer.
+            if (ext === '.epub' || this.hasEpubMimetype(buffer)) {
+                if (
+                    fallbackViewType !== 'omni-viewer.archiveViewer'
+                    && await this.fitsMemoryBudget(filePath, MAX_EPUB_READ_BYTES)
+                ) {
+                    return this.signatureMatch(
+                        'omni-viewer.epubViewer',
+                        ext === '.epub'
+                            ? 'Matched a ZIP container with the EPUB extension.'
+                            : 'Matched the EPUB OCF mimetype member.'
+                    );
+                }
+
+                return this.signatureMatch(
+                    'omni-viewer.archiveViewer',
+                    fallbackViewType === 'omni-viewer.archiveViewer'
+                        ? 'Matched a ZIP container and preserved the requested Archive viewer.'
+                        : 'Matched an EPUB too large to open as a book.'
                 );
             }
 
@@ -1242,6 +1279,18 @@ export class FileUtils {
             };
         }
 
+        // XML-family extensions were claimed before the binary probes, and the
+        // dialects with dedicated viewers (OpenVINO IR, ARXML, ReqIF) above.
+        // Only an extensionless file is taken by its declaration: every other
+        // extension that reaches here belongs to its own viewer.
+        if (ext === '' && this.looksLikeXmlDocument(sample)) {
+            return {
+                viewType: 'omni-viewer.xmlViewer',
+                reason: 'Matched an XML declaration.',
+                matchedBySignature: false
+            };
+        }
+
         if (ext === '.a2l' || this.looksLikeA2l(lines)) {
             return {
                 viewType: 'omni-viewer.a2lViewer',
@@ -1405,6 +1454,45 @@ export class FileUtils {
         }
         const tag = root[0];
         return /\sversion\s*=\s*["']\d+["']/.test(tag) && /<layers[\s/>]/.test(sample.slice(tag.length));
+    }
+
+    /** An XML-family extension stays with an XML viewer whatever its content:
+     *  OpenVINO IR (`.xml` only), ARXML, and ReqIF content keep their dedicated
+     *  viewers, and everything else — UTF-16 included — goes to the generic one. */
+    private static detectXmlDialectViewType(buffer: Buffer, ext: string): FileViewerDetectionResult {
+        const sample = buffer.subarray(0, 16 * 1024).toString('utf8');
+        if (ext === '.xml' && this.looksLikeOpenVinoIr(buffer)) {
+            return { viewType: 'omni-viewer.openvinoViewer', reason: 'Matched OpenVINO IR content.', matchedBySignature: false };
+        }
+        if (this.looksLikeArxml(sample)) {
+            return { viewType: 'omni-viewer.arxmlViewer', reason: 'Matched AUTOSAR XML content.', matchedBySignature: false };
+        }
+        if (this.looksLikeReqif(sample)) {
+            return { viewType: 'omni-viewer.reqifViewer', reason: 'Matched ReqIF XML content.', matchedBySignature: false };
+        }
+        return { viewType: 'omni-viewer.xmlViewer', reason: 'Used the XML extension fallback.', matchedBySignature: false };
+    }
+
+    /** Only an explicit `<?xml` declaration is taken as XML content: a bare
+     *  `<tag>` start is as likely HTML or a template. (`trimStart` drops a BOM.) */
+    private static looksLikeXmlDocument(sample: string): boolean {
+        return /^<\?xml[\s?]/.test(sample.trimStart());
+    }
+
+    /** OCF puts a stored (uncompressed) `mimetype` member first, holding
+     *  `application/epub+zip`, so its local file header identifies the book. */
+    private static hasEpubMimetype(buffer: Buffer): boolean {
+        if (buffer.length < 30 || buffer.readUInt16LE(8) !== 0) {
+            return false;
+        }
+        const nameLength = buffer.readUInt16LE(26);
+        const extraLength = buffer.readUInt16LE(28);
+        if (buffer.toString('latin1', 30, 30 + nameLength) !== 'mimetype') {
+            return false;
+        }
+        const dataStart = 30 + nameLength + extraLength;
+        const mimetype = 'application/epub+zip';
+        return buffer.toString('latin1', dataStart, dataStart + mimetype.length) === mimetype;
     }
 
     private static looksLikeArxml(sample: string): boolean {

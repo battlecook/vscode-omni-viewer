@@ -11,6 +11,7 @@ import { CoremlViewerProvider } from './coremlViewerProvider';
 import { CsvViewerProvider } from './csvViewerProvider';
 import { Db3ViewerProvider } from './db3ViewerProvider';
 import { DbcViewerProvider } from './dbcViewerProvider';
+import { EpubViewerProvider } from './epubViewerProvider';
 import { ExcelViewerProvider } from './excelViewerProvider';
 import { GgufViewerProvider } from './ggufViewerProvider';
 import { Hdf5ViewerProvider } from './hdf5ViewerProvider';
@@ -47,6 +48,7 @@ import { TfliteViewerProvider } from './tfliteViewerProvider';
 import { TomlViewerProvider } from './tomlViewerProvider';
 import { VideoViewerProvider } from './videoViewerProvider';
 import { WordViewerProvider } from './wordViewerProvider';
+import { XmlViewerProvider } from './xmlViewerProvider';
 import { YamlViewerProvider } from './yamlViewerProvider';
 import { OmniViewerViewType } from './utils/fileUtils';
 
@@ -233,6 +235,20 @@ export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
         missingMessage: 'No Jupyter notebook selected',
         retainContextWhenHidden: true,
         createProvider: (context) => new NotebookViewerProvider(context)
+    },
+    {
+        viewType: XmlViewerProvider.viewType,
+        command: 'omni-viewer.openXmlViewer',
+        missingMessage: 'No XML file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new XmlViewerProvider(context)
+    },
+    {
+        viewType: EpubViewerProvider.viewType,
+        command: 'omni-viewer.openEpubViewer',
+        missingMessage: 'No EPUB file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new EpubViewerProvider(context)
     },
     {
         viewType: MermaidViewerProvider.viewType,

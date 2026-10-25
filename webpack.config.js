@@ -281,6 +281,100 @@ module.exports = [
       })
     ]
   },
+  // JavaScript files configuration for EPUB viewer (omni-viewer-core)
+  {
+    mode: 'production',
+    target: 'web',
+    entry: {
+      'templates/epub/js/epubViewer': './src/templates/epub/js/epubViewerMain.js'
+    },
+    output: {
+      path: path.resolve(__dirname, 'src/templates/epub/js'),
+      filename: 'epubViewer.js',
+      libraryTarget: 'var',
+      library: 'EpubViewer'
+    },
+    resolve: {
+      extensions: ['.js'],
+      fallback: {
+        fs: false,
+        path: false
+      }
+    },
+    module: {
+      rules: [
+        {
+          test: /\.js$/,
+          exclude: /node_modules/,
+          use: {
+            loader: 'babel-loader',
+            options: {
+              presets: ['@babel/preset-env']
+            }
+          }
+        }
+      ]
+    },
+    optimization: {
+      splitChunks: false,
+      runtimeChunk: false,
+      minimize: true,
+      usedExports: true,
+      sideEffects: false
+    },
+    plugins: [
+      new webpack.optimize.LimitChunkCountPlugin({
+        maxChunks: 1
+      })
+    ]
+  },
+  // JavaScript files configuration for XML viewer (omni-viewer-core)
+  {
+    mode: 'production',
+    target: 'web',
+    entry: {
+      'templates/xml/js/xmlViewer': './src/templates/xml/js/xmlViewerMain.js'
+    },
+    output: {
+      path: path.resolve(__dirname, 'src/templates/xml/js'),
+      filename: 'xmlViewer.js',
+      libraryTarget: 'var',
+      library: 'XmlViewer'
+    },
+    resolve: {
+      extensions: ['.js'],
+      fallback: {
+        fs: false,
+        path: false
+      }
+    },
+    module: {
+      rules: [
+        {
+          test: /\.js$/,
+          exclude: /node_modules/,
+          use: {
+            loader: 'babel-loader',
+            options: {
+              presets: ['@babel/preset-env']
+            }
+          }
+        }
+      ]
+    },
+    optimization: {
+      splitChunks: false,
+      runtimeChunk: false,
+      minimize: true,
+      usedExports: true,
+      sideEffects: false
+    },
+    plugins: [
+      new webpack.optimize.LimitChunkCountPlugin({
+        maxChunks: 1
+      })
+    ]
+  },
   // JavaScript files configuration for ONNX viewer (omni-viewer-core)
   {
     mode: 'production',
