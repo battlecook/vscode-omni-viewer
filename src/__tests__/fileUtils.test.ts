@@ -77,6 +77,29 @@ describe('FileUtils delimited formats', () => {
         fs.rmSync(tempDir, { recursive: true, force: true });
     });
 
+    it.each(['.html', '.htm', '.HTML', '.HTM'])('keeps HTML with inline SVG in its viewer (%s)', async ext => {
+        const filePath = path.join(tempDir, `page${ext}`);
+        fs.writeFileSync(filePath, '<!doctype html><html><body><svg><circle r="4"/></svg></body></html>');
+
+        const result = await FileUtils.detectViewerType(filePath);
+
+        expect(result.viewType).toBe('omni-viewer.htmlViewer');
+    });
+
+    it('keeps UTF-16 HTML out of the MP3 frame detector', async () => {
+        const filePath = path.join(tempDir, 'utf16.htm');
+        fs.writeFileSync(filePath, Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('<h1>안녕하세요</h1>', 'utf16le')]));
+
+        expect((await FileUtils.detectViewerType(filePath)).viewType).toBe('omni-viewer.htmlViewer');
+    });
+
+    it('opens empty HTML files in the HTML viewer', async () => {
+        const filePath = path.join(tempDir, 'empty.html');
+        fs.writeFileSync(filePath, '');
+
+        expect((await FileUtils.detectViewerType(filePath)).viewType).toBe('omni-viewer.htmlViewer');
+    });
+
     it('parses TSV files with tab delimiters', async () => {
         const filePath = path.join(tempDir, 'sample.tsv');
         fs.writeFileSync(filePath, 'name\trole\nAlice\tEngineer\nBob\tProduct\n', 'utf8');

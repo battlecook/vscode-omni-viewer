@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.47.0] - 2026-10-27
+
+### Added
+- **HTML Viewer**
+  - Added a read-only custom editor for `.html` and `.htm` documents built on `omni-viewer-core`, with Preview and Source tabs in a dedicated webview bundle
+  - Rendered previews in a sandboxed iframe with inline styles and embedded data images, while blocking scripts, external resources, and navigation
+  - Preserved the original bytes so the core honors byte-order marks and HTML charset declarations, switched files above 8 MiB or with very dense markup to source view, and capped host reads at 64 MiB
+  - Registered the viewer as an optional editor, added explorer actions and an `Open With OmniViewer` command, and supported refreshing the document from disk
+  - Routed HTML extensions before SVG and binary probes so inline SVG and UTF-16 byte-order marks do not send HTML documents to another viewer
+
+### Changed
+- Updated `omni-viewer-core` to 0.21.0 and rebuilt the bundled viewers against the updated core
+
 ## [0.46.0] - 2026-10-25
 
 ### Added

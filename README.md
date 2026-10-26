@@ -1,6 +1,6 @@
 # VSCode Omni Viewer
 
-A comprehensive audio, image, PSD, video, CSV, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, Excel, Word, PowerPoint, PDF, Parquet, HDF5, NumPy, Safetensors, ONNX, TFLite/LiteRT, ExecuTorch, PyTorch Export, OpenVINO IR, Keras, Core ML, GGUF, HAR, JSONL, Jupyter Notebook, LaTeX, XML, EPUB, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
+A comprehensive audio, image, PSD, video, CSV, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, Excel, Word, PowerPoint, PDF, Parquet, HDF5, NumPy, Safetensors, ONNX, TFLite/LiteRT, ExecuTorch, PyTorch Export, OpenVINO IR, Keras, Core ML, GGUF, HAR, JSONL, Jupyter Notebook, LaTeX, HTML, XML, EPUB, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-red)](https://github.com/sponsors/battlecook)
 
@@ -255,6 +255,15 @@ Note: external file references are not resolved, and BibTeX, cross-reference num
 - **Powered by**: [omni-viewer-core](https://github.com/battlecook/omni-viewer-core) for parsing and rendering, with [KaTeX](https://katex.org/) for formulas
 
 Note: notebooks larger than 64 MiB are not previewed.
+
+## 🌐 HTML Viewer Features
+
+- **Preview and Source Tabs**: View `.html` and `.htm` files with `omni-viewer-core`'s HTML viewer
+- **Safe Preview**: A sandboxed iframe renders inline styles and embedded data images; scripts, external resources, and navigation are blocked
+- **Encoding Support**: The core honors byte-order marks and HTML charset declarations
+- **Large Documents**: Files over 8 MiB or with very dense markup open in source view; files over 64 MiB report the host's read limit
+- **Opt-In Editor**: Right-click a file and choose `Open With OmniViewer`, or select **HTML Viewer** from **Reopen Editor With…**
+- **Refresh**: Use the existing Omni Viewer refresh command to reload changes from disk
 
 ## 🧾 XML Viewer Features
 

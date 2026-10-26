@@ -17,6 +17,7 @@ import { GgufViewerProvider } from './ggufViewerProvider';
 import { Hdf5ViewerProvider } from './hdf5ViewerProvider';
 import { HarViewerProvider } from './harViewerProvider';
 import { HwpViewerProvider } from './hwpViewerProvider';
+import { HtmlViewerProvider } from './htmlViewerProvider';
 import { ImageViewerProvider } from './imageViewerProvider';
 import { JsonViewerProvider } from './jsonViewerProvider';
 import { JsonlViewerProvider } from './jsonlViewerProvider';
@@ -214,6 +215,13 @@ export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
         missingMessage: 'No TOML file selected',
         retainContextWhenHidden: true,
         createProvider: (context) => new TomlViewerProvider(context)
+    },
+    {
+        viewType: HtmlViewerProvider.viewType,
+        command: 'omni-viewer.openHtmlViewer',
+        missingMessage: 'No HTML file selected',
+        retainContextWhenHidden: true,
+        createProvider: (context) => new HtmlViewerProvider(context)
     },
     {
         viewType: MarkdownViewerProvider.viewType,

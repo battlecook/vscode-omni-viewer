@@ -2,8 +2,8 @@
   "name": "omni-viewer",
   "displayName": "omni-viewer",
   "publisher": "battlecook",
-  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, excel, word, powerpoint, parquet, Shapefile, HDF5, MAT, NumPy, Safetensors, ONNX, TFLite, ExecuTorch, PyTorch Export, OpenVINO, Keras, Core ML, GGUF, HAR, jsonl, yaml, toml, markdown, Jupyter Notebook, LaTeX, XML, EPUB, mermaid, PlantUML, hwp, PSD and PDF files",
-  "version": "0.46.0",
+  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, excel, word, powerpoint, parquet, Shapefile, HDF5, MAT, NumPy, Safetensors, ONNX, TFLite, ExecuTorch, PyTorch Export, OpenVINO, Keras, Core ML, GGUF, HAR, jsonl, yaml, toml, HTML, markdown, Jupyter Notebook, LaTeX, XML, EPUB, mermaid, PlantUML, hwp, PSD and PDF files",
+  "version": "0.47.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
@@ -119,9 +119,12 @@
     "model",
     "HWP",
     "PSD",
-    "한글",
+    "\ud55c\uae00",
     "viewers",
-    "viewer"
+    "viewer",
+    "HTML",
+    "html",
+    "htm"
   ],
   "icon": "img/icon.png",
   "activationEvents": [],
@@ -489,6 +492,19 @@
         "selector": [
           {
             "filenamePattern": "*.toml"
+          }
+        ],
+        "priority": "option"
+      },
+      {
+        "viewType": "omni-viewer.htmlViewer",
+        "displayName": "HTML Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.html"
+          },
+          {
+            "filenamePattern": "*.htm"
           }
         ],
         "priority": "option"
@@ -999,6 +1015,11 @@
           "group": "navigation"
         },
         {
+          "command": "omni-viewer.openHtmlViewer",
+          "when": "resourceExtname == '.html' || resourceExtname == '.htm'",
+          "group": "navigation"
+        },
+        {
           "command": "omni-viewer.openMarkdownViewer",
           "when": "resourceExtname == '.md' || resourceExtname == '.markdown'",
           "group": "navigation"
@@ -1252,6 +1273,11 @@
         "category": "Omni Viewer"
       },
       {
+        "command": "omni-viewer.openHtmlViewer",
+        "title": "Open With OmniViewer",
+        "category": "Omni Viewer"
+      },
+      {
         "command": "omni-viewer.openMarkdownViewer",
         "title": "Open With OmniViewer",
         "category": "Omni Viewer"
@@ -1456,7 +1482,7 @@
     "marked": "^16.4.2",
     "mermaid": "^11.15.0",
     "music-metadata": "^11.8.3",
-    "omni-viewer-core": "^0.20.0",
+    "omni-viewer-core": "^0.21.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.10.38",
     "proj4": "^2.20.9",

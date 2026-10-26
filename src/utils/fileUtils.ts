@@ -10,6 +10,7 @@ import { MAX_NUMPY_READ_BYTES } from './numpyLimits';
 import { MAX_PT2_READ_BYTES } from './pt2Limits';
 import { MAX_EPUB_READ_BYTES } from './epubLimits';
 import { XML_EXTENSIONS } from './xmlLimits';
+import { HTML_EXTENSIONS } from './htmlLimits';
 import { PptxXmlParser } from './pptxXmlParser';
 import { PptBinaryParser } from './pptBinaryParser';
 import {
@@ -61,6 +62,7 @@ export type OmniViewerViewType =
     | 'omni-viewer.jsonlViewer'
     | 'omni-viewer.tomlViewer'
     | 'omni-viewer.markdownViewer'
+    | 'omni-viewer.htmlViewer'
     | 'omni-viewer.latexViewer'
     | 'omni-viewer.notebookViewer'
     | 'omni-viewer.xmlViewer'
@@ -106,6 +108,16 @@ export class FileUtils {
         const ext = path.extname(filePath).toLowerCase();
         const bufferLength = buffer.length;
         const preferredOfficeViewType = this.getOfficeViewTypeForExtension(ext);
+
+        // Claim HTML before SVG and binary probes: inline SVG is part of the
+        // page, and a UTF-16 BOM must not be mistaken for an MPEG frame.
+        if (HTML_EXTENSIONS.has(ext)) {
+            return {
+                viewType: 'omni-viewer.htmlViewer',
+                reason: 'Used the HTML extension fallback.',
+                matchedBySignature: false
+            };
+        }
 
         if (bufferLength === 0) {
             return {

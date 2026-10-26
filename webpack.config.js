@@ -328,6 +328,53 @@ module.exports = [
       })
     ]
   },
+  // JavaScript files configuration for HTML viewer (omni-viewer-core)
+  {
+    mode: 'production',
+    target: 'web',
+    entry: {
+      'templates/html/js/htmlViewer': './src/templates/html/js/htmlViewerMain.js'
+    },
+    output: {
+      path: path.resolve(__dirname, 'src/templates/html/js'),
+      filename: 'htmlViewer.js',
+      libraryTarget: 'var',
+      library: 'HtmlViewer'
+    },
+    resolve: {
+      extensions: ['.js'],
+      fallback: {
+        fs: false,
+        path: false
+      }
+    },
+    module: {
+      rules: [
+        {
+          test: /\.js$/,
+          exclude: /node_modules/,
+          use: {
+            loader: 'babel-loader',
+            options: {
+              presets: ['@babel/preset-env']
+            }
+          }
+        }
+      ]
+    },
+    optimization: {
+      splitChunks: false,
+      runtimeChunk: false,
+      minimize: true,
+      usedExports: true,
+      sideEffects: false
+    },
+    plugins: [
+      new webpack.optimize.LimitChunkCountPlugin({
+        maxChunks: 1
+      })
+    ]
+  },
   // JavaScript files configuration for XML viewer (omni-viewer-core)
   {
     mode: 'production',
