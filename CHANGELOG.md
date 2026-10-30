@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.48.0] - 2026-10-30
+
+### Added
+- **Font Viewer** for `.ttf`, `.otf`, and `.woff`, using `omni-viewer-core` for local font previews, editable sample text, size and variable-axis controls, Unicode glyph search, metadata, and licenses
+- **Arrow IPC / Feather V2 Viewer** for `.arrow` and `.feather`, using the core's self-loading viewer with bundled Apache Arrow, LZ4, and ZSTD support; includes searchable/sortable tables, schema and metadata, JSON preview, clipboard actions, and JSON export through VS Code's save dialog
+- **GeoJSON Viewer** for `.geojson`, using the core's offline SVG map, feature properties, pan/zoom, polygon holes, and keyboard navigation; registered as an optional editor to preserve text editing
+- Added file-signature detection for fonts and Arrow IPC files/streams, content detection for sampled GeoJSON saved as JSON or without an extension, explorer actions, refresh, locale forwarding, and VS Code theme colors
+- Bounded font, Arrow, and GeoJSON host reads at 64, 256, and 128 MiB respectively; cancel/dispose mounted previews when their webview closes
+
+### Changed
+- Updated `omni-viewer-core` to 0.22.0 and rebuilt the bundled viewers against the updated core
+
 ## [0.47.0] - 2026-10-27
 
 ### Added

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-{{cspNonce}}' {{cspSource}}; style-src 'unsafe-inline' {{cspSource}}; font-src blob: data:;">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{viewerTitle}} Viewer - {{fileName}}</title>
+    <style nonce="{{cspNonce}}">
+        html, body { height: 100%; margin: 0; padding: 0; }
+        body {
+            display: flex; flex-direction: column;
+            background: var(--vscode-editor-background, #1e1e1e);
+            color: var(--vscode-foreground, #d4d4d4);
+            font-family: var(--vscode-font-family, sans-serif);
+        }
+        .shell-bar { display: flex; justify-content: flex-end; padding: 6px 10px; flex-shrink: 0; }
+        #preview-root {
+            flex: 1 1 auto; min-height: 0; overflow: auto;
+            --omni-fg: var(--vscode-foreground, #d4d4d4);
+            --omni-bg: var(--vscode-editor-background, #1e1e1e);
+            --omni-muted: var(--vscode-descriptionForeground, #999);
+            --omni-border: var(--vscode-widget-border, var(--vscode-panel-border, #454545));
+            --omni-accent: var(--vscode-button-background, #0e639c);
+            --omni-accent-fg: var(--vscode-button-foreground, #fff);
+            --omni-focus: var(--vscode-focusBorder, #007fd4);
+            --omni-input-bg: var(--vscode-input-background, #252525);
+            --omni-panel-bg: var(--vscode-editorWidget-background, #252526);
+            --omni-header-bg: var(--vscode-editorWidget-background, #252526);
+            --omni-warning-bg: var(--vscode-inputValidation-warningBackground, #4d3b12);
+            --omni-mono: var(--vscode-editor-font-family, monospace);
+            --omni-map-bg: var(--vscode-editor-background, #1e1e1e);
+            --omni-map-stroke: var(--vscode-charts-blue, #3794ff);
+            --omni-map-point: var(--vscode-charts-red, #f14c4c);
+            --omni-map-point-border: var(--vscode-foreground, #d4d4d4);
+        }
+    </style>
+</head>
+<body>
+    <div class="shell-bar">{{omniShareButtons}}</div>
+    <div id="preview-root"></div>
+    <script nonce="{{cspNonce}}" id="preview-data" type="application/json">{{previewData}}</script>
+    <script nonce="{{cspNonce}}" src="{{viewerScriptUri}}" data-omni-no-inline></script>
+</body>
+</html>

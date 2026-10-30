@@ -1,6 +1,6 @@
 # VSCode Omni Viewer
 
-A comprehensive audio, image, PSD, video, CSV, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, Excel, Word, PowerPoint, PDF, Parquet, HDF5, NumPy, Safetensors, ONNX, TFLite/LiteRT, ExecuTorch, PyTorch Export, OpenVINO IR, Keras, Core ML, GGUF, HAR, JSONL, Jupyter Notebook, LaTeX, HTML, XML, EPUB, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
+A comprehensive audio, image, PSD, video, font, CSV, Arrow IPC, Feather V2, GeoJSON, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, Excel, Word, PowerPoint, PDF, Parquet, HDF5, NumPy, Safetensors, ONNX, TFLite/LiteRT, ExecuTorch, PyTorch Export, OpenVINO IR, Keras, Core ML, GGUF, HAR, JSONL, Jupyter Notebook, LaTeX, HTML, XML, EPUB, Mermaid, PlantUML, and HWP viewer extension for VSCode and Cursor.
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-red)](https://github.com/sponsors/battlecook)
 
@@ -255,6 +255,25 @@ Note: external file references are not resolved, and BibTeX, cross-reference num
 - **Powered by**: [omni-viewer-core](https://github.com/battlecook/omni-viewer-core) for parsing and rendering, with [KaTeX](https://katex.org/) for formulas
 
 Note: notebooks larger than 64 MiB are not previewed.
+
+## Font Viewer Features
+
+- **Local Font Preview**: Open `.ttf`, `.otf`, and `.woff` with the shared core viewer; edit the sample text, change its size, and adjust variable-font axes
+- **Glyph Browser**: Search Unicode characters and code points, browse paginated glyphs, and inspect font metadata and licenses
+- **Limits**: Files up to 64 MiB; WOFF2 and font collections are not supported
+
+## Arrow IPC / Feather V2 Viewer Features
+
+- **Files and Streams**: Open `.arrow` and `.feather` IPC files or streams, including LZ4 and ZSTD compression
+- **Data Inspection**: Search, sort, and page through tables; inspect schema and custom metadata, preview JSON, copy TSV/JSON, and export JSON through VS Code's save dialog
+- **Bounded Preview**: Up to 256 MiB input and 10,000 retained rows; copy and export use the retained preview rows. Int64/Uint64 and decimal values remain strings to preserve precision. Feather V1 is not supported
+
+## GeoJSON Viewer Features
+
+- **Offline Map**: View all seven GeoJSON geometry types, including polygon holes, with pan/zoom and keyboard navigation
+- **Feature Inspector**: Select features and inspect their properties without fetching map tiles or remote resources
+- **Opt-In Editor**: Choose `Open With OmniViewer` or **GeoJSON Viewer** from **Reopen Editor With…** for `.geojson`; ordinary text editing remains available
+- **Detection and Limits**: Recognizes complete GeoJSON objects within the 64 KiB content sample for `.json` and extensionless files; `.geojson` always routes by extension. Files are capped at 128 MiB, with bounded feature and vertex previews
 
 ## 🌐 HTML Viewer Features
 

@@ -11,6 +11,7 @@ import { MAX_PT2_READ_BYTES } from './pt2Limits';
 import { MAX_EPUB_READ_BYTES } from './epubLimits';
 import { XML_EXTENSIONS } from './xmlLimits';
 import { HTML_EXTENSIONS } from './htmlLimits';
+import { detectCorePreview } from './corePreviewDetection';
 import { PptxXmlParser } from './pptxXmlParser';
 import { PptBinaryParser } from './pptBinaryParser';
 import {
@@ -38,6 +39,9 @@ import { readWordFile as readWordDocument } from './fileUtils/word';
 import { readShapefile as readGisShapefile, ShapefileData, ShapefileReadOptions } from './fileUtils/gis';
 
 export type OmniViewerViewType =
+    | 'omni-viewer.fontViewer'
+    | 'omni-viewer.arrowViewer'
+    | 'omni-viewer.geojsonViewer'
     | 'omni-viewer.audioViewer'
     | 'omni-viewer.videoViewer'
     | 'omni-viewer.imageViewer'
@@ -119,7 +123,12 @@ export class FileUtils {
             };
         }
 
+        const corePreview = detectCorePreview(buffer, ext, true);
+        if (corePreview) return corePreview;
+
         if (bufferLength === 0) {
+            const previewFallback = detectCorePreview(buffer, ext);
+            if (previewFallback) return previewFallback;
             return {
                 viewType: fallbackViewType ?? null,
                 reason: 'The file is empty, so the extension fallback was used.',
@@ -577,6 +586,9 @@ export class FileUtils {
                 matchedBySignature: false
             };
         }
+
+        const previewFallback = detectCorePreview(buffer, ext);
+        if (previewFallback) return previewFallback;
 
         if (ext === '.shp') {
             return {

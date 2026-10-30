@@ -77,6 +77,45 @@ describe('FileUtils delimited formats', () => {
         fs.rmSync(tempDir, { recursive: true, force: true });
     });
 
+    it.each(['.ttf', '.otf', '.woff', '.arrow', '.feather', '.geojson'])('routes an empty new-format file (%s)', async extension => {
+        const filePath = path.join(tempDir, `empty${extension}`);
+        fs.writeFileSync(filePath, '');
+        const kind = ['.ttf', '.otf', '.woff'].includes(extension) ? 'font' : extension === '.feather' ? 'arrow' : extension.slice(1);
+        expect((await FileUtils.detectViewerType(filePath)).viewType).toBe(`omni-viewer.${kind}Viewer`);
+    });
+
+    it('routes GeoJSON before generic JSON and JSONL content probes', async () => {
+        for (const extension of ['.geojson', '.GEOJSON', '.json', '']) {
+            const filePath = path.join(tempDir, `map${extension}`);
+            fs.writeFileSync(filePath, '{"type":"FeatureCollection","features":[]}');
+            expect((await FileUtils.detectViewerType(filePath, 'omni-viewer.jsonViewer')).viewType).toBe('omni-viewer.geojsonViewer');
+        }
+    });
+
+    it('keeps UTF-16 GeoJSON extensions out of the MP3 detector', async () => {
+        const filePath = path.join(tempDir, 'map.geojson');
+        fs.writeFileSync(filePath, Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('{"type":"Point","coordinates":[1,2]}', 'utf16le')]));
+        expect((await FileUtils.detectViewerType(filePath)).viewType).toBe('omni-viewer.geojsonViewer');
+    });
+
+    it('prioritizes a PDF signature over a misleading font or Arrow extension', async () => {
+        for (const extension of ['.ttf', '.arrow']) {
+            const filePath = path.join(tempDir, `document${extension}`);
+            fs.writeFileSync(filePath, '%PDF-1.7\n');
+            expect((await FileUtils.detectViewerType(filePath)).viewType).toBe('omni-viewer.pdfViewer');
+        }
+    });
+
+    it.each([
+        ['.json', 'true', 'json'],
+        ['.toml', 'true_value = 1', 'toml'],
+        ['.md', 'true story about fonts', 'markdown']
+    ])('keeps text starting with a font magic in its existing viewer (%s)', async (extension, source, kind) => {
+        const filePath = path.join(tempDir, `text${extension}`);
+        fs.writeFileSync(filePath, source);
+        expect((await FileUtils.detectViewerType(filePath)).viewType).toBe(`omni-viewer.${kind}Viewer`);
+    });
+
     it.each(['.html', '.htm', '.HTML', '.HTM'])('keeps HTML with inline SVG in its viewer (%s)', async ext => {
         const filePath = path.join(tempDir, `page${ext}`);
         fs.writeFileSync(filePath, '<!doctype html><html><body><svg><circle r="4"/></svg></body></html>');

@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { CorePreviewProvider } from './corePreviewProvider';
 import { A2lViewerProvider } from './a2lViewerProvider';
 import { ArxmlViewerProvider } from './arxmlViewerProvider';
 import { ArchiveViewerProvider } from './archiveViewerProvider';
@@ -62,6 +63,27 @@ export interface ViewerRegistration {
 }
 
 export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
+    {
+        viewType: 'omni-viewer.fontViewer',
+        command: 'omni-viewer.openFontViewer',
+        missingMessage: 'No font file selected',
+        retainContextWhenHidden: true,
+        createProvider: context => new CorePreviewProvider(context, 'font')
+    },
+    {
+        viewType: 'omni-viewer.arrowViewer',
+        command: 'omni-viewer.openArrowViewer',
+        missingMessage: 'No Arrow file selected',
+        retainContextWhenHidden: true,
+        createProvider: context => new CorePreviewProvider(context, 'arrow')
+    },
+    {
+        viewType: 'omni-viewer.geojsonViewer',
+        command: 'omni-viewer.openGeojsonViewer',
+        missingMessage: 'No GeoJSON file selected',
+        retainContextWhenHidden: true,
+        createProvider: context => new CorePreviewProvider(context, 'geojson')
+    },
     {
         viewType: ArchiveViewerProvider.viewType,
         command: 'omni-viewer.openArchiveViewer',

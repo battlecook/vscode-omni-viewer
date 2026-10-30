@@ -2,8 +2,8 @@
   "name": "omni-viewer",
   "displayName": "omni-viewer",
   "publisher": "battlecook",
-  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, excel, word, powerpoint, parquet, Shapefile, HDF5, MAT, NumPy, Safetensors, ONNX, TFLite, ExecuTorch, PyTorch Export, OpenVINO, Keras, Core ML, GGUF, HAR, jsonl, yaml, toml, HTML, markdown, Jupyter Notebook, LaTeX, XML, EPUB, mermaid, PlantUML, hwp, PSD and PDF files",
-  "version": "0.47.0",
+  "description": "A VSCode extension for viewing audio, image, video, archive, csv, DBC, ARXML, A2L, ASC, BLF, MF4, Avro, ROS bag, PCAP, PCAPNG, STEP, DB3, ReqIF, excel, word, powerpoint, parquet, Shapefile, GeoJSON, Arrow IPC, Feather, fonts, HDF5, MAT, NumPy, Safetensors, ONNX, TFLite, ExecuTorch, PyTorch Export, OpenVINO, Keras, Core ML, GGUF, HAR, jsonl, yaml, toml, HTML, markdown, Jupyter Notebook, LaTeX, XML, EPUB, mermaid, PlantUML, hwp, PSD and PDF files",
+  "version": "0.48.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/battlecook/vscode-omni-viewer.git"
@@ -124,7 +124,14 @@
     "viewer",
     "HTML",
     "html",
-    "htm"
+    "htm",
+    "Font",
+    "TTF",
+    "OTF",
+    "WOFF",
+    "Arrow",
+    "Feather",
+    "GeoJSON"
   ],
   "icon": "img/icon.png",
   "activationEvents": [],
@@ -878,6 +885,45 @@
           }
         ],
         "priority": "default"
+      },
+      {
+        "viewType": "omni-viewer.fontViewer",
+        "displayName": "Font Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.ttf"
+          },
+          {
+            "filenamePattern": "*.otf"
+          },
+          {
+            "filenamePattern": "*.woff"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "omni-viewer.arrowViewer",
+        "displayName": "Arrow IPC / Feather V2 Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.arrow"
+          },
+          {
+            "filenamePattern": "*.feather"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "omni-viewer.geojsonViewer",
+        "displayName": "GeoJSON Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.geojson"
+          }
+        ],
+        "priority": "option"
       }
     ],
     "menus": {
@@ -1153,6 +1199,21 @@
           "command": "omni-viewer.shareFile",
           "when": "!explorerResourceIsFolder",
           "group": "7_modification"
+        },
+        {
+          "command": "omni-viewer.openFontViewer",
+          "when": "resourceExtname == '.ttf' || resourceExtname == '.otf' || resourceExtname == '.woff'",
+          "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openArrowViewer",
+          "when": "resourceExtname == '.arrow' || resourceExtname == '.feather'",
+          "group": "navigation"
+        },
+        {
+          "command": "omni-viewer.openGeojsonViewer",
+          "when": "resourceExtname == '.geojson'",
+          "group": "navigation"
         }
       ]
     },
@@ -1429,6 +1490,21 @@
         "title": "Open Shared Link",
         "category": "Omni Viewer",
         "icon": "$(cloud-download)"
+      },
+      {
+        "command": "omni-viewer.openFontViewer",
+        "title": "Open With OmniViewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openArrowViewer",
+        "title": "Open With OmniViewer",
+        "category": "Omni Viewer"
+      },
+      {
+        "command": "omni-viewer.openGeojsonViewer",
+        "title": "Open With OmniViewer",
+        "category": "Omni Viewer"
       }
     ]
   },
@@ -1470,8 +1546,10 @@
     "@braintree/sanitize-url": "^7.1.2",
     "@rhwp/core": "^0.7.3",
     "ag-psd": "^30.1.0",
+    "apache-arrow": "^21.2.0",
     "docx-preview": "^0.3.7",
     "dompurify": "^3.4.12",
+    "fzstd": "^0.1.1",
     "highlight.js": "^11.11.1",
     "hwp.js": "^0.0.3",
     "hyparquet": "^1.26.2",
@@ -1479,10 +1557,11 @@
     "jszip": "^3.10.1",
     "katex": "^0.16.47",
     "leaflet": "^1.9.4",
+    "lz4js": "^0.2.0",
     "marked": "^16.4.2",
     "mermaid": "^11.15.0",
     "music-metadata": "^11.8.3",
-    "omni-viewer-core": "^0.21.0",
+    "omni-viewer-core": "^0.22.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.10.38",
     "proj4": "^2.20.9",

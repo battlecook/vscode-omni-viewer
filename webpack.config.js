@@ -2,6 +2,19 @@ const path = require('path');
 const webpack = require('webpack');
 
 module.exports = [
+  // Each preview is self-contained, including Arrow's optional codec peers.
+  ...['font', 'arrow', 'geojson'].map(kind => ({
+    mode: 'production',
+    target: 'web',
+    entry: `./src/templates/corePreview/js/${kind}ViewerMain.js`,
+    output: {
+      path: path.resolve(__dirname, 'src/templates/corePreview/js'),
+      filename: `${kind}Viewer.js`
+    },
+    resolve: { extensions: ['.js'], fallback: { fs: false, path: false } },
+    optimization: { splitChunks: false, runtimeChunk: false, minimize: true },
+    plugins: [new webpack.optimize.LimitChunkCountPlugin({ maxChunks: 1 })]
+  })),
   // TypeScript files configuration
   {
     target: 'node',
