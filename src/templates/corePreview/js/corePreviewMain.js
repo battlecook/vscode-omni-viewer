@@ -7,6 +7,7 @@ export function startCorePreview(mount, arrow = false) {
     const api = window.__omniVsCode__ || (typeof acquireVsCodeApi === 'function' ? acquireVsCodeApi() : null);
     const controller = new AbortController();
     const pending = new Map();
+    const assetUrls = new Set();
     let sequence = 0;
     let handle;
     let mounting = false;
@@ -34,9 +35,24 @@ export function startCorePreview(mount, arrow = false) {
             const log = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
             log('[core-preview]', message);
         } },
-        ...(arrow ? {
+        ...(arrow || parsed.clipboard ? {
             clipboard: { writeText: text => request('corePreviewClipboard', { text }) },
+        } : {}),
+        ...(arrow || parsed.save === 'json' ? {
             save: { saveFile: (_name, data) => request('corePreviewSave', { content: new TextDecoder().decode(data) }) }
+        } : {}),
+        ...(parsed.save === 'attachment' ? {
+            save: { saveFile: (name, data, mimeType) => request('corePreviewAttachmentSave', { name, data, mimeType }) }
+        } : {}),
+        ...(parsed.documentAssets ? {
+            documentAssets: { resolve: async path => {
+                const result = await request('corePreviewAsset', { url: path });
+                if (!result || disposed) return null;
+                const bytes = result.data instanceof Uint8Array ? result.data : new Uint8Array(result.data || []);
+                const url = URL.createObjectURL(new Blob([bytes], { type: result.mimeType || 'application/octet-stream' }));
+                assetUrls.add(url);
+                return { url, dispose: () => { if (assetUrls.delete(url)) URL.revokeObjectURL(url); } };
+            } }
         } : {})
     };
     function onMessage(event) {
@@ -59,7 +75,8 @@ export function startCorePreview(mount, arrow = false) {
         mounting = true;
         const data = message.data instanceof Uint8Array ? message.data : new Uint8Array(message.data || []);
         const options = { styleIsolation: 'shadow', signal: controller.signal, limits: { maxInputBytes: parsed.maxBytes } };
-        if (arrow) options.parse = { signal: controller.signal, limits: options.limits };
+        if (arrow || parsed.nestedParse) options.parse = { signal: controller.signal, limits: options.limits };
+        if (parsed.kind === 'dicom') options.maxBytes = parsed.maxBytes;
         Promise.resolve().then(() => mount({ fileName: parsed.fileName, data }, container, ctx, options))
             .then(mounted => { if (disposed) mounted.dispose(); else handle = mounted; })
             .catch(fail);
@@ -70,6 +87,8 @@ export function startCorePreview(mount, arrow = false) {
         controller.abort();
         window.removeEventListener('message', onMessage);
         if (handle) handle.dispose();
+        assetUrls.forEach(url => URL.revokeObjectURL(url));
+        assetUrls.clear();
         pending.forEach(entry => entry.reject(new Error('Viewer closed')));
         pending.clear();
     }, { once: true });

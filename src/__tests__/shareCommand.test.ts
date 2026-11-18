@@ -18,13 +18,13 @@ jest.mock('vscode', () => ({
     Uri: { parse: jest.fn() }
 }), { virtual: true });
 
-import { HAR_SHARE_CONFIRM_ACTION, parseShareInput, shareFileCommand } from '../shareCommand';
+import { SHARE_CONFIRM_ACTION, parseShareInput, shareFileCommand } from '../shareCommand';
 
 function fileUri(fsPath: string) {
     return { fsPath, toString: () => `file://${fsPath}` } as unknown as import('vscode').Uri;
 }
 
-describe('shareFileCommand HAR confirmation', () => {
+describe('shareFileCommand upload confirmation', () => {
     beforeEach(() => {
         mockShowWarningMessage.mockReset();
         mockWithProgress.mockReset();
@@ -38,18 +38,20 @@ describe('shareFileCommand HAR confirmation', () => {
         await shareFileCommand(fileUri('/tmp/session.har'));
 
         expect(mockShowWarningMessage).toHaveBeenCalledWith(
-            expect.stringContaining('cookies, authorization headers'),
-            { modal: true },
-            HAR_SHARE_CONFIRM_ACTION
+            'Upload session.har and create a share link?',
+            expect.objectContaining({ modal: true, detail: expect.stringContaining('cookies, authorization headers') }),
+            SHARE_CONFIRM_ACTION
         );
         expect(mockWithProgress).not.toHaveBeenCalled();
     });
 
     it('uploads a .har once the user confirms', async () => {
-        mockShowWarningMessage.mockResolvedValue(HAR_SHARE_CONFIRM_ACTION);
+        mockShowWarningMessage.mockResolvedValue(SHARE_CONFIRM_ACTION);
 
         await shareFileCommand(fileUri('/tmp/session.HAR'));
 
+        expect(mockShowWarningMessage).toHaveBeenCalledTimes(1);
+        expect(mockShowWarningMessage.mock.calls[0][1].detail).toContain('uploaded to the Omni Viewer server');
         expect(mockWithProgress).toHaveBeenCalledTimes(1);
     });
 
@@ -61,14 +63,34 @@ describe('shareFileCommand HAR confirmation', () => {
         await shareFileCommand(target);
 
         expect(mockShowWarningMessage).toHaveBeenCalledTimes(1);
+        expect(mockShowWarningMessage.mock.calls[0][1].detail).toContain('cookies, authorization headers');
         expect(mockWithProgress).not.toHaveBeenCalled();
     });
 
-    it('shares other files without the HAR warning', async () => {
+    it('explains server upload and link access before sharing other files', async () => {
+        mockShowWarningMessage.mockResolvedValue(SHARE_CONFIRM_ACTION);
+
         await shareFileCommand(fileUri('/tmp/data.json'));
 
-        expect(mockShowWarningMessage).not.toHaveBeenCalled();
+        expect(mockShowWarningMessage).toHaveBeenCalledWith(
+            'Upload data.json and create a share link?',
+            { modal: true, detail: expect.any(String) },
+            SHARE_CONFIRM_ACTION
+        );
+        const detail = mockShowWarningMessage.mock.calls[0][1].detail;
+        expect(detail).toContain('encrypted on your device');
+        expect(detail).toContain('uploaded to the Omni Viewer server');
+        expect(detail).toContain('valid for 5 minutes');
+        expect(detail).toContain('Anyone with the link can open the file');
+        expect(detail).not.toContain('HAR');
         expect(mockWithProgress).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not upload a regular file when confirmation is dismissed', async () => {
+        await shareFileCommand(fileUri('/tmp/data.json'));
+
+        expect(mockShowWarningMessage).toHaveBeenCalledTimes(1);
+        expect(mockWithProgress).not.toHaveBeenCalled();
     });
 });
 

@@ -188,7 +188,7 @@ function mayHoldHttpCredentials(target: vscode.Uri): boolean {
         && input.uri?.toString() === target.toString();
 }
 
-export const HAR_SHARE_CONFIRM_ACTION = 'Share Anyway';
+export const SHARE_CONFIRM_ACTION = 'Upload and Create Link';
 
 function getActiveCustomEditorUri(): vscode.Uri | undefined {
     const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
@@ -220,16 +220,19 @@ export async function shareFileCommand(uri?: vscode.Uri): Promise<void> {
         vscode.window.showErrorMessage('Omni Viewer: file is too large to share (max 1 MB).');
         return;
     }
+    let detail = 'This file will be encrypted on your device and uploaded to the Omni Viewer server to create a share link. '
+        + `The link is valid for ${DEFAULT_EXPIRES_IN_MINUTES} minutes. Anyone with the link can open the file.`;
     if (mayHoldHttpCredentials(target)) {
-        const choice = await vscode.window.showWarningMessage(
-            'HAR files usually contain cookies, authorization headers, and request bodies that can include passwords or session tokens. '
-                + `The upload is encrypted, but anyone with the share link can open ${path.basename(target.fsPath)} as-is. Share it anyway?`,
-            { modal: true },
-            HAR_SHARE_CONFIRM_ACTION
-        );
-        if (choice !== HAR_SHARE_CONFIRM_ACTION) {
-            return;
-        }
+        detail += '\n\nHAR files usually contain cookies, authorization headers, and request bodies that can include passwords or session tokens. '
+            + 'These will be included in the shared file.';
+    }
+    const choice = await vscode.window.showWarningMessage(
+        `Upload ${path.basename(target.fsPath)} and create a share link?`,
+        { modal: true, detail },
+        SHARE_CONFIRM_ACTION
+    );
+    if (choice !== SHARE_CONFIRM_ACTION) {
+        return;
     }
 
     await vscode.window.withProgress(

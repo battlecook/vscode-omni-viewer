@@ -64,6 +64,104 @@ export interface ViewerRegistration {
 
 export const VIEWER_REGISTRATIONS: ViewerRegistration[] = [
     {
+        viewType: 'omni-viewer.textViewer',
+        command: 'omni-viewer.openTextViewer',
+        missingMessage: 'No Text file selected',
+        retainContextWhenHidden: true,
+        createProvider: context => new CorePreviewProvider(context, 'text')
+    },
+    {
+        viewType: 'omni-viewer.dicomViewer',
+        command: 'omni-viewer.openDicomViewer',
+        missingMessage: 'No DICOM file selected',
+        retainContextWhenHidden: true,
+        createProvider: context => new CorePreviewProvider(context, 'dicom')
+    },
+    {
+        viewType: 'omni-viewer.junitViewer',
+        command: 'omni-viewer.openJunitViewer',
+        missingMessage: 'No JUnit XML file selected',
+        retainContextWhenHidden: true,
+        createProvider: context => new CorePreviewProvider(context, 'junit')
+    },
+    {
+        viewType: 'omni-viewer.openapiViewer',
+        command: 'omni-viewer.openOpenapiViewer',
+        missingMessage: 'No OpenAPI / Swagger file selected',
+        retainContextWhenHidden: true,
+        createProvider: context => new CorePreviewProvider(context, 'openapi')
+    },
+    {
+        viewType: 'omni-viewer.emlViewer',
+        command: 'omni-viewer.openEmlViewer',
+        missingMessage: 'No EML Email file selected',
+        retainContextWhenHidden: true,
+        createProvider: context => new CorePreviewProvider(context, 'eml')
+    },
+    {
+        viewType: 'omni-viewer.mcapViewer',
+        command: 'omni-viewer.openMcapViewer',
+        missingMessage: 'No MCAP file selected',
+        retainContextWhenHidden: true,
+        createProvider: context => new CorePreviewProvider(context, 'mcap')
+    },
+    {
+        viewType: 'omni-viewer.meshViewer',
+        command: 'omni-viewer.openMeshViewer',
+        missingMessage: 'No 3D Model file selected',
+        retainContextWhenHidden: true,
+        createProvider: context => new CorePreviewProvider(context, 'mesh')
+    },
+    {
+        viewType: 'omni-viewer.sarifViewer',
+        command: 'omni-viewer.openSarifViewer',
+        missingMessage: 'No SARIF file selected',
+        retainContextWhenHidden: true,
+        createProvider: context => new CorePreviewProvider(context, 'sarif')
+    },
+    {
+        viewType: 'omni-viewer.gpsViewer',
+        command: 'omni-viewer.openGpsViewer',
+        missingMessage: 'No GPX, KML or KMZ file selected',
+        retainContextWhenHidden: true,
+        createProvider: context => new CorePreviewProvider(context, 'gps')
+    },
+    {
+        viewType: 'omni-viewer.traceViewer',
+        command: 'omni-viewer.openTraceViewer',
+        missingMessage: 'No Chrome Trace file selected',
+        retainContextWhenHidden: true,
+        createProvider: context => new CorePreviewProvider(context, 'trace')
+    },
+    {
+        viewType: 'omni-viewer.sbomViewer',
+        command: 'omni-viewer.openSbomViewer',
+        missingMessage: 'No CycloneDX SBOM file selected',
+        retainContextWhenHidden: true,
+        createProvider: context => new CorePreviewProvider(context, 'sbom')
+    },
+    {
+        viewType: 'omni-viewer.msgViewer',
+        command: 'omni-viewer.openMsgViewer',
+        missingMessage: 'No Outlook MSG file selected',
+        retainContextWhenHidden: true,
+        createProvider: context => new CorePreviewProvider(context, 'msg')
+    },
+    {
+        viewType: 'omni-viewer.drawioViewer',
+        command: 'omni-viewer.openDrawioViewer',
+        missingMessage: 'No draw.io file selected',
+        retainContextWhenHidden: true,
+        createProvider: context => new CorePreviewProvider(context, 'drawio')
+    },
+    {
+        viewType: 'omni-viewer.opendocumentViewer',
+        command: 'omni-viewer.openOpendocumentViewer',
+        missingMessage: 'No OpenDocument file selected',
+        retainContextWhenHidden: true,
+        createProvider: context => new CorePreviewProvider(context, 'opendocument')
+    },
+    {
         viewType: 'omni-viewer.fontViewer',
         command: 'omni-viewer.openFontViewer',
         missingMessage: 'No font file selected',

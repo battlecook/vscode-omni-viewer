@@ -12,6 +12,8 @@ import { MAX_EPUB_READ_BYTES } from './epubLimits';
 import { XML_EXTENSIONS } from './xmlLimits';
 import { HTML_EXTENSIONS } from './htmlLimits';
 import { detectCorePreview } from './corePreviewDetection';
+import { detectCore023Signature, detectCore023OpenApi } from './core023Detection';
+import { detectCore024Preview } from './core024Detection';
 import { PptxXmlParser } from './pptxXmlParser';
 import { PptBinaryParser } from './pptBinaryParser';
 import {
@@ -39,6 +41,20 @@ import { readWordFile as readWordDocument } from './fileUtils/word';
 import { readShapefile as readGisShapefile, ShapefileData, ShapefileReadOptions } from './fileUtils/gis';
 
 export type OmniViewerViewType =
+    | 'omni-viewer.sarifViewer'
+    | 'omni-viewer.gpsViewer'
+    | 'omni-viewer.traceViewer'
+    | 'omni-viewer.sbomViewer'
+    | 'omni-viewer.msgViewer'
+    | 'omni-viewer.drawioViewer'
+    | 'omni-viewer.opendocumentViewer'
+    | 'omni-viewer.textViewer'
+    | 'omni-viewer.dicomViewer'
+    | 'omni-viewer.junitViewer'
+    | 'omni-viewer.openapiViewer'
+    | 'omni-viewer.emlViewer'
+    | 'omni-viewer.mcapViewer'
+    | 'omni-viewer.meshViewer'
     | 'omni-viewer.fontViewer'
     | 'omni-viewer.arrowViewer'
     | 'omni-viewer.geojsonViewer'
@@ -122,6 +138,13 @@ export class FileUtils {
                 matchedBySignature: false
             };
         }
+
+        const newPreview = detectCore023Signature(buffer, ext, fallbackViewType === 'omni-viewer.textViewer');
+        if (newPreview) return newPreview;
+        const filePreview = await detectCore024Preview(filePath, buffer, ext, fallbackViewType);
+        if (filePreview) return filePreview;
+        const apiPreview = await detectCore023OpenApi(filePath, buffer, ext);
+        if (apiPreview) return apiPreview;
 
         const corePreview = detectCorePreview(buffer, ext, true);
         if (corePreview) return corePreview;
@@ -623,6 +646,10 @@ export class FileUtils {
         const textType = this.detectTextBasedViewType(buffer, ext);
         if (textType) {
             return textType;
+        }
+
+        if (ext === '.txt') {
+            return { viewType: 'omni-viewer.textViewer', reason: 'Used the plain-text extension fallback.', matchedBySignature: false };
         }
 
         if (this.isArchiveExtension(filePath)) {

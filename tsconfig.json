@@ -5,6 +5,8 @@
     "target": "ES2020",
     "baseUrl": ".",
     "paths": {
+      "omni-viewer-core/parsers/openapi/self-loading": ["node_modules/omni-viewer-core/dist/parsers/openapi/self-loading.d.ts"],
+      "omni-viewer-core/*": ["node_modules/omni-viewer-core/dist/*/index.d.ts"],
       "omni-viewer-core/parsers/safetensors": [
         "node_modules/omni-viewer-core/dist/parsers/safetensors/index.d.ts"
       ],

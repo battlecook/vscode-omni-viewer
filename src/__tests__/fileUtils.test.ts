@@ -1053,7 +1053,7 @@ describe('FileUtils delimited formats', () => {
         const files: Array<[string, string]> = [
             ['pom.xml', '<?xml version="1.0"?>\n<project><modelVersion>4.0.0</modelVersion></project>\n'],
             ['App.csproj', '<Project Sdk="Microsoft.NET.Sdk">\n<PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>\n</Project>\n'],
-            ['track.gpx', '<gpx version="1.1" creator="a,b,c"><trk><name>x,y,z</name></trk></gpx>']
+            ['feed.rss', '<rss version="2.0" generator="a,b,c"><channel><title>x,y,z</title></channel></rss>']
         ];
 
         for (const [name, content] of files) {
@@ -1065,6 +1065,45 @@ describe('FileUtils delimited formats', () => {
             expect(result.viewType).toBe('omni-viewer.xmlViewer');
             expect(result.reason).toContain('XML extension');
         }
+    });
+
+    it('routes core 0.24 file previews ahead of the generic XML, JSON and archive viewers', async () => {
+        const files: Array<[string, string | Buffer, string]> = [
+            ['track.gpx', '<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1"><trk/></gpx>', 'omni-viewer.gpsViewer'],
+            ['plain.gpx', '<gpx version="1.1" creator="a,b,c"><trk><name>x,y,z</name></trk></gpx>', 'omni-viewer.gpsViewer'],
+            ['places.xml', '<kml xmlns="http://www.opengis.net/kml/2.2"><Document/></kml>', 'omni-viewer.gpsViewer'],
+            ['flow.xml', '<mxfile><diagram name="Page-1"/></mxfile>', 'omni-viewer.drawioViewer'],
+            ['flow.drawio', '<mxfile/>', 'omni-viewer.drawioViewer'],
+            ['scan.json', '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"lint"}},"results":[]}]}', 'omni-viewer.sarifViewer'],
+            ['bom.json', '{"bomFormat":"CycloneDX","specVersion":"1.6","components":[]}', 'omni-viewer.sbomViewer'],
+            ['profile.json', '{"traceEvents":[{"name":"a","ph":"X","pid":1,"tid":1,"ts":0,"dur":1}]}', 'omni-viewer.traceViewer'],
+            ['letter.odt', epubHeader('application/vnd.oasis.opendocument.text'), 'omni-viewer.opendocumentViewer'],
+            ['suite.xml', '<testsuite tests="1"><testcase name="a"/></testsuite>', 'omni-viewer.junitViewer'],
+            ['package.json', '{"name":"x","version":"1.0.0"}', 'omni-viewer.jsonViewer']
+        ];
+
+        for (const [name, content, viewType] of files) {
+            const filePath = path.join(tempDir, name);
+            fs.writeFileSync(filePath, content);
+
+            expect((await FileUtils.detectViewerType(filePath)).viewType).toBe(viewType);
+        }
+    });
+
+    it('keeps text .msg files, unsupported KML and an explicit Archive request off the new previews', async () => {
+        const rosMessage = path.join(tempDir, 'Pose.msg');
+        fs.writeFileSync(rosMessage, 'float64 x\nfloat64 y\n');
+        expect((await FileUtils.detectViewerType(rosMessage)).viewType).not.toBe('omni-viewer.msgViewer');
+        expect((await FileUtils.detectViewerType(rosMessage, 'omni-viewer.msgViewer')).viewType).toBe('omni-viewer.textViewer');
+        expect((await FileUtils.detectViewerType(rosMessage, 'omni-viewer.textViewer')).viewType).toBe('omni-viewer.textViewer');
+
+        const kml23 = path.join(tempDir, 'places.kml');
+        fs.writeFileSync(kml23, '<kml xmlns="http://www.opengis.net/kml/2.3"><Placemark/></kml>');
+        expect((await FileUtils.detectViewerType(kml23, 'omni-viewer.xmlViewer')).viewType).toBe('omni-viewer.xmlViewer');
+
+        const document = path.join(tempDir, 'letter.odt');
+        fs.writeFileSync(document, epubHeader('application/vnd.oasis.opendocument.text'));
+        expect((await FileUtils.detectViewerType(document, 'omni-viewer.archiveViewer')).viewType).toBe('omni-viewer.archiveViewer');
     });
 
     it('detects extensionless XML by its declaration', async () => {

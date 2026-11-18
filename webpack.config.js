@@ -1,9 +1,15 @@
 const path = require('path');
 const webpack = require('webpack');
+const TerserPlugin = require('terser-webpack-plugin');
+
+// The core YAML adapter identifies Alias/YAMLSeq by constructor.name.
+// Preserve runtime class names in the OpenAPI bundles and extension host.
+const yamlSafeMinimizer = () => new TerserPlugin({ terserOptions: { keep_classnames: true } });
 
 module.exports = [
   // Each preview is self-contained, including Arrow's optional codec peers.
-  ...['font', 'arrow', 'geojson'].map(kind => ({
+  ...['font', 'arrow', 'geojson', 'text', 'dicom', 'junit', 'openapi', 'eml', 'mcap', 'mesh',
+    'sarif', 'gps', 'trace', 'sbom', 'msg', 'drawio', 'opendocument'].map(kind => ({
     mode: 'production',
     target: 'web',
     entry: `./src/templates/corePreview/js/${kind}ViewerMain.js`,
@@ -12,13 +18,15 @@ module.exports = [
       filename: `${kind}Viewer.js`
     },
     resolve: { extensions: ['.js'], fallback: { fs: false, path: false } },
-    optimization: { splitChunks: false, runtimeChunk: false, minimize: true },
+    optimization: { splitChunks: false, runtimeChunk: false, minimize: true,
+      ...(kind === 'openapi' ? { minimizer: [yamlSafeMinimizer()] } : {}) },
     plugins: [new webpack.optimize.LimitChunkCountPlugin({ maxChunks: 1 })]
   })),
   // TypeScript files configuration
   {
     target: 'node',
     mode: 'production',
+    optimization: { minimizer: [yamlSafeMinimizer()] },
     entry: {
       extension: './src/extension.ts',
       tfliteParserWorker: './src/tfliteParserWorker.ts',

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-{{cspNonce}}' {{cspSource}}; style-src 'unsafe-inline' {{cspSource}}; font-src blob: data:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-{{cspNonce}}' {{cspSource}}; style-src 'unsafe-inline' {{cspSource}}; font-src blob: data:; img-src blob: data:; connect-src blob: data:; frame-src 'self';">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{viewerTitle}} Viewer - {{fileName}}</title>
     <style nonce="{{cspNonce}}">
@@ -19,6 +19,7 @@
             --omni-fg: var(--vscode-foreground, #d4d4d4);
             --omni-bg: var(--vscode-editor-background, #1e1e1e);
             --omni-muted: var(--vscode-descriptionForeground, #999);
+            --omni-fg-muted: var(--vscode-descriptionForeground, #999);
             --omni-border: var(--vscode-widget-border, var(--vscode-panel-border, #454545));
             --omni-accent: var(--vscode-button-background, #0e639c);
             --omni-accent-fg: var(--vscode-button-foreground, #fff);
@@ -28,6 +29,21 @@
             --omni-header-bg: var(--vscode-editorWidget-background, #252526);
             --omni-warning-bg: var(--vscode-inputValidation-warningBackground, #4d3b12);
             --omni-mono: var(--vscode-editor-font-family, monospace);
+            --omni-font: var(--vscode-font-family, sans-serif);
+            --omni-font-mono: var(--vscode-editor-font-family, monospace);
+            --omni-font-size: var(--vscode-font-size, 13px);
+            --omni-toolbar-bg: var(--vscode-editorWidget-background, #252526);
+            --omni-button-bg: var(--vscode-button-secondaryBackground, #3a3d41);
+            --omni-code-bg: var(--vscode-textCodeBlock-background, #252526);
+            --omni-hover: var(--vscode-list-hoverBackground, #2a2d2e);
+            --omni-hover-bg: var(--vscode-list-hoverBackground, #2a2d2e);
+            --omni-selected-bg: var(--vscode-list-inactiveSelectionBackground, #37373d);
+            --omni-selection-bg: var(--vscode-editor-selectionBackground, #264f78);
+            --omni-success: var(--vscode-testing-iconPassed, #73c991);
+            --omni-error: var(--vscode-errorForeground, #f48771);
+            --omni-warning: var(--vscode-editorWarning-foreground, #cca700);
+            --omni-warning-fg: var(--vscode-editorWarning-foreground, #cca700);
+            --omni-mesh-bg: var(--vscode-editor-background, #1e1e1e);
             --omni-map-bg: var(--vscode-editor-background, #1e1e1e);
             --omni-map-stroke: var(--vscode-charts-blue, #3794ff);
             --omni-map-point: var(--vscode-charts-red, #f14c4c);

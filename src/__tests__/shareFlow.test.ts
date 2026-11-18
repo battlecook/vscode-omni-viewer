@@ -41,6 +41,7 @@ const mockShowErrorMessage = jest.fn();
 const mockExecuteCommand = jest.fn();
 const mockClipboardWrite = jest.fn();
 const mockReadFile = jest.fn();
+const mockShowWarningMessage = jest.fn();
 
 jest.mock('vscode', () => ({
     FileType: { File: 1, Directory: 2 },
@@ -48,7 +49,7 @@ jest.mock('vscode', () => ({
     window: {
         showInputBox: (...args: unknown[]) => mockShowInputBox(...args),
         showErrorMessage: (...args: unknown[]) => mockShowErrorMessage(...args),
-        showWarningMessage: jest.fn(),
+        showWarningMessage: (...args: unknown[]) => mockShowWarningMessage(...args),
         showInformationMessage: jest.fn(async () => undefined),
         withProgress: async (_opts: unknown, task: () => Promise<void>) => task(),
         tabGroups: { activeTabGroup: { activeTab: undefined } }
@@ -64,7 +65,7 @@ jest.mock('vscode', () => ({
     Uri: { parse: jest.fn(), file: (fsPath: string) => ({ fsPath }) }
 }), { virtual: true });
 
-import { openSharedLinkCommand, shareFileCommand } from '../shareCommand';
+import { openSharedLinkCommand, SHARE_CONFIRM_ACTION, shareFileCommand } from '../shareCommand';
 import { decodeShareKey, decryptShareFile, encryptShareFile } from '../utils/shareCrypto';
 
 const API = 'https://omni-viewer-share-624036133562.us-west1.run.app';
@@ -88,9 +89,30 @@ beforeEach(() => {
     mockExecuteCommand.mockReset();
     mockClipboardWrite.mockReset();
     mockReadFile.mockReset();
+    mockShowWarningMessage.mockReset().mockResolvedValue(SHARE_CONFIRM_ACTION);
 });
 
 describe('shareFileCommand v2 upload', () => {
+    it('does not read the file or contact the server until the user confirms', async () => {
+        let confirm: (choice: string | undefined) => void = () => {};
+        mockShowWarningMessage.mockImplementation(() => new Promise<string | undefined>((resolve) => { confirm = resolve; }));
+
+        const sharing = shareFileCommand({ fsPath: '/work/private.csv' } as never);
+        // Allow the stat check to finish and the confirmation dialog to open.
+        await Promise.resolve();
+
+        expect(mockShowWarningMessage).toHaveBeenCalledTimes(1);
+        expect(mockReadFile).not.toHaveBeenCalled();
+        expect(calls).toHaveLength(0);
+
+        confirm(undefined);
+        await sharing;
+
+        expect(mockReadFile).not.toHaveBeenCalled();
+        expect(mockClipboardWrite).not.toHaveBeenCalled();
+        expect(calls).toHaveLength(0);
+    });
+
     it('uploads only an encrypted.bin envelope and copies a #k= link that opens it', async () => {
         const original = Buffer.from('a,b\n1,2\n');
         mockReadFile.mockResolvedValue(new Uint8Array(original));

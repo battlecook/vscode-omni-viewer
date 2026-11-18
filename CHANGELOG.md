@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.49.0] - 2026-11-18
+
+### Added
+- Added seven viewers powered by `omni-viewer-core` 0.23.0:
+  - **Text** (`.txt`): literal whitespace, soft wrapping, BOM-aware UTF-8/UTF-16 decoding and bounded previews; an optional editor with explicit text routing
+  - **DICOM** (`.dcm`, `.dicom`): native pixel previews, frame navigation, windowing, inversion, zoom and searchable metadata; unsupported image encodings retain metadata
+  - **JUnit XML**: content-based `.xml` and extensionless report routing, test outcomes, failure traces, output, filters, suite summaries, source and failure-report copying
+  - **OpenAPI / Swagger**: content-based JSON/YAML routing, operation and schema inspection, local references, parameters, requests, responses, examples, authentication and source
+  - **EML** (`.eml`): decoded headers, text and sandboxed HTML, MIME attachments, inline CID images, body copying and binary attachment saving through VS Code
+  - **MCAP** (`.mcap`): channels, schemas, messages, metadata, attachments and chunks, including bundled LZ4/ZSTD decoding
+  - **3D Model** (`.glb`, `.gltf`, `.stl`, `.obj`): bundled Three.js, orbit/pan/zoom, wireframe, grid/axes, geometry statistics and glTF animations
+- Added seven read-only previews powered by `omni-viewer-core` 0.24.0:
+  - **SARIF** (`.sarif`, `.sarif.json`): result severity, rule, file, tool and source locations with filters
+  - **GPS Track** (`.gpx`, `.kml`, `.kmz`): offline GPX/KML/KMZ map without basemap tiles and GPX track statistics
+  - **Chrome Trace** (`.trace.json`, `.chrome-trace`): Trace Event timeline for complete, begin/end and instant events with search and zoom
+  - **CycloneDX SBOM** (`.cdx.json`, `.cyclonedx.json`): components, licenses and direct dependencies
+  - **Outlook MSG** (`.msg`): headers, text and sandboxed HTML bodies, and attachment saving through VS Code's save dialog
+  - **draw.io** (`.drawio`, `.dio`): compressed or plain diagrams with pages, layers, basic shapes and connectors
+  - **OpenDocument** (`.odt`, `.odp`): ODT text structure and basic ODP slide layout
+- Routed SARIF, CycloneDX and Trace Event JSON saved as `.json` or without an extension, and namespaced GPX/KML and draw.io XML saved as `.xml` or without an extension, through the core content sniffers; extensionless KMZ, ODT/ODP and Outlook MSG are recognized through the core container probe
+- Claimed `.msg` only for Outlook Compound Files so ROS message definitions and other text `.msg` files keep their routing, or open as text when requested as Outlook MSG, and routed `.gpx`/`.kml` to the GPS map when it reads the root, including one without the GPX/KML namespace
+- Left JSON/XML documents over a preview budget with the generic viewers and KMZ/ODT/ODP packages over 32 MiB, or with an explicit Archive request, in the Archive viewer
+- Added editor registrations, explorer commands, refresh, locale and theme integration; glTF resources are resolved within the model directory, including symlink checks, with 64 MiB per asset, 256 MiB total and 1,024 resource requests per session
+- Added host read limits and cancellation on refresh/close, capability-specific clipboard/save bridges and cleanup for model resource URLs
+
+### Changed
+- Updated `omni-viewer-core` to 0.24.0 and rebuilt the bundled viewers
+- Added Three.js as the installed 3D runtime; all viewer resources ship with the extension
+
+### Fixed
+- Matched JUnit report detection to the core XML decoder, including BOM-less UTF-16 and declared legacy encodings, and allowed full-source copying within the report's decoded size budget
+- Kept OpenAPI YAML detection within the core parser's alias limits without expanding the document to JSON, preserved YAML node class names in production bundles, and aligned copying with the core's Unicode output budget
+
 ## [0.48.0] - 2026-10-30
 
 ### Added

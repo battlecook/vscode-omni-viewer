@@ -2,8 +2,10 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as vm from 'vm';
+import { Blob } from 'buffer';
 import * as vscode from 'vscode';
 import { tableFromArrays, tableToIPC } from 'apache-arrow';
+import { parseJUnit } from 'omni-viewer-core/parsers/junit';
 
 jest.mock('vscode', () => ({
     env: { language: 'ko', clipboard: { writeText: jest.fn().mockResolvedValue(undefined) } },
@@ -96,7 +98,8 @@ describe('Core preview host', () => {
         return postMessage.mock.calls[0][0];
     }
 
-    it.each(['font', 'arrow', 'geojson'] as const)('loads the %s bundle and raw bytes, rereading after reload', async kind => {
+    it.each(['font', 'arrow', 'geojson', 'text', 'dicom', 'junit', 'openapi', 'eml', 'mcap', 'mesh',
+        'sarif', 'gps', 'trace', 'sbom', 'msg', 'drawio', 'opendocument'] as const)('loads the %s bundle and raw bytes, rereading after reload', async kind => {
         const { panel, handlers } = await open(kind);
         expect(panel.webview.html).toContain(`${kind}Viewer.js`);
         expect(panel.webview.html).toContain('font-src blob: data:');
@@ -108,7 +111,8 @@ describe('Core preview host', () => {
         fs.writeFileSync(filePath, 'fresh data');
         expect(await send(handlers!, 'corePreviewReady')).toEqual({ type: 'corePreviewSource', data: new Uint8Array(Buffer.from('fresh data')) });
     });
-    it.each(['font', 'arrow', 'geojson'] as const)('rejects oversized %s files both on open and reload', async kind => {
+    it.each(['font', 'arrow', 'geojson', 'text', 'dicom', 'junit', 'openapi', 'eml', 'mcap', 'mesh',
+        'sarif', 'gps', 'trace', 'sbom', 'msg', 'drawio', 'opendocument'] as const)('rejects oversized %s files both on open and reload', async kind => {
         const { handlers } = await open(kind);
         fs.truncateSync(filePath, CORE_PREVIEW_VIEWERS[kind].maxBytes + 1);
         expect(await send(handlers!, 'corePreviewReady')).toMatchObject({ type: 'corePreviewError', message: expect.stringContaining('viewer limit') });
@@ -136,6 +140,23 @@ describe('Core preview host', () => {
         expect(vscode.env.clipboard.writeText).toHaveBeenCalledWith('id\tname\n1\talpha');
         expect(await send(handlers!, 'corePreviewClipboard', { text: 'x'.repeat(16 * 1024 * 1024 + 1) })).toMatchObject({ ok: false });
         expect(vscode.env.clipboard.writeText).toHaveBeenCalledTimes(1);
+    });
+    it('copies the full source of a valid JUnit report larger than the Arrow clipboard budget', async () => {
+        const source = `<testsuite tests="1"><!--${'a'.repeat(17 * 1024 * 1024)}--><testcase name="pass"/></testsuite>`;
+        const result = parseJUnit(new Uint8Array(Buffer.from(source))).result;
+        expect(result.status).toBe('ok');
+        if (result.status === 'failed') throw new Error('JUnit fixture did not parse');
+        const { handlers } = await open('junit');
+        expect(await send(handlers!, 'corePreviewClipboard', { text: result.document.text })).toMatchObject({ ok: true });
+        expect(vscode.env.clipboard.writeText).toHaveBeenCalledWith(source);
+    });
+    it('allows multi-byte OpenAPI operation JSON within the core character budget', async () => {
+        const text = JSON.stringify({ description: '한'.repeat(6 * 1024 * 1024) });
+        expect(text.length).toBeLessThan(10 * 1024 * 1024);
+        expect(Buffer.byteLength(text)).toBeGreaterThan(16 * 1024 * 1024);
+        const { handlers } = await open('openapi');
+        expect(await send(handlers!, 'corePreviewClipboard', { text })).toMatchObject({ ok: true });
+        expect(vscode.env.clipboard.writeText).toHaveBeenCalledWith(text);
     });
     it('exports JSON to a selected path, reports cancellation, and protects the source', async () => {
         const { handlers } = await open();
@@ -165,6 +186,35 @@ describe('Core preview host', () => {
         expect(savedTarget).toBe(target);
         expect(Buffer.from(savedBytes).equals(Buffer.from(output))).toBe(true);
     });
+    it.each(['eml', 'msg'] as const)('saves binary %s attachments with a safe suggested name and cancellation support', async kind => {
+        const { handlers } = await open(kind);
+        const target = vscode.Uri.file(path.join(tempDir, 'chosen.bin'));
+        jest.mocked(vscode.window.showSaveDialog).mockResolvedValueOnce(target);
+        const data = new Uint8Array([0, 128, 255, 42]);
+        expect(await send(handlers!, 'corePreviewAttachmentSave', { name: '../../binary.bin', data })).toMatchObject({ ok: true, result: { status: 'saved' } });
+        const suggested = jest.mocked(vscode.window.showSaveDialog).mock.calls[0][0]!.defaultUri!.fsPath;
+        expect(path.dirname(suggested)).toBe(tempDir);
+        expect(vscode.workspace.fs.writeFile).toHaveBeenCalledWith(target, data);
+        jest.mocked(vscode.window.showSaveDialog).mockResolvedValueOnce(undefined);
+        expect(await send(handlers!, 'corePreviewAttachmentSave', { name: 'binary.bin', data })).toMatchObject({ ok: true, result: { status: 'cancelled' } });
+    });
+    it('names the viewer whose attachment limit was exceeded', async () => {
+        const { handlers } = await open('msg');
+        const data = new Uint8Array(CORE_PREVIEW_VIEWERS.msg.maxBytes + 1);
+        expect(await send(handlers!, 'corePreviewAttachmentSave', { name: 'large.bin', data })).toMatchObject({ ok: false, error: 'Attachment exceeds the Outlook MSG viewer limit.' });
+        expect(vscode.window.showSaveDialog).not.toHaveBeenCalled();
+    });
+    it('rejects save requests from viewers without that capability', async () => {
+        const { handlers } = await open('junit');
+        expect(await send(handlers!, 'corePreviewSave', { content: '[]' })).toMatchObject({ ok: false });
+        expect(vscode.window.showSaveDialog).not.toHaveBeenCalled();
+    });
+    it('provides glTF assets through the request/response bridge', async () => {
+        fs.writeFileSync(path.join(tempDir, 'geometry.bin'), Buffer.from([0, 128, 255]));
+        const { handlers } = await open('mesh');
+        expect(await send(handlers!, 'corePreviewAsset', { url: 'geometry.bin' })).toMatchObject({ ok: true, result: { data: new Uint8Array([0, 128, 255]), mimeType: 'application/octet-stream' } });
+        expect(await send(handlers!, 'corePreviewAsset', { url: '../outside.bin' })).toMatchObject({ ok: true, result: null });
+    });
     it('bounds a file that grows during the read and closes its handle on failure', async () => {
         const close = jest.fn().mockResolvedValue(undefined);
         const read = jest.fn().mockImplementation(async (buffer: Buffer) => {
@@ -189,22 +239,23 @@ describe('Core preview host', () => {
 });
 
 describe('Core preview webview bridge', () => {
-    function start(arrow = false) {
+    function start(arrow = false, config: Record<string, unknown> = {}) {
         const events: Record<string, (event: { data?: unknown }) => void> = {};
         const root = { append: jest.fn(), shadowRoot: null };
         const postMessage = jest.fn();
         const dispose = jest.fn();
         const mount = jest.fn().mockResolvedValue({ dispose });
+        const url = { createObjectURL: jest.fn().mockReturnValue('blob:test-asset'), revokeObjectURL: jest.fn() };
         const source = fs.readFileSync(path.resolve(__dirname, '../templates/corePreview/js/corePreviewMain.js'), 'utf8')
             .replace(/^import .*;\n/, '').replace('export function', 'function');
         vm.runInNewContext(`${source}\nstartCorePreview(mount, arrow);`, {
-            mount, arrow, AbortController, Uint8Array, TextDecoder, console,
+            mount, arrow, AbortController, Uint8Array, TextDecoder, Blob, URL: url, console,
             createCatalogI18n: jest.fn(),
-            document: { getElementById: (id: string) => id === 'preview-root' ? root : { textContent: JSON.stringify({ fileName: 'sample.arrow', locale: 'ko', maxBytes: 256 }) },
+            document: { getElementById: (id: string) => id === 'preview-root' ? root : { textContent: JSON.stringify({ fileName: 'sample.arrow', locale: 'ko', maxBytes: 256, ...config }) },
                 createElement: () => ({ setAttribute: jest.fn() }) },
             window: { __omniVsCode__: { postMessage }, addEventListener: (name: string, fn: typeof events[string]) => { events[name] = fn; }, removeEventListener: jest.fn() }
         });
-        return { events, postMessage, mount, dispose };
+        return { events, postMessage, mount, dispose, url };
     }
     it('mounts once with an abort signal and disposes the core viewer on unload', async () => {
         const { events, postMessage, mount, dispose } = start();
@@ -234,5 +285,26 @@ describe('Core preview webview bridge', () => {
         const saveRequest = postMessage.mock.calls.at(-1)![0];
         events.message({ data: { type: 'corePreviewResponse', requestId: saveRequest.requestId, ok: true, result: { status: 'cancelled' } } });
         await expect(saved).resolves.toEqual({ status: 'cancelled' });
+    });
+    it('uses binary attachment messages and releases mesh object URLs', async () => {
+        const { events, postMessage, mount, url } = start(false, { save: 'attachment', clipboard: true, documentAssets: true });
+        events.message({ data: { type: 'corePreviewSource', data: new Uint8Array([1]) } });
+        await new Promise(resolve => setImmediate(resolve));
+        const ctx = mount.mock.calls[0][2];
+        const bytes = new Uint8Array([0, 255]);
+        const save = ctx.save.saveFile('binary.bin', bytes, 'application/octet-stream');
+        const savedRequest = postMessage.mock.calls.at(-1)![0];
+        expect(savedRequest).toMatchObject({ type: 'corePreviewAttachmentSave', name: 'binary.bin', data: bytes });
+        events.message({ data: { type: 'corePreviewResponse', requestId: savedRequest.requestId, ok: true, result: { status: 'saved' } } });
+        await save;
+        const resolving = ctx.documentAssets.resolve('mesh.bin');
+        const assetRequest = postMessage.mock.calls.at(-1)![0];
+        events.message({ data: { type: 'corePreviewResponse', requestId: assetRequest.requestId, ok: true, result: { data: bytes, mimeType: 'application/octet-stream' } } });
+        const asset = await resolving;
+        expect(asset.url).toBe('blob:test-asset');
+        events.unload({});
+        expect(url.revokeObjectURL).toHaveBeenCalledTimes(1);
+        asset.dispose();
+        expect(url.revokeObjectURL).toHaveBeenCalledTimes(1);
     });
 });

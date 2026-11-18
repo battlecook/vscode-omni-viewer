@@ -256,6 +256,44 @@ Note: external file references are not resolved, and BibTeX, cross-reference num
 
 Note: notebooks larger than 64 MiB are not previewed.
 
+## Text, DICOM, Test Reports, API Specs, Email, MCAP and 3D Models
+
+These viewers use `omni-viewer-core` 0.24.0 and follow the VS Code locale and theme. They support refresh and `Open With OmniViewer` explorer commands.
+
+| Viewer | Files | Features |
+| --- | --- | --- |
+| Text | `.txt` | Literal whitespace, soft wrapping, UTF-8 and BOM-aware UTF-16, encoding and truncation notices |
+| DICOM | `.dcm`, `.dicom`, Part 10 signatures | 8/16-bit native grayscale and 8-bit RGB/YBR_FULL, frames, windowing, inversion, zoom and searchable metadata |
+| JUnit XML | `.xml`, extensionless reports | Outcomes, failures/errors/skips, retries, filters, traces and captured output, suite summaries, source and failure-report copying |
+| OpenAPI / Swagger | JSON or YAML specifications | Swagger 2.0 and OpenAPI 3.0–3.2, operation/schema search, parameters, local references, requests/responses/examples, authentication and source |
+| Email | `.eml`, extensionless mail headers | Decoded headers, text/HTML bodies, CID images, MIME attachments, body copying and binary attachment saving |
+| MCAP | `.mcap`, MCAP v0 signatures | Topics/channels, schemas, message samples, metadata, attachment/chunk inspection, LZ4/ZSTD, exact timestamps and JSON copy |
+| 3D Model | `.glb`, `.gltf`, `.stl`, `.obj` | GLB/glTF 2.0, ASCII/binary STL and OBJ, orbit/pan/zoom, fit, wireframe, grid/axes, statistics and glTF animation |
+
+Text, JUnit and OpenAPI are optional editors, preserving VS Code's usual text editors. Choose **Text Viewer** from **Reopen Editor With…** to view `.txt` literally; the general Omni Viewer command can still detect existing Mermaid, PlantUML and JSONL content in text files. JUnit and OpenAPI reports are detected by their contents; other XML, JSON and YAML retain their existing viewers.
+
+Host input limits are 64 MiB for text/JUnit, 256 MiB for DICOM/MCAP, 10 MiB for OpenAPI, 32 MiB for email and 128 MiB for 3D models. Text renders an 8 MiB preview. DICOM compressed or unsupported image encodings show metadata with a preview limitation message. Email HTML is sandboxed and offline; attachments are saved only to a path chosen in VS Code's save dialog.
+
+3D rendering requires WebGL. Three.js ships with the extension. glTF buffers and images resolve only inside the model's folder, including symlinks, with limits of 64 MiB each, 256 MiB total and 1,024 resource requests per session. Remote resources and automatic codec downloads are blocked; models requiring optional Draco/KTX2/Meshopt decoders report their limitations.
+
+## SARIF, GPS Tracks, Traces, SBOMs, Outlook Mail, draw.io and OpenDocument
+
+These read-only previews use `omni-viewer-core` 0.24.0 and follow the VS Code locale and theme. They support refresh and `Open With OmniViewer` explorer commands.
+
+| Viewer | Files | Features |
+| --- | --- | --- |
+| SARIF | `.sarif`, `.sarif.json`, SARIF 2.1.0 JSON | Results by severity, rule, file and tool, with filters and source locations |
+| GPS Track | `.gpx`, `.kml`, `.kmz`, namespaced GPX/KML XML | Offline map of GPX/KML geometry, with GPX track distance, duration and elevation |
+| Chrome Trace | `.trace.json`, `.chrome-trace`, Trace Event JSON | Timeline of complete, begin/end and instant events, with search and zoom |
+| CycloneDX SBOM | `.cdx.json`, `.cyclonedx.json`, CycloneDX JSON | Components, licenses and direct dependencies, with filters |
+| Outlook MSG | `.msg` Compound Files | Headers, text and sandboxed HTML bodies, and attachment saving |
+| draw.io | `.drawio`, `.dio`, `<mxfile>` XML | Compressed or plain diagrams with pages, layers, basic shapes and connectors, zoom and fit |
+| OpenDocument | `.odt`, `.odp` | ODT text structure and basic ODP slide layout |
+
+SARIF, CycloneDX and Trace Event documents saved as `.json` or without an extension are recognized by their contents, as are namespaced GPX/KML and draw.io documents saved as `.xml`; other JSON and XML keep their existing viewers. A `.gpx` or `.kml` whose root the GPS map does not read, such as KML 2.3, or larger than the 16 MiB XML budget stays in the XML viewer. A `.msg` that is not an Outlook Compound File, such as a ROS message definition, keeps its previous routing and opens in the text viewer when requested as Outlook MSG. Extensionless KMZ, ODT/ODP and Outlook MSG files are recognized by their package members.
+
+OpenDocument is the default editor for `.odt` and `.odp`; the other previews are optional editors so text formats keep VS Code's text editor. Host input limits are 32 MiB for SARIF, GPS (KMZ), SBOM, Outlook MSG and OpenDocument, 16 MiB for draw.io and plain GPX/KML, and 64 MiB for traces. Larger JSON/XML documents stay with the generic viewers, and larger KMZ/ODT/ODP packages open in the Archive viewer. The GPS map draws geometry without basemap tiles and skips KML network links and overlays; draw.io approximates advanced styles with basic shapes. Outlook attachments are saved only to a path chosen in VS Code's save dialog, and embedded messages or RTF-only bodies show a diagnostic.
+
 ## Font Viewer Features
 
 - **Local Font Preview**: Open `.ttf`, `.otf`, and `.woff` with the shared core viewer; edit the sample text, change its size, and adjust variable-font axes
@@ -488,7 +526,7 @@ Note: books larger than 256 MiB open in the Archive viewer instead.
 - **Broken Archives Still Open**: A truncated export still shows the requests it did hold, with a warning, instead of failing outright
 - **Smart Routing**: `.har` files open in the HAR viewer, and a HAR saved as `.json` (or without an extension) is recognized by its `log.entries` structure, so "Open With OmniViewer" on such a `.json` opens the HAR viewer instead of the JSON tree; the raw text stays available in VS Code's text editor
 - **Parsed Off the UI Thread**: The archive is parsed in a worker, and only the request model — bodies cut to a preview — is sent into the webview. Because the parsed model is about as large as the archive, archives above 100 MB are not inspected — a `.har` that large still opens in the HAR viewer and reports the limit
-- **Credential-Aware Sharing**: HAR files usually carry cookies, authorization headers, and request bodies, so the Share button asks for confirmation before uploading one
+- **Credential-Aware Sharing**: Every file requires confirmation of encrypted server upload and a 5-minute share link. For HAR files, the same dialog also warns about cookies, authorization headers, and request bodies that may contain passwords or session tokens
 - **Powered by**: `omni-viewer-core` 0.19.0 for HAR parsing and rendering
 
 ## 🧭 Smart File Detection
